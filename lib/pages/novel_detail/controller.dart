@@ -7,9 +7,16 @@ import 'package:hikari_novel_flutter/models/chapter_cache_task.dart';
 import 'package:hikari_novel_flutter/models/common/wenku8_node.dart';
 import 'package:hikari_novel_flutter/models/novel_detail.dart';
 import 'package:hikari_novel_flutter/models/reader_direction.dart';
+import 'package:hikari_novel_flutter/models/source_config.dart';
+import 'package:hikari_novel_flutter/models/source_id.dart';
+import 'package:hikari_novel_flutter/network/esj_api.dart';
+import 'package:hikari_novel_flutter/network/esj_parser.dart';
 import 'package:hikari_novel_flutter/network/parser.dart';
+import 'package:hikari_novel_flutter/network/yamibo_api.dart';
+import 'package:hikari_novel_flutter/network/yamibo_parser.dart';
 import 'package:hikari_novel_flutter/pages/bookshelf/controller.dart';
 import 'package:hikari_novel_flutter/pages/cache_queue/controller.dart';
+import 'package:hikari_novel_flutter/router/app_sub_router.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -22,9 +29,20 @@ import '../../models/resource.dart';
 import '../../network/api.dart';
 import '../../service/db_service.dart';
 import '../../service/local_storage_service.dart';
+import '../../service/source_config_service.dart';
+import '../../service/source_favorite_adapter.dart';
 
-class NovelDetailController extends GetxController with GetSingleTickerProviderStateMixin {
+class NovelDetailController extends GetxController
+    with GetSingleTickerProviderStateMixin {
   final String aid;
+
+  bool get isYamibo => SourceId.isYamibo(aid);
+
+  bool get isEsj => SourceId.isEsj(aid);
+
+  String get yamiboTid => SourceId.yamiboTid(aid);
+
+  String get esjBookId => SourceId.esjBookId(aid);
 
   NovelDetailController({required this.aid});
 
@@ -35,10 +53,12 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
   RxSet<String> cachedChapter = RxSet();
 
   RxBool isInBookshelf = false.obs;
+  RxDouble localRating = 0.0.obs;
 
   RxBool isChapterOrderReversed = false.obs;
 
   RxBool isSelectionMode = false.obs;
+  String yamiboAuthorId = "";
 
   bool _isFabVisible = true;
   late final AnimationController _fabAnimationCtr;
@@ -52,8 +72,16 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
   @override
   void onInit() {
     super.onInit();
-    _fabAnimationCtr = AnimationController(vsync: this, duration: const Duration(milliseconds: 100))..forward();
-    animation = _fabAnimationCtr.drive(Tween<Offset>(begin: const Offset(0.0, 2.0), end: Offset.zero).chain(CurveTween(curve: Curves.easeInOut)));
+    _fabAnimationCtr = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    )..forward();
+    animation = _fabAnimationCtr.drive(
+      Tween<Offset>(
+        begin: const Offset(0.0, 2.0),
+        end: Offset.zero,
+      ).chain(CurveTween(curve: Curves.easeInOut)),
+    );
   }
 
   @override
@@ -92,7 +120,8 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
 
   //切换某个章节的选中状态（假设 chapter.isSelected 是 RxBool）
   void toggleChapterSelection(int volumeIndex, int chapterIndex) {
-    final chapter = novelDetail.value!.catalogue[volumeIndex].chapters[chapterIndex];
+    final chapter =
+        novelDetail.value!.catalogue[volumeIndex].chapters[chapterIndex];
     chapter.isSelected.toggle();
     _syncVolumeSelection(volumeIndex);
   }
@@ -183,30 +212,29 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
       return;
     }
 
+    final aidPart = SourceId.safeFilePart(aid);
     await for (var entity in dir.list()) {
       if (entity is File) {
         final fileName = entity.uri.pathSegments.last;
-
-        if (fileName.contains("_")) {
-          final prefix = fileName.split("_").first;
-          final last = fileName.split("_").last;
-
-          final number = int.tryParse(prefix);
-          if (number != null && number == int.parse(aid)) {
-            try {
-              await entity.delete();
-            } catch (e) {
-              null;
-            }
-          }
-          cachedChapter.remove(last);
+        if (!fileName.startsWith('${aidPart}_')) continue;
+        try {
+          await entity.delete();
+        } catch (e) {
+          continue;
         }
+        final cidPart = fileName.substring(aidPart.length + 1);
+        final cachedCidPart = cidPart.replaceFirst(RegExp(r'\.txt$'), '');
+        cachedChapter.removeWhere(
+          (cid) => SourceId.safeFilePart(cid) == cachedCidPart,
+        );
       }
     }
   }
 
   void checkIsChapterCached(String cid) async {
-    if (await File("${_supportDir.path}/cached_chapter/${aid}_$cid.txt").exists()) {
+    if (await File(
+      "${_supportDir.path}/cached_chapter/${SourceId.safeFilePart(aid)}_${SourceId.safeFilePart(cid)}.txt",
+    ).exists()) {
       cachedChapter.add(cid);
     } else {
       cachedChapter.remove(cid);
@@ -214,6 +242,16 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
   }
 
   Future<void> getNovelDetail() async {
+    if (isEsj) {
+      await _getEsjNovelDetail();
+      return;
+    }
+
+    if (isYamibo) {
+      await _getYamiboNovelDetail();
+      return;
+    }
+
     late NovelDetail data;
 
     final nd = await Api.getNovelDetail(aid: aid);
@@ -228,13 +266,27 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
               data.catalogue.addAll(Parser.getCatalogue(cat.data));
               novelDetail.value = data;
 
-              DBService.instance.upsertBrowsingHistory(BrowsingHistoryEntityData(aid: aid, title: data.title, img: data.imgUrl, time: DateTime.now()));
+              DBService.instance.upsertBrowsingHistory(
+                BrowsingHistoryEntityData(
+                  aid: aid,
+                  title: data.title,
+                  img: data.imgUrl,
+                  time: DateTime.now(),
+                ),
+              );
 
-              final bs = await DBService.instance.getAllBookshelf();
-              isInBookshelf.value = bs.any((e) => e.aid == aid);
+              await _syncLocalBookshelfState();
+              if (isInBookshelf.value) {
+                await DBService.instance.clearBookshelfUpdate(aid);
+              }
 
               pageState.value = PageState.success;
-              await DBService.instance.upsertNovelDetail(NovelDetailEntityData(aid: aid, json: novelDetail.value!.toString())); //缓存小说详情
+              await DBService.instance.upsertNovelDetail(
+                NovelDetailEntityData(
+                  aid: aid,
+                  json: novelDetail.value!.toString(),
+                ),
+              ); //缓存小说详情
             }
           case Error():
             {
@@ -254,22 +306,242 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
     }
   }
 
+  Future<void> _getYamiboNovelDetail() async {
+    final firstPage = await YamiboApi.getThreadPage(tid: yamiboTid);
+    switch (firstPage) {
+      case Success():
+        {
+          final firstPageData = YamiboParser.getThreadDetail(firstPage.data);
+          final authorPage = await YamiboApi.getThreadPage(
+            tid: yamiboTid,
+            authorId: firstPageData.authorId,
+          );
+          final data = switch (authorPage) {
+            Success() => YamiboParser.getThreadDetail(authorPage.data),
+            Error() => firstPageData,
+          };
+          yamiboAuthorId = data.authorId;
+          novelDetail.value = data.detail;
+          await DBService.instance.upsertBrowsingHistory(
+            BrowsingHistoryEntityData(
+              aid: aid,
+              title: data.detail.title,
+              img: data.detail.imgUrl,
+              time: DateTime.now(),
+            ),
+          );
+          await _syncLocalBookshelfState();
+          if (isInBookshelf.value) {
+            await DBService.instance.clearBookshelfUpdate(aid);
+          }
+          pageState.value = PageState.success;
+          await DBService.instance.upsertNovelDetail(
+            NovelDetailEntityData(
+              aid: aid,
+              json: novelDetail.value!.toString(),
+            ),
+          );
+        }
+      case Error():
+        {
+          errorMsg = firstPage.error.toString();
+          if (await _getNovelDetailByLocal()) return;
+          pageState.value = PageState.error;
+        }
+    }
+  }
+
+  Future<void> _getEsjNovelDetail() async {
+    final result = await EsjApi.getNovelDetail(id: esjBookId);
+    switch (result) {
+      case Success():
+        {
+          final data = EsjParser.getNovelDetail(result.data, aid);
+          novelDetail.value = data;
+          await DBService.instance.upsertBrowsingHistory(
+            BrowsingHistoryEntityData(
+              aid: aid,
+              title: data.title,
+              img: data.imgUrl,
+              time: DateTime.now(),
+            ),
+          );
+          await _syncLocalBookshelfState();
+          if (isInBookshelf.value) {
+            await DBService.instance.clearBookshelfUpdate(aid);
+          }
+          pageState.value = PageState.success;
+          await DBService.instance.upsertNovelDetail(
+            NovelDetailEntityData(
+              aid: aid,
+              json: novelDetail.value!.toString(),
+            ),
+          );
+        }
+      case Error():
+        {
+          if (await _getNovelDetailByLocal()) return;
+          errorMsg = result.error.toString();
+          pageState.value = PageState.error;
+        }
+    }
+  }
+
   Future<bool> _getNovelDetailByLocal() async {
     final local = (await DBService.instance.getNovelDetail(aid))?.json;
 
     if (local == null) {
       return false;
     } else {
-      novelDetail.value = NovelDetail.fromString(local);
+      final data = NovelDetail.fromString(local);
+      novelDetail.value = data;
+      await DBService.instance.upsertBrowsingHistory(
+        BrowsingHistoryEntityData(
+          aid: aid,
+          title: data.title,
+          img: data.imgUrl,
+          time: DateTime.now(),
+        ),
+      );
+      await _syncLocalBookshelfState();
+      if (isInBookshelf.value) {
+        await DBService.instance.clearBookshelfUpdate(aid);
+      }
       pageState.value = PageState.success;
       return true;
     }
   }
 
   bool _isAdding = false; //防抖
+  Future<void> _syncLocalBookshelfState() async {
+    final bs = await DBService.instance.getAllBookshelf();
+    BookshelfEntityData? item;
+    for (final e in bs) {
+      if (e.aid == aid) {
+        item = e;
+        break;
+      }
+    }
+    isInBookshelf.value = item != null;
+    localRating.value = item?.rating ?? 0;
+  }
+
+  Future<void> setLocalRating(double rating) async {
+    if (!isInBookshelf.value) {
+      showSnackBar(
+        message: 'rating_requires_bookshelf'.tr,
+        context: Get.context!,
+      );
+      return;
+    }
+    final value = ((rating.clamp(0, 5) * 2).round() / 2).toDouble();
+    localRating.value = value;
+    await DBService.instance.setBookshelfRating(aid, value);
+    bookshelfController.loadFolders();
+  }
+
   void addToBookshelf() async {
     if (_isAdding) return;
     _isAdding = true;
+    final targetClassId = await _selectBookshelfTarget();
+    if (targetClassId == null) {
+      _isAdding = false;
+      return;
+    }
+    if (isEsj) {
+      final detail = novelDetail.value;
+      if (detail != null) {
+        if (SourceFavoriteAdapter.shouldPushRemote(NovelSource.esj)) {
+          final pushed = await SourceFavoriteAdapter.addRemoteFavorite(
+            source: NovelSource.esj,
+            aid: aid,
+          );
+          if (!pushed) {
+            showErrorDialog('update_failed'.tr, [
+              TextButton(onPressed: Get.back, child: Text("confirm".tr)),
+            ]);
+            _isAdding = false;
+            return;
+          }
+        }
+        await DBService.instance.upsertBookshelf(
+          BookshelfEntityData(
+            aid: aid,
+            bid: aid,
+            url: EsjApi.detailUrl(esjBookId),
+            title: detail.title,
+            img: detail.imgUrl,
+            classId: targetClassId,
+            updateKey: '',
+            updateTime: null,
+            hasUpdate: false,
+            rating: localRating.value,
+          ),
+        );
+        SourceConfigService.instance.restoreLocalFavorite(NovelSource.esj, aid);
+        isInBookshelf.value = true;
+        bookshelfController.loadFolders();
+      }
+      _isAdding = false;
+      return;
+    }
+    if (isYamibo) {
+      final detail = novelDetail.value;
+      if (detail != null) {
+        await DBService.instance.upsertBookshelf(
+          BookshelfEntityData(
+            aid: aid,
+            bid: aid,
+            url: YamiboApi.threadUrl(yamiboTid),
+            title: detail.title,
+            img: detail.imgUrl,
+            classId: targetClassId,
+            updateKey: '',
+            updateTime: null,
+            hasUpdate: false,
+            rating: localRating.value,
+          ),
+        );
+        SourceConfigService.instance.restoreLocalFavorite(
+          NovelSource.yamibo,
+          aid,
+        );
+        isInBookshelf.value = true;
+        bookshelfController.loadFolders();
+      }
+      _isAdding = false;
+      return;
+    }
+    if (!SourceConfigService.instance.shouldPushLocalToRemote(
+      NovelSource.wenku8,
+    )) {
+      final detail = novelDetail.value;
+      if (detail != null) {
+        await DBService.instance.upsertBookshelf(
+          BookshelfEntityData(
+            aid: aid,
+            bid: aid,
+            url:
+                '${Api.wenku8Node.node}/modules/article/articleinfo.php?id=$aid',
+            title: detail.title,
+            img: detail.imgUrl,
+            classId: targetClassId,
+            updateKey: '',
+            updateTime: null,
+            hasUpdate: false,
+            rating: localRating.value,
+          ),
+        );
+        SourceConfigService.instance.restoreLocalFavorite(
+          NovelSource.wenku8,
+          aid,
+        );
+        isInBookshelf.value = true;
+        bookshelfController.loadFolders();
+      }
+      _isAdding = false;
+      return;
+    }
     final result = await Api.addNovel(aid: aid);
     switch (result) {
       case Success():
@@ -280,44 +552,166 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
                 icon: const Icon(Icons.warning_amber_outlined),
                 title: Text("warning".tr),
                 content: Text("add_to_bookshelf_failed_tip".tr),
-                actions: [TextButton(onPressed: Get.back, child: Text("confirm".tr))],
+                actions: [
+                  TextButton(onPressed: Get.back, child: Text("confirm".tr)),
+                ],
               ),
             );
             isInBookshelf.value = false;
           } else {
             await bookshelfController.refreshDefaultBookshelf();
+            await _moveWenku8RemoteFavoriteToConfiguredTarget();
+            if (targetClassId != BookshelfController.defaultClassId) {
+              await bookshelfController.moveBooksToFolder([aid], targetClassId);
+            }
+            SourceConfigService.instance.restoreLocalFavorite(
+              NovelSource.wenku8,
+              aid,
+            );
             isInBookshelf.value = true;
           }
         }
       case Error():
         {
-          showErrorDialog(result.error.toString(), [TextButton(onPressed: Get.back, child: Text("confirm".tr))]);
+          showErrorDialog(result.error.toString(), [
+            TextButton(onPressed: Get.back, child: Text("confirm".tr)),
+          ]);
         }
     }
     _isAdding = false;
+  }
+
+  Future<void> _moveWenku8RemoteFavoriteToConfiguredTarget() async {
+    final target = int.tryParse(
+      SourceConfigService.instance
+          .configOf(NovelSource.wenku8)
+          .targetRemoteFolderId,
+    );
+    if (target == null || target <= 0) return;
+    BookshelfEntityData? item;
+    for (final candidate in await DBService.instance.getAllBookshelf()) {
+      if (candidate.aid == aid) {
+        item = candidate;
+        break;
+      }
+    }
+    if (item == null || item.bid.isEmpty) return;
+    await Api.moveNovelToOther(
+      list: [item.bid],
+      classId: 0,
+      newClassId: target,
+    );
+  }
+
+  Future<String?> _selectBookshelfTarget() async {
+    await bookshelfController.loadFolders();
+    final targets = bookshelfController.getLocalBookshelfTargetFolders();
+    return Get.dialog<String>(
+      AlertDialog(
+        title: Text('select_bookshelf_target'.tr),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: targets.length,
+            itemBuilder: (context, index) {
+              final folder = targets[index];
+              return ListTile(
+                title: Text(bookshelfController.folderDisplayName(folder)),
+                onTap: () => Get.back(result: folder.id),
+              );
+            },
+          ),
+        ),
+        actions: [TextButton(onPressed: Get.back, child: Text('cancel'.tr))],
+      ),
+    );
   }
 
   bool _isRemoving = false; //防抖
   void removeFromBookshelf() async {
     if (_isRemoving) return;
     _isRemoving = true;
+    if (isEsj) {
+      if (SourceFavoriteAdapter.shouldRemoveRemote(NovelSource.esj)) {
+        final removed = await SourceFavoriteAdapter.removeRemoteFavorite(
+          source: NovelSource.esj,
+          remoteId: aid,
+        );
+        if (!removed) {
+          showErrorDialog('update_failed'.tr, [
+            TextButton(onPressed: Get.back, child: Text("confirm".tr)),
+          ]);
+          _isRemoving = false;
+          return;
+        }
+      } else {
+        SourceConfigService.instance.hideLocalFavorite(NovelSource.esj, aid);
+      }
+      await DBService.instance.deleteBookshelfByAid(aid);
+      isInBookshelf.value = false;
+      localRating.value = 0;
+      bookshelfController.loadFolders();
+      _isRemoving = false;
+      return;
+    }
+    if (isYamibo) {
+      await DBService.instance.deleteBookshelfByAid(aid);
+      SourceConfigService.instance.hideLocalFavorite(NovelSource.yamibo, aid);
+      isInBookshelf.value = false;
+      localRating.value = 0;
+      bookshelfController.loadFolders();
+      _isRemoving = false;
+      return;
+    }
     final bs = await DBService.instance.getAllBookshelf();
-    final delId = bs.firstWhere((i) => i.aid == aid).bid;
+    BookshelfEntityData? localItem;
+    for (final item in bs) {
+      if (item.aid == aid) {
+        localItem = item;
+        break;
+      }
+    }
+    if (localItem == null) {
+      isInBookshelf.value = false;
+      localRating.value = 0;
+      _isRemoving = false;
+      return;
+    }
+    final delId = localItem.bid;
+    if (!SourceFavoriteAdapter.shouldRemoveRemote(NovelSource.wenku8)) {
+      await DBService.instance.deleteBookshelfByAid(aid);
+      SourceConfigService.instance.hideLocalFavorite(NovelSource.wenku8, aid);
+      isInBookshelf.value = false;
+      localRating.value = 0;
+      bookshelfController.loadFolders();
+      _isRemoving = false;
+      return;
+    }
     final result = await Api.removeNovel(delid: delId);
     switch (result) {
       case Success():
         {
+          await DBService.instance.deleteBookshelfByAid(aid);
           isInBookshelf.value = false;
+          localRating.value = 0;
+          bookshelfController.loadFolders();
         }
       case Error():
         {
-          showErrorDialog(result.error.toString(), [TextButton(onPressed: Get.back, child: Text("confirm".tr))]);
+          showErrorDialog(result.error.toString(), [
+            TextButton(onPressed: Get.back, child: Text("confirm".tr)),
+          ]);
         }
     }
     _isRemoving = false;
   }
 
   void recommendThisNovel() async {
+    if (isYamibo || isEsj) {
+      await openWithBrowser();
+      return;
+    }
     final result = await Api.novelVote(aid: aid);
     final string = switch (result) {
       Success() => Parser.novelVote(result.data),
@@ -327,8 +721,20 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
   }
 
   Future<void> openWithBrowser() async {
-    if (!await launchUrl(Uri.parse("${Api.wenku8Node.node}/book/$aid.htm"))) {
-      showSnackBar(message: "unable_to_open_external_browser".tr, context: Get.context!);
+    if (isEsj) {
+      AppSubRouter.toEsjzone(url: EsjApi.detailUrl(esjBookId));
+      return;
+    }
+    final url = isEsj
+        ? EsjApi.detailUrl(esjBookId)
+        : isYamibo
+        ? YamiboApi.threadUrl(yamiboTid)
+        : "${Api.wenku8Node.node}/book/$aid.htm";
+    if (!await launchUrl(Uri.parse(url))) {
+      showSnackBar(
+        message: "unable_to_open_external_browser".tr,
+        context: Get.context!,
+      );
     }
   }
 
@@ -337,12 +743,14 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
     if (data == null) {
       return false;
     } else {
-      bool isDualPage = switch (LocalStorageService.instance.getReaderDualPageMode()) {
+      bool isDualPage = switch (LocalStorageService.instance
+          .getReaderDualPageMode()) {
         DualPageMode.auto => Get.context!.shouldAutoUseDualPage(),
         DualPageMode.enabled => true,
         DualPageMode.disabled => false,
       };
-      bool isSameReaderMode = switch (LocalStorageService.instance.getReaderDirection()) {
+      bool isSameReaderMode = switch (LocalStorageService.instance
+          .getReaderDirection()) {
         ReaderDirection.leftToRight => data.readerMode == kPageReadMode,
         ReaderDirection.rightToLeft => data.readerMode == kPageReadMode,
         ReaderDirection.upToDown => data.readerMode == kScrollReadMode,
@@ -356,7 +764,8 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
       return "unread".tr;
     }
 
-    bool isDualPage = switch (LocalStorageService.instance.getReaderDualPageMode()) {
+    bool isDualPage = switch (LocalStorageService.instance
+        .getReaderDualPageMode()) {
       DualPageMode.auto => Get.context!.shouldAutoUseDualPage(),
       DualPageMode.enabled => true,
       DualPageMode.disabled => false,
@@ -364,15 +773,21 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
 
     final currDirection = LocalStorageService.instance.getReaderDirection();
     if (result.isDualPage == isDualPage) {
-      if ((result.readerMode == kScrollReadMode && currDirection == ReaderDirection.upToDown) ||
-          (result.readerMode == kPageReadMode && (currDirection == ReaderDirection.leftToRight || currDirection == ReaderDirection.rightToLeft))) {
+      if ((result.readerMode == kScrollReadMode &&
+              currDirection == ReaderDirection.upToDown) ||
+          (result.readerMode == kPageReadMode &&
+              (currDirection == ReaderDirection.leftToRight ||
+                  currDirection == ReaderDirection.rightToLeft))) {
         return "${result.progress}%";
       }
     }
     return "unable_to_use_read_history_tip".tr;
   }
 
-  String getReadHistoryProgressByVolume(List<ReadHistoryEntityData> list, int totalNum) {
+  String getReadHistoryProgressByVolume(
+    List<ReadHistoryEntityData> list,
+    int totalNum,
+  ) {
     int readCompletedNum = 0;
     int readPartiallyNum = 0;
 
@@ -380,7 +795,8 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
       return "unread".tr;
     }
 
-    bool isDualPage = switch (LocalStorageService.instance.getReaderDualPageMode()) {
+    bool isDualPage = switch (LocalStorageService.instance
+        .getReaderDualPageMode()) {
       DualPageMode.auto => Get.context!.shouldAutoUseDualPage(),
       DualPageMode.enabled => true,
       DualPageMode.disabled => false,
@@ -388,8 +804,11 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
     final currDirection = LocalStorageService.instance.getReaderDirection();
     for (ReadHistoryEntityData d in list) {
       if (d.isDualPage == isDualPage) {
-        if ((d.readerMode == kScrollReadMode && currDirection == ReaderDirection.upToDown) ||
-            (d.readerMode == kPageReadMode && (currDirection == ReaderDirection.leftToRight || currDirection == ReaderDirection.rightToLeft))) {
+        if ((d.readerMode == kScrollReadMode &&
+                currDirection == ReaderDirection.upToDown) ||
+            (d.readerMode == kPageReadMode &&
+                (currDirection == ReaderDirection.leftToRight ||
+                    currDirection == ReaderDirection.rightToLeft))) {
           if (d.progress == 100) {
             readCompletedNum++;
           } else {
@@ -401,36 +820,54 @@ class NovelDetailController extends GetxController with GetSingleTickerProviderS
 
     if (readCompletedNum == totalNum) {
       return "all_reading_completed".tr;
-    } else if (readPartiallyNum > 0 || (readCompletedNum > 0 && readCompletedNum < totalNum)) {
+    } else if (readPartiallyNum > 0 ||
+        (readCompletedNum > 0 && readCompletedNum < totalNum)) {
       return "partially_read".tr;
     } else {
       return "unread".tr;
     }
   }
 
-  void deleteAllReadHistory() async => DBService.instance.deleteAllReadHistory();
+  void deleteAllReadHistory() async =>
+      DBService.instance.deleteAllReadHistory();
 
   Future<void> markAsUnRead() async {
     for (var chapter in getSelectedChapters()) {
-      await DBService.instance.deleteReadHistoryByCid(chapter.cid);
+      await DBService.instance.deleteReadHistoryByCid(aid, chapter.cid);
     }
   }
 
   Future<void> markAsRead() async {
     // 1为滚动模式，2为翻页模式，翻页模式的左右方向不影响阅读记录的使用
-    final readerMode = LocalStorageService.instance.getReaderDirection() == ReaderDirection.upToDown ? kScrollReadMode : kPageReadMode;
-    bool isDualPage = switch (LocalStorageService.instance.getReaderDualPageMode()) {
+    final readerMode =
+        LocalStorageService.instance.getReaderDirection() ==
+            ReaderDirection.upToDown
+        ? kScrollReadMode
+        : kPageReadMode;
+    bool isDualPage = switch (LocalStorageService.instance
+        .getReaderDualPageMode()) {
       DualPageMode.auto => Get.context!.shouldAutoUseDualPage(),
       DualPageMode.enabled => true,
       DualPageMode.disabled => false,
     };
 
     for (var chapter in getSelectedChapters()) {
-      final data = await DBService.instance.getReadHistoryByCid(chapter.cid);
+      final data = await DBService.instance.getReadHistoryByCid(
+        aid,
+        chapter.cid,
+      );
 
       if (data == null) {
         DBService.instance.upsertReadHistoryDirectly(
-          ReadHistoryEntityData(cid: chapter.cid, aid: aid, readerMode: readerMode, isDualPage: isDualPage, location: 0, progress: 100, isLatest: false),
+          ReadHistoryEntityData(
+            cid: chapter.cid,
+            aid: aid,
+            readerMode: readerMode,
+            isDualPage: isDualPage,
+            location: 0,
+            progress: 100,
+            isLatest: false,
+          ),
         );
       } else {
         DBService.instance.upsertReadHistoryDirectly(

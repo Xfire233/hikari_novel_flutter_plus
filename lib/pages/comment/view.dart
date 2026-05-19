@@ -20,7 +20,7 @@ class CommentPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("comment".tr), titleSpacing: 0),
+      appBar: AppBar(title: Text("comment".tr), titleSpacing: 16),
       body: Stack(
         children: [
           Obx(
@@ -48,11 +48,19 @@ class CommentPage extends StatelessWidget {
               ),
             ),
           ),
-          Obx(() => Offstage(offstage: controller.pageState.value != PageState.loading, child: LoadingPage())),
+          Obx(
+            () => Offstage(
+              offstage: controller.pageState.value != PageState.loading,
+              child: LoadingPage(),
+            ),
+          ),
           Obx(
             () => Offstage(
               offstage: controller.pageState.value != PageState.error,
-              child: ErrorMessage(msg: controller.errorMsg, action: () => controller.getPage(false)),
+              child: ErrorMessage(
+                msg: controller.errorMsg,
+                action: () => controller.getPage(false),
+              ),
             ),
           ),
         ],
@@ -73,12 +81,18 @@ class CommentPage extends StatelessWidget {
                       children: [
                         TextField(
                           controller: controller.commentTitleController,
-                          decoration: InputDecoration(labelText: "theme".tr, border: OutlineInputBorder()),
+                          decoration: InputDecoration(
+                            labelText: "theme".tr,
+                            border: OutlineInputBorder(),
+                          ),
                         ),
                         SizedBox(height: 10),
                         TextField(
                           controller: controller.commentContentController,
-                          decoration: InputDecoration(labelText: "content".tr, border: OutlineInputBorder()),
+                          decoration: InputDecoration(
+                            labelText: "content".tr,
+                            border: OutlineInputBorder(),
+                          ),
                           maxLines: 5,
                           keyboardType: TextInputType.multiline,
                         ),
@@ -88,7 +102,10 @@ class CommentPage extends StatelessWidget {
                       TextButton(onPressed: Get.back, child: Text("cancel".tr)),
                       TextButton(
                         onPressed: () async {
-                          showSnackBar(message: await controller.sendComment(), context: Get.context!);
+                          showSnackBar(
+                            message: await controller.sendComment(),
+                            context: Get.context!,
+                          );
                           Get.back();
                         },
                         child: Text("send".tr),

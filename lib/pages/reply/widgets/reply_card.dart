@@ -14,7 +14,8 @@ class ReplyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onLongPress: () => CommonWidgets.showCommentOrReplyBottomSheet(context, item.content),
+      onLongPress: () =>
+          CommonWidgets.showCommentOrReplyBottomSheet(context, item.content),
       child: Column(
         children: [
           Padding(
@@ -26,23 +27,42 @@ class ReplyCard extends StatelessWidget {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: GestureDetector(
-                        onTap: () => AppSubRouter.toUserBookshelf(uid: item.uid),
-                        child: Text(item.userName, style: kCommentAndReplyUsernameTextStyle),
+                        onTap: () =>
+                            AppSubRouter.toUserBookshelf(uid: item.uid),
+                        child: Text(
+                          item.userName,
+                          style: kCommentAndReplyUsernameTextStyle,
+                        ),
                       ),
                     ),
                     const Expanded(child: SizedBox()),
-                    Text("${number + 1}#", style: TextStyle(fontSize: 15, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    Text(
+                      "${number + 1}#",
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 18),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(item.content, style: const TextStyle(fontSize: 15)),
+                  child: Text(
+                    item.content,
+                    style: const TextStyle(fontSize: 15),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(item.time, style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  child: Text(
+                    item.time,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ),
               ],
             ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:battery_plus/battery_plus.dart';
@@ -11,7 +12,12 @@ import 'package:hikari_novel_flutter/common/extension.dart';
 import 'package:hikari_novel_flutter/models/dual_page_mode.dart';
 import 'package:hikari_novel_flutter/models/reader_direction.dart';
 import 'package:hikari_novel_flutter/models/resource.dart';
+import 'package:hikari_novel_flutter/models/source_id.dart';
+import 'package:hikari_novel_flutter/network/esj_api.dart';
+import 'package:hikari_novel_flutter/network/esj_parser.dart';
 import 'package:hikari_novel_flutter/network/parser.dart';
+import 'package:hikari_novel_flutter/network/yamibo_api.dart';
+import 'package:hikari_novel_flutter/network/yamibo_parser.dart';
 import 'package:hikari_novel_flutter/pages/novel_detail/controller.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
@@ -22,11 +28,15 @@ import 'package:hikari_novel_flutter/service/tts_service.dart';
 import '../../common/database/database.dart';
 import '../../common/log.dart';
 import '../../models/cat_volume.dart';
+import '../../models/content.dart';
 import '../../models/page_state.dart';
 import '../../network/api.dart';
 import '../../service/db_service.dart';
 import '../../service/local_storage_service.dart';
+import '../../service/volume_key_service.dart';
 import 'widgets/paper_curl_pager.dart';
+
+typedef VerticalPageTurner = bool Function(bool forward);
 
 class ReaderController extends GetxController {
   final _novelDetailController = Get.find<NovelDetailController>();
@@ -36,7 +46,16 @@ class ReaderController extends GetxController {
   late int currentVolumeIndex;
   late int currentChapterIndex;
 
-  String get cid => catalogue[currentVolumeIndex].chapters[currentChapterIndex].cid;
+  String get cid =>
+      catalogue[currentVolumeIndex].chapters[currentChapterIndex].cid;
+
+  bool get isYamibo => SourceId.isYamibo(aid);
+
+  bool get isEsj => SourceId.isEsj(aid);
+
+  String get yamiboTid => SourceId.yamiboTid(aid);
+
+  String get esjBookId => SourceId.esjBookId(aid);
 
   int get currentChapterTotal => catalogue[currentVolumeIndex].chapters.length;
 
@@ -44,6 +63,11 @@ class ReaderController extends GetxController {
 
   final pageController = PageController();
   final paperCurlController = PaperCurlPagerController();
+
+  StreamSubscription<String>? _volumeKeySubscription;
+  DateTime? _lastVolumeKeyAt;
+  DateTime? _lastDesktopPageTurnAt;
+  VerticalPageTurner? verticalPageTurner;
 
   final _battery = Battery();
   RxInt batteryLevel = 0.obs;
@@ -78,6 +102,7 @@ class ReaderController extends GetxController {
 
   ///竖向模式下，显示当前阅读进度的百分比
   RxInt verticalProgress = 0.obs;
+  int? modeSwitchInitialProgress;
 
   ///文本内容
   RxString text = "".obs;
@@ -95,6 +120,24 @@ class ReaderController extends GetxController {
   String? textFamilyName;
 
   Rxn<String> currentBgImagePath = Rxn();
+
+  bool get usePageTurningAnimation =>
+      readerSettingsState.value.pageTurningAnimation &&
+      !readerSettingsState.value.eInkMode;
+
+  Color effectiveTextColor(BuildContext context) {
+    if (readerSettingsState.value.eInkMode) {
+      return currentTextColor.value ?? Colors.black;
+    }
+    return currentTextColor.value ?? Theme.of(context).colorScheme.onSurface;
+  }
+
+  Color effectiveBgColor(BuildContext context) {
+    if (readerSettingsState.value.eInkMode) {
+      return currentBgColor.value ?? Colors.white;
+    }
+    return currentBgColor.value ?? Theme.of(context).colorScheme.surface;
+  }
 
   @override
   void onInit() async {
@@ -119,14 +162,23 @@ class ReaderController extends GetxController {
     //延迟更新阅读记录
     //debounce / ever / interval 只能在 Controller 生命周期里创建一次
     //TODO 还需要优化
-    debounce(currentLocation, (_) => setReadHistory(), time: const Duration(milliseconds: 150));
-    debounce(currentIndex, (_) => setReadHistory(), time: const Duration(milliseconds: 150));
+    debounce(
+      currentLocation,
+      (_) => setReadHistory(),
+      time: const Duration(milliseconds: 150),
+    );
+    debounce(
+      currentIndex,
+      (_) => setReadHistory(),
+      time: const Duration(milliseconds: 150),
+    );
   }
 
   @override
   void onReady() async {
     super.onReady();
     if (readerSettingsState.value.wakeLock) WakelockPlus.toggle(enable: true);
+    if (readerSettingsState.value.volumeKeyTurning) _startVolumeKeyListener();
     _applyReaderSystemUi(readerSettingsState.value.immersionMode);
 
     /*
@@ -134,14 +186,25 @@ class ReaderController extends GetxController {
         而我们想要currentVolumeIndex和currentChapterIndex的时候，需要根据cid，在catalogue中获取其对应的VolumeIndex和ChapterIndex。
      2) 因为getContent()函数依赖cid，所以我把初始化cid的过程放到了onReady而不是onInit中。
      */
-    final listOnlyWithCid = catalogue.map((cat) => cat.chapters.map((chap) => chap.cid).toList()).toList(); //仅提取含有cid的list
+    final listOnlyWithCid = catalogue
+        .map((cat) => cat.chapters.map((chap) => chap.cid).toList())
+        .toList(); //仅提取含有cid的list
     final targetCid = Get.parameters["cid"]!;
-    final indexPosition = (await compute(_findIndexPositionInCatalogue, {'catalogue': listOnlyWithCid, 'cid': targetCid}))!;
+    final indexPosition = await compute(_findIndexPositionInCatalogue, {
+      'catalogue': listOnlyWithCid,
+      'cid': targetCid,
+    });
+    if (indexPosition == null) {
+      errorMsg = "Chapter $targetCid not found";
+      pageState.value = PageState.error;
+      return;
+    }
 
     currentVolumeIndex = indexPosition[0];
     currentChapterIndex = indexPosition[1];
 
-    chapterTitle.value = catalogue[currentVolumeIndex].chapters[currentChapterIndex].title;
+    chapterTitle.value =
+        catalogue[currentVolumeIndex].chapters[currentChapterIndex].title;
 
     await getContent();
   }
@@ -149,6 +212,8 @@ class ReaderController extends GetxController {
   @override
   void onClose() {
     TtsService.instance.stop();
+    verticalPageTurner = null;
+    _stopVolumeKeyListener();
     if (readerSettingsState.value.wakeLock) WakelockPlus.toggle(enable: false);
     _applyReaderSystemUi(false);
     super.onClose();
@@ -182,33 +247,68 @@ class ReaderController extends GetxController {
   void clearInitLocation() {
     initialHorizontalIndex = 0;
     initialVerticalOffset = 0;
+    modeSwitchInitialProgress = null;
   }
 
-  Stream<DateTime> clockStream() => Stream.periodic(const Duration(seconds: 1), (_) => DateTime.now());
+  int currentReadingProgress() {
+    if (readerSettingsState.value.direction == ReaderDirection.upToDown) {
+      return verticalProgress.value.clamp(0, 100);
+    }
+    if (maxPage.value > 0) {
+      return (((currentIndex.value + 1) / maxPage.value) * 100).round().clamp(
+        0,
+        100,
+      );
+    }
+    return horizontalProgress.value.clamp(0, 100);
+  }
+
+  Stream<DateTime> clockStream() =>
+      Stream.periodic(const Duration(seconds: 1), (_) => DateTime.now());
 
   Future<void> getContent() async {
     pageState.value = PageState.loading;
 
     chapterTitle.value = "";
     final chapter = await _getChapterContentFromLocal();
-    chapter == null ? _getContentByNetwork() : _getContentByLocal(chapter);
+    if (chapter == null) {
+      await _getContentByNetwork();
+    } else {
+      await _getContentByLocal(chapter);
+    }
   }
 
   Future<String?> _getChapterContentFromLocal() async {
     final dir = await getApplicationSupportDirectory();
-    final file = File("${dir.path}/cached_chapter/${aid}_$cid.txt");
+    final file = File(
+      "${dir.path}/cached_chapter/${SourceId.safeFilePart(aid)}_${SourceId.safeFilePart(cid)}.txt",
+    );
     if (!await file.exists()) return null;
     return await file.readAsString();
   }
 
   Future<void> _getContentByNetwork() async {
+    if (isEsj) {
+      await _getEsjContentByNetwork();
+      return;
+    }
+
+    if (isYamibo) {
+      await _getYamiboContentByNetwork();
+      return;
+    }
+
     final result = await Api.getNovelContent(aid: aid, cid: cid);
     switch (result) {
       case Success():
         {
-          final content = await compute(Parser.getContent, result.data as String);
+          final content = await compute(
+            Parser.getContent,
+            result.data as String,
+          );
           images.value = content.images;
-          chapterTitle.value = catalogue[currentVolumeIndex].chapters[currentChapterIndex].title;
+          chapterTitle.value =
+              catalogue[currentVolumeIndex].chapters[currentChapterIndex].title;
           text.value = content.text;
 
           pageState.value = PageState.success;
@@ -221,10 +321,81 @@ class ReaderController extends GetxController {
     }
   }
 
+  Future<void> _getYamiboContentByNetwork() async {
+    String? authorId;
+    final first = await YamiboApi.getThreadPage(tid: yamiboTid);
+    if (first case Success()) {
+      authorId = YamiboParser.getThreadDetail(first.data).authorId;
+    }
+
+    final result = await YamiboApi.getThreadPage(
+      tid: yamiboTid,
+      page: SourceId.yamiboPage(cid),
+      authorId: authorId,
+    );
+    switch (result) {
+      case Success():
+        {
+          final requestedPage = SourceId.yamiboPage(cid);
+          final actualPage = YamiboParser.getCurrentPage(result.data);
+          if (actualPage != null && actualPage != requestedPage) {
+            errorMsg = "Yamibo page $requestedPage is out of range";
+            pageState.value = PageState.error;
+            return;
+          }
+          final content = await compute(_parseYamiboContent, {
+            'html': result.data as String,
+            'authorId': authorId,
+          });
+          images.value = content.images;
+          chapterTitle.value =
+              catalogue[currentVolumeIndex].chapters[currentChapterIndex].title;
+          text.value = content.text;
+          pageState.value = PageState.success;
+        }
+      case Error():
+        {
+          errorMsg = result.error.toString();
+          pageState.value = PageState.error;
+        }
+    }
+  }
+
+  Future<void> _getEsjContentByNetwork() async {
+    final result = await EsjApi.getChapter(
+      bookId: esjBookId,
+      chapterId: SourceId.esjChapterId(cid),
+    );
+    switch (result) {
+      case Success():
+        {
+          final content = await compute(
+            EsjParser.getContent,
+            result.data as String,
+          );
+          images.value = content.images;
+          chapterTitle.value =
+              catalogue[currentVolumeIndex].chapters[currentChapterIndex].title;
+          text.value = content.text;
+          pageState.value = PageState.success;
+        }
+      case Error():
+        {
+          errorMsg = result.error.toString();
+          pageState.value = PageState.error;
+        }
+    }
+  }
+
   Future<void> _getContentByLocal(String result) async {
-    final content = await compute(Parser.getContent, result);
+    final content = isEsj
+        ? await compute(EsjParser.getContent, result)
+        : isYamibo
+        ? await compute(_parseYamiboContent, {'html': result, 'authorId': null})
+        : await compute(Parser.getContent, result);
     images.value = content.images;
-    chapterTitle.value = catalogue[currentVolumeIndex].chapters[currentChapterIndex].title;
+    chapterTitle.value =
+        catalogue[currentVolumeIndex].chapters[currentChapterIndex].title;
     text.value = content.text;
     pageState.value = PageState.success;
   }
@@ -252,27 +423,34 @@ class ReaderController extends GetxController {
 
   /// 跳转页数
   void jumpToPage(int page) {
-    if (readerSettingsState.value.direction != ReaderDirection.upToDown && readerSettingsState.value.pageTurningAnimation) {
-      paperCurlController.jumpToPage(page);
+    final animated = usePageTurningAnimation;
+    if (animated && pageController.hasClients) {
+      pageController.animateToPage(
+        page,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      );
       return;
     }
-    readerSettingsState.value.pageTurningAnimation
-        ? pageController.animateToPage(page, duration: const Duration(milliseconds: 200), curve: Curves.linear)
-        : pageController.jumpToPage(page);
+    pageController.jumpToPage(page);
   }
 
   void nextChapter() {
-    if (currentVolumeIndex + 1 == currentVolumeTotal && currentChapterIndex + 1 == currentChapterTotal) {
+    if (currentVolumeIndex + 1 == currentVolumeTotal &&
+        currentChapterIndex + 1 == currentChapterTotal) {
       Get.dialog(
         AlertDialog(
           icon: Icon(Icons.warning_amber),
           title: Text("warning".tr),
           content: Text("no_next_chapter".tr),
-          actions: [TextButton(onPressed: () => Get.back(), child: Text("confirm".tr))],
+          actions: [
+            TextButton(onPressed: () => Get.back(), child: Text("confirm".tr)),
+          ],
         ),
       );
     } else {
-      if (currentVolumeIndex + 1 != currentVolumeTotal && currentChapterIndex + 1 == currentChapterTotal) {
+      if (currentVolumeIndex + 1 != currentVolumeTotal &&
+          currentChapterIndex + 1 == currentChapterTotal) {
         currentVolumeIndex++;
         currentChapterIndex = 0;
       } else {
@@ -313,76 +491,191 @@ class ReaderController extends GetxController {
       ReadHistoryEntityData(
         cid: cid,
         aid: aid,
-        readerMode: readerSettingsState.value.direction == ReaderDirection.upToDown ? kScrollReadMode : kPageReadMode,
+        readerMode:
+            readerSettingsState.value.direction == ReaderDirection.upToDown
+            ? kScrollReadMode
+            : kPageReadMode,
         // 1为滚动模式，2为翻页模式，翻页模式的左右方向不影响阅读记录的使用
         isDualPage: isDualPage,
-        location: readerSettingsState.value.direction == ReaderDirection.upToDown ? currentLocation.value : currentIndex.value,
-        progress: readerSettingsState.value.direction == ReaderDirection.upToDown ? verticalProgress.value : horizontalProgress.value,
+        location:
+            readerSettingsState.value.direction == ReaderDirection.upToDown
+            ? currentLocation.value
+            : currentIndex.value,
+        progress:
+            readerSettingsState.value.direction == ReaderDirection.upToDown
+            ? verticalProgress.value
+            : horizontalProgress.value,
         isLatest: true,
       ),
     );
   }
 
   void changeFontSize(double value) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(fontSize: value);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      fontSize: value,
+    );
     LocalStorageService.instance.setReaderFontSize(value);
   }
 
   void changeLineSpacing(double value) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(lineSpacing: value);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      lineSpacing: value,
+    );
     LocalStorageService.instance.setReaderLineSpacing(value);
   }
 
   void changeReaderDirection(ReaderDirection d) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(direction: d);
+    if (readerSettingsState.value.direction == d) return;
+
+    modeSwitchInitialProgress = currentReadingProgress();
+    initialHorizontalIndex = 0;
+    initialVerticalOffset = 0;
+
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      direction: d,
+    );
     LocalStorageService.instance.setReaderDirection(d);
   }
 
   void changeReaderPageTurningAnimation(bool enabled) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(pageTurningAnimation: enabled);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      pageTurningAnimation: enabled,
+    );
     LocalStorageService.instance.setReaderPageTurningAnimation(enabled);
   }
 
+  void changeReaderEInkMode(bool enabled) {
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      eInkMode: enabled,
+    );
+    LocalStorageService.instance.setReaderEInkMode(enabled);
+  }
+
   void changeReaderWakeLock(bool enabled) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(wakeLock: enabled);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      wakeLock: enabled,
+    );
     WakelockPlus.toggle(enable: enabled);
     LocalStorageService.instance.setReaderWakeLock(enabled);
   }
 
   void changeLeftMargin(double value) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(leftMargin: value);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      leftMargin: value,
+    );
     LocalStorageService.instance.setReaderLeftMargin(value);
   }
 
   void changeTopMargin(double value) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(topMargin: value);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      topMargin: value,
+    );
     LocalStorageService.instance.setReaderTopMargin(value);
   }
 
   void changeRightMargin(double value) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(rightMargin: value);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      rightMargin: value,
+    );
     LocalStorageService.instance.setReaderRightMargin(value);
   }
 
   void changeBottomMargin(double value) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(bottomMargin: value);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      bottomMargin: value,
+    );
     LocalStorageService.instance.setReaderBottomMargin(value);
   }
 
   void changeDualPageMode(DualPageMode mode) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(dualPageMode: mode);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      dualPageMode: mode,
+    );
     LocalStorageService.instance.setReaderDualPageMode(mode);
   }
 
   void changeDualPageSpacing(double value) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(dualPageSpacing: value);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      dualPageSpacing: value,
+    );
     LocalStorageService.instance.setReaderDualPageSpacing(value);
   }
 
   void changeImmersionMode(bool enabled) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(immersionMode: enabled);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      immersionMode: enabled,
+    );
     _applyReaderSystemUi(enabled);
     LocalStorageService.instance.setReaderImmersionMode(enabled);
+  }
+
+  void changeVolumeKeyTurning(bool enabled) {
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      volumeKeyTurning: enabled,
+    );
+    LocalStorageService.instance.setReaderVolumeKeyTurning(enabled);
+    if (enabled) {
+      _startVolumeKeyListener();
+    } else {
+      _stopVolumeKeyListener();
+    }
+  }
+
+  void _startVolumeKeyListener() {
+    _volumeKeySubscription?.cancel();
+    _volumeKeySubscription = VolumeKeyService.volumeKeyStream.listen(
+      _handleVolumeKey,
+    );
+  }
+
+  void _stopVolumeKeyListener() {
+    _volumeKeySubscription?.cancel();
+    _volumeKeySubscription = null;
+  }
+
+  void _handleVolumeKey(String key) {
+    if (pageState.value != PageState.success) return;
+    final now = DateTime.now();
+    final last = _lastVolumeKeyAt;
+    if (last != null &&
+        now.difference(last) < const Duration(milliseconds: 180)) {
+      return;
+    }
+    _lastVolumeKeyAt = now;
+
+    switch (key) {
+      case 'volumeUp':
+        turnReadingPage(forward: false);
+      case 'volumeDown':
+        turnReadingPage(forward: true);
+    }
+  }
+
+  void turnReadingPage({required bool forward}) {
+    if (readerSettingsState.value.direction == ReaderDirection.upToDown) {
+      _turnVerticalPage(forward);
+      return;
+    }
+    forward ? nextPage() : prevPage();
+  }
+
+  void turnReadingPageThrottled({
+    required bool forward,
+    Duration interval = const Duration(milliseconds: 220),
+  }) {
+    if (pageState.value != PageState.success) return;
+    final now = DateTime.now();
+    final last = _lastDesktopPageTurnAt;
+    if (last != null && now.difference(last) < interval) return;
+    _lastDesktopPageTurnAt = now;
+    turnReadingPage(forward: forward);
+  }
+
+  void _turnVerticalPage(bool forward) {
+    if (verticalPageTurner?.call(forward) == true) {
+      return;
+    }
+    forward ? nextChapter() : prevChapter();
   }
 
   void _applyReaderSystemUi(bool immersive) {
@@ -405,17 +698,23 @@ class ReaderController extends GetxController {
   }
 
   void changeShowStatusBar(bool enabled) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(showStatusBar: enabled);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      showStatusBar: enabled,
+    );
     LocalStorageService.instance.setReaderStatusBar(enabled);
   }
 
   void changeReaderTextStyleFilePath(String? path) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(textStyleFilePath: path);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      textStyleFilePath: path,
+    );
     LocalStorageService.instance.setReaderTextStyleFilePath(path);
   }
 
   void changeReaderTextFamily(String? family) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(textFamily: family);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      textFamily: family,
+    );
     LocalStorageService.instance.setReaderTextFamily(family);
   }
 
@@ -450,31 +749,42 @@ class ReaderController extends GetxController {
   }
 
   void changeReaderParaIndent(int value) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(readerParaIndent: value);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      readerParaIndent: value,
+    );
     LocalStorageService.instance.setReaderParaIndent(value);
   }
 
   void changeReaderParaSpacing(int value) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(readerParaSpacing: value);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      readerParaSpacing: value,
+    );
     LocalStorageService.instance.setReaderParaSpacing(value);
   }
 
   void changeReaderBottomStatusBarHorizontalSpacing(int value) {
-    readerSettingsState.value = readerSettingsState.value.copyWith(readerBottomStatusBarHorizontalSpacing: value);
-    LocalStorageService.instance.setReaderBottomStatusBarHorizontalSpacing(value);
+    readerSettingsState.value = readerSettingsState.value.copyWith(
+      readerBottomStatusBarHorizontalSpacing: value,
+    );
+    LocalStorageService.instance.setReaderBottomStatusBarHorizontalSpacing(
+      value,
+    );
   }
 
   void getTextColor() {
     if (Get.context!.isDarkMode) {
-      currentTextColor.value = LocalStorageService.instance.getReaderNightTextColor();
+      currentTextColor.value = LocalStorageService.instance
+          .getReaderNightTextColor();
     } else {
-      currentTextColor.value = LocalStorageService.instance.getReaderDayTextColor();
+      currentTextColor.value = LocalStorageService.instance
+          .getReaderDayTextColor();
     }
   }
 
   void getBgColor() {
     if (Get.context!.isDarkMode) {
-      currentBgColor.value = LocalStorageService.instance.getReaderNightBgColor();
+      currentBgColor.value = LocalStorageService.instance
+          .getReaderNightBgColor();
     } else {
       currentBgColor.value = LocalStorageService.instance.getReaderDayBgColor();
     }
@@ -482,7 +792,10 @@ class ReaderController extends GetxController {
 
   Future<bool?> pickTextStyleFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['ttf', 'otf']);
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['ttf', 'otf'],
+      );
       if (result == null) return null; // 用户取消
 
       final tempPath = result.files.single.path!;
@@ -516,13 +829,14 @@ class ReaderController extends GetxController {
   Future<void> _loadFont(File file) async {
     final bytes = await file.readAsBytes();
     textFamilyName = TtfMetadata(TtfDataSource(byteData: bytes)).fontName;
-    final loader = FontLoader(textFamilyName!)..addFont(Future.value(ByteData.view(bytes.buffer)));
+    final loader = FontLoader(textFamilyName!)
+      ..addFont(Future.value(ByteData.view(bytes.buffer)));
     await loader.load();
   }
 
   Future<void> deleteFontDir() async {
     final appDir = await getApplicationSupportDirectory();
-    final fontsDir = Directory('${appDir.path}/fonts');
+    final fontsDir = Directory('${appDir.path}/font');
 
     if (await fontsDir.exists()) {
       await fontsDir.delete(recursive: true);
@@ -531,8 +845,11 @@ class ReaderController extends GetxController {
 
   //检查字体文件是否存在
   void checkFontFile(bool showDialog) async {
-    if (readerSettingsState.value.textStyleFilePath != null && readerSettingsState.value.textFamily != null) {
-      final result = await File(readerSettingsState.value.textStyleFilePath!).exists();
+    if (readerSettingsState.value.textStyleFilePath != null &&
+        readerSettingsState.value.textFamily != null) {
+      final result = await File(
+        readerSettingsState.value.textStyleFilePath!,
+      ).exists();
       if (result) {
         await _loadFont(File(readerSettingsState.value.textStyleFilePath!));
         isFontFileAvailable.value = true;
@@ -548,7 +865,9 @@ class ReaderController extends GetxController {
               icon: Icon(Icons.warning_amber_outlined),
               title: Text("warning".tr),
               content: Text("no_font_file_tip".tr),
-              actions: [TextButton(onPressed: Get.back, child: Text("confirm".tr))],
+              actions: [
+                TextButton(onPressed: Get.back, child: Text("confirm".tr)),
+              ],
             ),
           );
         }
@@ -560,15 +879,20 @@ class ReaderController extends GetxController {
 
   void getBgImage() {
     if (Get.context!.isDarkMode) {
-      currentBgImagePath.value = LocalStorageService.instance.getReaderNightBgImage();
+      currentBgImagePath.value = LocalStorageService.instance
+          .getReaderNightBgImage();
     } else {
-      currentBgImagePath.value = LocalStorageService.instance.getReaderDayBgImage();
+      currentBgImagePath.value = LocalStorageService.instance
+          .getReaderDayBgImage();
     }
   }
 
   Future<bool?> pickBgImageFile(bool isDark) async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['jpg', 'png', 'jpeg']);
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'png', 'jpeg'],
+      );
       if (result == null) return null; // 用户取消
 
       final tempPath = result.files.single.path!;
@@ -628,10 +952,19 @@ List<int>? _findIndexPositionInCatalogue(Map<String, dynamic> args) {
   return null;
 }
 
+Content _parseYamiboContent(Map<String, dynamic> args) {
+  return YamiboParser.getThreadContent(
+    args['html'] as String,
+    authorId: args['authorId'] as String?,
+  );
+}
+
 class ReaderSettingsState {
   final ReaderDirection direction;
   final bool pageTurningAnimation;
   final bool wakeLock;
+  final bool volumeKeyTurning;
+  final bool eInkMode;
   final DualPageMode dualPageMode;
   final double dualPageSpacing;
   final bool immersionMode;
@@ -661,6 +994,8 @@ class ReaderSettingsState {
     required this.direction,
     required this.pageTurningAnimation,
     required this.wakeLock,
+    required this.volumeKeyTurning,
+    required this.eInkMode,
     required this.dualPageMode,
     required this.dualPageSpacing,
     required this.immersionMode,
@@ -691,6 +1026,8 @@ class ReaderSettingsState {
     ReaderDirection? direction,
     bool? pageTurningAnimation,
     bool? wakeLock,
+    bool? volumeKeyTurning,
+    bool? eInkMode,
     DualPageMode? dualPageMode,
     double? dualPageSpacing,
     bool? immersionMode,
@@ -714,11 +1051,13 @@ class ReaderSettingsState {
     Color? readerNightBgColor,
     int? readerParaIndent,
     int? readerParaSpacing,
-    int? readerBottomStatusBarHorizontalSpacing
+    int? readerBottomStatusBarHorizontalSpacing,
   }) => ReaderSettingsState(
     direction: direction ?? this.direction,
     pageTurningAnimation: pageTurningAnimation ?? this.pageTurningAnimation,
     wakeLock: wakeLock ?? this.wakeLock,
+    volumeKeyTurning: volumeKeyTurning ?? this.volumeKeyTurning,
+    eInkMode: eInkMode ?? this.eInkMode,
     dualPageMode: dualPageMode ?? this.dualPageMode,
     dualPageSpacing: dualPageSpacing ?? this.dualPageSpacing,
     immersionMode: immersionMode ?? this.immersionMode,
@@ -742,13 +1081,19 @@ class ReaderSettingsState {
     readerNightBgColor: readerNightBgColor ?? this.readerNightBgColor,
     readerParaIndent: readerParaIndent ?? this.readerParaIndent,
     readerParaSpacing: readerParaSpacing ?? this.readerParaSpacing,
-    readerBottomStatusBarHorizontalSpacing: readerBottomStatusBarHorizontalSpacing ?? this.readerBottomStatusBarHorizontalSpacing
+    readerBottomStatusBarHorizontalSpacing:
+        readerBottomStatusBarHorizontalSpacing ??
+        this.readerBottomStatusBarHorizontalSpacing,
   );
 
   ReaderSettingsState.init()
     : direction = LocalStorageService.instance.getReaderDirection(),
-      pageTurningAnimation = LocalStorageService.instance.getReaderPageTurningAnimation(),
+      pageTurningAnimation = LocalStorageService.instance
+          .getReaderPageTurningAnimation(),
       wakeLock = LocalStorageService.instance.getReaderWakeLock(),
+      volumeKeyTurning = LocalStorageService.instance
+          .getReaderVolumeKeyTurning(),
+      eInkMode = LocalStorageService.instance.getReaderEInkMode(),
       dualPageMode = LocalStorageService.instance.getReaderDualPageMode(),
       dualPageSpacing = LocalStorageService.instance.getReaderDualPageSpacing(),
       immersionMode = LocalStorageService.instance.getReaderImmersionMode(),
@@ -761,16 +1106,19 @@ class ReaderSettingsState {
       bottomMargin = LocalStorageService.instance.getReaderBottomMargin(),
       textColor = LocalStorageService.instance.getReaderDayTextColor(),
       bgColor = LocalStorageService.instance.getReaderDayBgColor(),
-      textStyleFilePath = LocalStorageService.instance.getReaderTextStyleFilePath(),
+      textStyleFilePath = LocalStorageService.instance
+          .getReaderTextStyleFilePath(),
       textFamily = LocalStorageService.instance.getReaderTextFamily(),
       bgImagePath = LocalStorageService.instance.getReaderDayBgImage(),
       readerDayBgImage = LocalStorageService.instance.getReaderDayBgImage(),
       readerNightBgImage = LocalStorageService.instance.getReaderNightBgImage(),
       readerDayTextColor = LocalStorageService.instance.getReaderDayTextColor(),
-      readerNightTextColor = LocalStorageService.instance.getReaderNightTextColor(),
+      readerNightTextColor = LocalStorageService.instance
+          .getReaderNightTextColor(),
       readerDayBgColor = LocalStorageService.instance.getReaderDayBgColor(),
       readerNightBgColor = LocalStorageService.instance.getReaderNightBgColor(),
       readerParaIndent = LocalStorageService.instance.getReaderParaIndent(),
       readerParaSpacing = LocalStorageService.instance.getReaderParaSpacing(),
-      readerBottomStatusBarHorizontalSpacing = LocalStorageService.instance.getReaderBottomStatusBarHorizontalSpacing();
+      readerBottomStatusBarHorizontalSpacing = LocalStorageService.instance
+          .getReaderBottomStatusBarHorizontalSpacing();
 }

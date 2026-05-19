@@ -6,6 +6,7 @@ import 'package:hikari_novel_flutter/models/bookshelf.dart';
 import 'package:hikari_novel_flutter/models/novel_cover.dart';
 import 'package:hikari_novel_flutter/network/request.dart';
 import 'package:hikari_novel_flutter/router/app_sub_router.dart';
+import 'package:hikari_novel_flutter/widgets/local_rating_bar.dart';
 
 class NovelCoverCard extends StatelessWidget {
   final NovelCover novelCover;
@@ -14,24 +15,21 @@ class NovelCoverCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final imageUrl = novelCover.imageUrl?.trim();
     return InkWell(
       borderRadius: BorderRadius.circular(kCardBorderRadius),
       onTap: () => AppSubRouter.toNovelDetail(aid: novelCover.aid),
       child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kCardBorderRadius)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kCardBorderRadius),
+        ),
         elevation: 0,
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
             AspectRatio(
               aspectRatio: 9 / 13.5,
-              child: CachedNetworkImage(
-                imageUrl: novelCover.imageUrl!,
-                httpHeaders: Request.userAgent,
-                fit: BoxFit.cover,
-                progressIndicatorBuilder: (context, url, downloadProgress) => Center(child: CircularProgressIndicator(value: downloadProgress.progress)),
-                errorWidget: (context, url, error) => Column(children: [Icon(Icons.error_outline), Text(error.toString())]),
-              ),
+              child: _CoverImage(imageUrl: imageUrl),
             ),
             Positioned.fill(
               child: Container(
@@ -39,7 +37,10 @@ class NovelCoverCard extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.center,
                     end: Alignment.bottomCenter, // 渐变到图片一半
-                    colors: [Colors.black.withValues(alpha: 0), Colors.black.withValues(alpha: 1)],
+                    colors: [
+                      Colors.black.withValues(alpha: 0),
+                      Colors.black.withValues(alpha: 1),
+                    ],
                   ),
                 ),
               ),
@@ -69,8 +70,15 @@ class BookshelfCoverCard extends StatelessWidget {
   final BookshelfNovelInfo bookshelfNovelInfo;
   final Function() onTap;
   final Function() onLongPress;
+  final ValueChanged<double>? onRatingChanged;
 
-  const BookshelfCoverCard({super.key, required this.bookshelfNovelInfo, required this.onTap, required this.onLongPress});
+  const BookshelfCoverCard({
+    super.key,
+    required this.bookshelfNovelInfo,
+    required this.onTap,
+    required this.onLongPress,
+    this.onRatingChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -82,20 +90,16 @@ class BookshelfCoverCard extends StatelessWidget {
       child: Stack(
         children: [
           Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kCardBorderRadius)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(kCardBorderRadius),
+            ),
             elevation: 0,
             clipBehavior: Clip.antiAlias,
             child: Stack(
               children: [
                 AspectRatio(
                   aspectRatio: 9 / 13.5,
-                  child: CachedNetworkImage(
-                    imageUrl: bookshelfNovelInfo.img,
-                    httpHeaders: Request.userAgent,
-                    fit: BoxFit.cover,
-                    progressIndicatorBuilder: (context, url, downloadProgress) => Center(child: CircularProgressIndicator(value: downloadProgress.progress)),
-                    errorWidget: (context, url, error) => Column(children: [Icon(Icons.error_outline), Text(error.toString())]),
-                  ),
+                  child: _CoverImage(imageUrl: bookshelfNovelInfo.img),
                 ),
                 Positioned.fill(
                   child: Container(
@@ -103,7 +107,37 @@ class BookshelfCoverCard extends StatelessWidget {
                       gradient: LinearGradient(
                         begin: Alignment.center,
                         end: Alignment.bottomCenter, // 渐变到图片一半
-                        colors: [Colors.black.withValues(alpha: 0), Colors.black.withValues(alpha: 1)],
+                        colors: [
+                          Colors.black.withValues(alpha: 0),
+                          Colors.black.withValues(alpha: 1),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 6,
+                  right: 6,
+                  bottom: 30,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.50),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
+                        child: LocalRatingBar(
+                          rating: bookshelfNovelInfo.rating,
+                          onChanged: onRatingChanged,
+                          size: 14,
+                          showValue: false,
+                          compact: true,
+                        ),
                       ),
                     ),
                   ),
@@ -125,6 +159,32 @@ class BookshelfCoverCard extends StatelessWidget {
               ],
             ),
           ),
+          if (bookshelfNovelInfo.hasUpdate || bookshelfNovelInfo.isReadComplete)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: bookshelfNovelInfo.hasUpdate
+                      ? colorScheme.primary
+                      : colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  bookshelfNovelInfo.hasUpdate
+                      ? "updated".tr
+                      : "read_complete".tr,
+                  style: TextStyle(
+                    color: bookshelfNovelInfo.hasUpdate
+                        ? colorScheme.onPrimary
+                        : colorScheme.onSecondaryContainer,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
           Obx(
             () => Offstage(
               offstage: !bookshelfNovelInfo.isSelected.value,
@@ -140,6 +200,45 @@ class BookshelfCoverCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CoverImage extends StatelessWidget {
+  const _CoverImage({required this.imageUrl});
+
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = imageUrl?.trim() ?? '';
+    if (url.isEmpty) return const _CoverPlaceholder();
+    return CachedNetworkImage(
+      imageUrl: url,
+      httpHeaders: Request.userAgent,
+      fit: BoxFit.cover,
+      progressIndicatorBuilder: (context, url, downloadProgress) => Center(
+        child: CircularProgressIndicator(value: downloadProgress.progress),
+      ),
+      errorWidget: (context, url, error) => const _CoverPlaceholder(),
+    );
+  }
+}
+
+class _CoverPlaceholder extends StatelessWidget {
+  const _CoverPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return ColoredBox(
+      color: colorScheme.surfaceContainerHighest,
+      child: Center(
+        child: Icon(
+          Icons.image_not_supported_outlined,
+          color: colorScheme.outline,
+        ),
       ),
     );
   }

@@ -1,12 +1,10 @@
-import 'package:easy_refresh/easy_refresh.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/pages/ranking/controller.dart';
-import 'package:responsive_grid_list/responsive_grid_list.dart';
 
 import '../../widgets/keep_alive_wrapper.dart';
-import '../../widgets/novel_cover_card.dart';
+import '../../widgets/browsing_novel_grid.dart';
 import '../../widgets/state_page.dart';
 
 class RankingView extends StatelessWidget {
@@ -24,9 +22,18 @@ class RankingView extends StatelessWidget {
             children: [
               SizedBox(width: 14),
               ActionChip(
-                label: Row(children: [Obx(() => Text(controller.ranking.value)), Icon(Icons.arrow_drop_down_outlined)]),
+                label: Row(
+                  children: [
+                    Obx(() => Text(controller.ranking.value)),
+                    Icon(Icons.arrow_drop_down_outlined),
+                  ],
+                ),
                 onPressed: () {
-                  showMenu(context: context, position: RelativeRect.fill, items: _getRankingList());
+                  showMenu(
+                    context: context,
+                    position: RelativeRect.fill,
+                    items: _getRankingList(),
+                  );
                 },
                 padding: EdgeInsets.zero,
               ),
@@ -41,29 +48,40 @@ class RankingView extends StatelessWidget {
                     offstage: controller.pageState.value != PageState.success,
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(8, 0, 8, 0),
-                      child: EasyRefresh(
-                        controller: controller.easyRefreshController,
+                      child: BrowsingNovelGrid(
+                        data: controller.data.toList(),
+                        easyRefreshController: controller.easyRefreshController,
                         onRefresh: () => controller.getPage(false),
                         onLoad: () => controller.getPage(true),
-                        child: ResponsiveGridList(
-                          minItemWidth: 100,
-                          horizontalGridSpacing: 4,
-                          verticalGridSpacing: 4,
-                          children:
-                              controller.data.map((item) {
-                                return NovelCoverCard(novelCover: item);
-                              }).toList(),
-                        ),
+                        onPreviousPage: controller.getPreviousBrowsingPage,
+                        onNextPage: controller.getNextBrowsingPage,
+                        page: controller.pageIndex,
+                        canPreviousPage: controller.canPreviousPage,
+                        canNextPage: controller.canNextPage,
                       ),
                     ),
                   ),
                 ),
-                Obx(() => Offstage(offstage: controller.pageState.value != PageState.pleaseSelect, child: PleaseSelectPage())),
-                Obx(() => Offstage(offstage: controller.pageState.value != PageState.loading, child: LoadingPage())),
+                Obx(
+                  () => Offstage(
+                    offstage:
+                        controller.pageState.value != PageState.pleaseSelect,
+                    child: PleaseSelectPage(),
+                  ),
+                ),
+                Obx(
+                  () => Offstage(
+                    offstage: controller.pageState.value != PageState.loading,
+                    child: LoadingPage(),
+                  ),
+                ),
                 Obx(
                   () => Offstage(
                     offstage: controller.pageState.value != PageState.error,
-                    child: ErrorMessage(msg: controller.errorMsg, action: () => controller.getPage(false)),
+                    child: ErrorMessage(
+                      msg: controller.errorMsg,
+                      action: () => controller.getPage(false),
+                    ),
                   ),
                 ),
               ],

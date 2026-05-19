@@ -11,7 +11,7 @@ class IconText extends StatelessWidget {
     required this.icon,
     required this.text,
     this.color,
-    this.bold
+    this.bold,
   });
 
   @override
@@ -20,7 +20,13 @@ class IconText extends StatelessWidget {
       children: [
         Icon(icon, size: 18),
         SizedBox(width: 6),
-        Text(text, style: TextStyle(color: color, fontWeight: bold == true ? FontWeight.bold : null))
+        Text(
+          text,
+          style: TextStyle(
+            color: color,
+            fontWeight: bold == true ? FontWeight.bold : null,
+          ),
+        ),
       ],
     );
   }

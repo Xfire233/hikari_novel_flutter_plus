@@ -42,7 +42,9 @@ class DevToolsPage extends StatelessWidget {
         title: Text(title),
         content: SizedBox(
           width: double.maxFinite,
-          child: SingleChildScrollView(child: SelectableText(exists ? content : '暂无内容')),
+          child: SingleChildScrollView(
+            child: SelectableText(exists ? content : '暂无内容'),
+          ),
         ),
         actions: [TextButton(onPressed: Get.back, child: Text("confirm".tr))],
       ),
@@ -96,7 +98,11 @@ class DevToolsPage extends StatelessWidget {
                     final name = f.path.split(Platform.pathSeparator).last;
                     return ListTile(
                       dense: true,
-                      title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      title: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       onTap: () async {
                         Get.back();
                         await _showTextFile(name, f);
@@ -113,7 +119,7 @@ class DevToolsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("dev_setting".tr), titleSpacing: 0),
+      appBar: AppBar(title: Text("dev_setting".tr), titleSpacing: 16),
       body: ListView(
         children: [
           Obx(
@@ -134,10 +140,23 @@ class DevToolsPage extends StatelessWidget {
               await _showTextFile('html_debug.txt', file);
             },
           ),
-          NormalTile(title: "清空 html_debug.txt", leading: const Icon(Icons.clear_all), onTap: _clearLog),
+          NormalTile(
+            title: "清空 html_debug.txt",
+            leading: const Icon(Icons.clear_all),
+            onTap: _clearLog,
+          ),
           const Divider(height: 1),
-          NormalTile(title: "查看 HTML dumps", subtitle: "完整 HTML（用于 MT 直接分析）", leading: const Icon(Icons.remove_red_eye_outlined), onTap: _showDumps),
-          NormalTile(title: "清空 HTML dumps", leading: const Icon(Icons.clear_all), onTap: _clearDumps),
+          NormalTile(
+            title: "查看 HTML dumps",
+            subtitle: "完整 HTML（用于 MT 直接分析）",
+            leading: const Icon(Icons.remove_red_eye_outlined),
+            onTap: _showDumps,
+          ),
+          NormalTile(
+            title: "清空 HTML dumps",
+            leading: const Icon(Icons.clear_all),
+            onTap: _clearDumps,
+          ),
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -145,7 +164,9 @@ class DevToolsPage extends StatelessWidget {
               future: _appDir(),
               builder: (_, snap) {
                 final path = snap.data?.path ?? '';
-                final s = path.isEmpty ? '路径加载中…' : '本地目录:\n$path\n\nMT 查看：Android/data/<package>/files/\n- html_debug.txt\n- html_dumps/';
+                final s = path.isEmpty
+                    ? '路径加载中…'
+                    : '本地目录:\n$path\n\nMT 查看：Android/data/<package>/files/\n- html_debug.txt\n- html_dumps/';
                 return Text(s, style: const TextStyle(fontSize: 12));
               },
             ),

@@ -11,7 +11,12 @@ class BrowsingHistoryCard extends StatelessWidget {
   final Function() onTap;
   final Function() onDelete;
 
-  const BrowsingHistoryCard({super.key, required this.vh, required this.onTap, required this.onDelete});
+  const BrowsingHistoryCard({
+    super.key,
+    required this.vh,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +27,9 @@ class BrowsingHistoryCard extends StatelessWidget {
         child: Row(
           children: [
             Card(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kCardBorderRadius)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(kCardBorderRadius),
+              ),
               elevation: 0,
               clipBehavior: Clip.antiAlias,
               child: SizedBox(
@@ -34,8 +41,17 @@ class BrowsingHistoryCard extends StatelessWidget {
                     httpHeaders: Request.userAgent,
                     fit: BoxFit.cover,
                     progressIndicatorBuilder:
-                        (context, url, downloadProgress) => Center(child: CircularProgressIndicator(value: downloadProgress.progress)),
-                    errorWidget: (context, url, error) => Column(children: [const Icon(Icons.error_outline), Text(error.toString())]),
+                        (context, url, downloadProgress) => Center(
+                          child: CircularProgressIndicator(
+                            value: downloadProgress.progress,
+                          ),
+                        ),
+                    errorWidget: (context, url, error) => Column(
+                      children: [
+                        const Icon(Icons.error_outline),
+                        Text(error.toString()),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -48,20 +64,32 @@ class BrowsingHistoryCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(vh.title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    Text(
+                      vh.title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     SizedBox(height: 6),
-                    Text(Util.getDateTime(vh.time.toString().split('.').first), style: TextStyle(fontSize: 13)),
+                    Text(
+                      Util.getDateTime(vh.time.toString().split('.').first),
+                      style: TextStyle(fontSize: 13),
+                    ),
                   ],
                 ),
               ),
             ),
             const SizedBox(width: 10),
             Center(
-              child: IconButton(onPressed: onDelete, icon: const Icon(Icons.delete_outline))
-            )
+              child: IconButton(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ),
           ],
         ),
-      )
+      ),
     );
   }
 }

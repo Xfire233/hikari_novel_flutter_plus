@@ -43,7 +43,9 @@ class Migration {
     //删除旧表
     await appDatabase.customStatement("DROP TABLE read_history_entity;");
     //重命名新表
-    await appDatabase.customStatement("ALTER TABLE read_history_entity_new RENAME TO read_history_entity;");
+    await appDatabase.customStatement(
+      "ALTER TABLE read_history_entity_new RENAME TO read_history_entity;",
+    );
   }
 
   static void fromTwoToThree() {
@@ -51,7 +53,48 @@ class Migration {
     Request.deleteCookie();
   }
 
-  static void fromThreeToFour(AppDatabase appDatabase) {
-    appDatabase.deleteAllReadHistory();
+  static Future<void> fromThreeToFour(AppDatabase appDatabase) async {
+    await appDatabase.deleteAllReadHistory();
+  }
+
+  static Future<void> fromFourToFive(AppDatabase appDatabase) async {
+    await appDatabase.customStatement('''
+          CREATE TABLE read_history_entity_new (
+            cid TEXT NOT NULL,
+            aid TEXT NOT NULL,
+            reader_mode INTEGER NOT NULL,
+            is_dual_page INTEGER NOT NULL,
+            location INTEGER NOT NULL,
+            progress INTEGER NOT NULL,
+            is_latest INTEGER NOT NULL,
+            PRIMARY KEY (aid, cid)
+          );
+        ''');
+    await appDatabase.customStatement('''
+          INSERT OR REPLACE INTO read_history_entity_new (cid, aid, reader_mode, is_dual_page, location, progress, is_latest)
+          SELECT cid, aid, reader_mode, is_dual_page, location, progress, is_latest FROM read_history_entity;
+        ''');
+    await appDatabase.customStatement("DROP TABLE read_history_entity;");
+    await appDatabase.customStatement(
+      "ALTER TABLE read_history_entity_new RENAME TO read_history_entity;",
+    );
+  }
+
+  static Future<void> fromFiveToSix(AppDatabase appDatabase) async {
+    await appDatabase.customStatement(
+      "ALTER TABLE bookshelf_entity ADD COLUMN update_key TEXT NOT NULL DEFAULT '';",
+    );
+    await appDatabase.customStatement(
+      "ALTER TABLE bookshelf_entity ADD COLUMN update_time INTEGER NULL;",
+    );
+    await appDatabase.customStatement(
+      "ALTER TABLE bookshelf_entity ADD COLUMN has_update INTEGER NOT NULL DEFAULT 0;",
+    );
+  }
+
+  static Future<void> fromSixToSeven(AppDatabase appDatabase) async {
+    await appDatabase.customStatement(
+      "ALTER TABLE bookshelf_entity ADD COLUMN rating REAL NOT NULL DEFAULT 0;",
+    );
   }
 }

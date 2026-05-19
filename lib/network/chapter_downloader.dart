@@ -1,14 +1,19 @@
 import 'dart:io';
-import 'dart:typed_data';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:enough_convert/enough_convert.dart';
 import 'package:hikari_novel_flutter/network/api.dart';
+import 'package:hikari_novel_flutter/network/esj_api.dart';
 import 'package:hikari_novel_flutter/network/request.dart';
+import 'package:hikari_novel_flutter/network/yamibo_api.dart';
+import 'package:hikari_novel_flutter/network/yamibo_parser.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../common/log.dart';
 import '../models/common/charsets_type.dart';
 import '../models/common/wenku8_node.dart';
+import '../models/source_id.dart';
+import '../service/local_storage_service.dart';
 
 class ChapterDownloader {
   final Dio _dio = Request.dio;
@@ -86,9 +91,50 @@ class ChapterDownloader {
       if (!(await cacheDir.exists())) {
         await cacheDir.create(recursive: true);
       }
-      final savePath = "${cacheDir.path}/${aid}_$cid.txt";
+      final savePath =
+          "${cacheDir.path}/${SourceId.safeFilePart(aid)}_${SourceId.safeFilePart(cid)}.txt";
 
-      var url = "${Api.wenku8Node.node}/modules/article/reader.php?aid=$aid&cid=$cid";
+      if (SourceId.isYamibo(aid)) {
+        final content = await _downloadYamiboChapter(
+          aid: aid,
+          cid: cid,
+          cancelToken: cancelToken,
+          onProgress: onProgress,
+        );
+        final file = File(savePath);
+        await file.writeAsString(content, flush: true);
+        Log.i('章节 $aid-$cid 下载完成，保存路径：$savePath');
+        return savePath;
+      }
+
+      if (SourceId.isEsj(aid)) {
+        final headers = {...Request.userAgent, 'Referer': EsjApi.baseUrl};
+        final cookie = LocalStorageService.instance.getEsjCookie();
+        if (cookie != null && cookie.isNotEmpty) headers['Cookie'] = cookie;
+        final response = await _dio.get(
+          EsjApi.chapterUrl(
+            SourceId.esjBookId(aid),
+            SourceId.esjChapterId(cid),
+          ),
+          cancelToken: cancelToken,
+          options: Options(headers: headers, responseType: ResponseType.plain),
+          onReceiveProgress: onProgress,
+        );
+        if (cancelToken.isCancelled) {
+          throw DioException(
+            requestOptions: response.requestOptions,
+            type: DioExceptionType.cancel,
+            message: '任务 $taskId 下载过程中被取消',
+          );
+        }
+        final file = File(savePath);
+        await file.writeAsString(response.data as String, flush: true);
+        Log.i('章节 $aid-$cid 下载完成，保存路径：$savePath');
+        return savePath;
+      }
+
+      var url =
+          "${Api.wenku8Node.node}/modules/article/reader.php?aid=$aid&cid=$cid";
       url += "?";
 
       // 设置编码格式
@@ -110,7 +156,7 @@ class ChapterDownloader {
           if (onProgress != null && total > 0) {
             onProgress(received, total);
           }
-        }
+        },
       );
 
       // 检查是否在请求过程中被取消
@@ -127,11 +173,11 @@ class ChapterDownloader {
       switch (Api.charsetsType) {
         case CharsetsType.gbk:
           {
-            content = GbkCodec().decode(response.data as Uint8List);
+            content = GbkCodec().decode(response.data as List<int>);
           }
         case CharsetsType.big5Hkscs:
           {
-            content = Big5Codec().decode(response.data as Uint8List);
+            content = Big5Codec().decode(response.data as List<int>);
           }
       }
 
@@ -141,7 +187,6 @@ class ChapterDownloader {
 
       Log.i('章节 $aid-$cid 下载完成，保存路径：$savePath');
       return savePath;
-
     } on DioException catch (e) {
       // 处理Dio异常（重点处理取消类型）
       if (e.type == DioExceptionType.cancel) {
@@ -164,7 +209,7 @@ class ChapterDownloader {
 
   /// 取消所有正在进行的下载任务
   void cancelAll() {
-    _cancelTokens.keys.forEach(cancel);
+    _cancelTokens.keys.toList().forEach(cancel);
     _cancelTokens.clear();
     _downloadingStatus.clear();
   }
@@ -172,5 +217,77 @@ class ChapterDownloader {
   /// 清理所有取消令牌和状态
   void dispose() {
     cancelAll();
+  }
+
+  Future<String> _downloadYamiboChapter({
+    required String aid,
+    required String cid,
+    required CancelToken cancelToken,
+    Function(int received, int total)? onProgress,
+  }) async {
+    final tid = SourceId.yamiboTid(aid);
+    String? authorId;
+
+    final firstPage = await _downloadYamiboThreadPage(
+      tid: tid,
+      page: 1,
+      cancelToken: cancelToken,
+    );
+    if (cancelToken.isCancelled) throw Exception('canceled');
+
+    try {
+      authorId = YamiboParser.getThreadDetail(firstPage).authorId;
+    } catch (e) {
+      Log.e('Yamibo author id parse failed: $e');
+    }
+
+    return _downloadYamiboThreadPage(
+      tid: tid,
+      page: SourceId.yamiboPage(cid),
+      authorId: authorId,
+      cancelToken: cancelToken,
+      onProgress: onProgress,
+    );
+  }
+
+  Future<String> _downloadYamiboThreadPage({
+    required String tid,
+    required int page,
+    String? authorId,
+    required CancelToken cancelToken,
+    Function(int received, int total)? onProgress,
+  }) async {
+    final params = {
+      'module': 'viewthread',
+      'version': '1',
+      'tid': tid,
+      'page': '$page',
+      if (authorId != null && authorId.isNotEmpty) 'authorid': authorId,
+    };
+    final uri = Uri.parse(
+      '${YamiboApi.baseUrl}/api/mobile/index.php',
+    ).replace(queryParameters: params);
+    final headers = {...Request.userAgent, 'Referer': YamiboApi.baseUrl};
+    final cookie = LocalStorageService.instance.getYamiboCookie();
+    if (cookie != null && cookie.isNotEmpty) headers['Cookie'] = cookie;
+
+    final response = await _dio.get(
+      uri.toString(),
+      cancelToken: cancelToken,
+      options: Options(
+        headers: headers,
+        responseType: ResponseType.bytes,
+        followRedirects: true,
+      ),
+      onReceiveProgress: onProgress,
+    );
+    if (cancelToken.isCancelled) {
+      throw DioException(
+        requestOptions: response.requestOptions,
+        type: DioExceptionType.cancel,
+        message: '任务下载过程中被取消',
+      );
+    }
+    return utf8.decode(response.data as List<int>);
   }
 }

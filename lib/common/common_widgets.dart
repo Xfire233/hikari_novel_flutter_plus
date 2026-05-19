@@ -8,55 +8,47 @@ import '../widgets/bottom_action_bar.dart';
 
 //公共widget
 class CommonWidgets {
-  static Widget bookshelfBottomActionBar(BookshelfContentController currentTabController, BookshelfController bookshelfController, {bool edgeToEdge = false}) {
+  static Widget bookshelfBottomActionBar(
+    BookshelfContentController currentTabController,
+    BookshelfController bookshelfController, {
+    bool edgeToEdge = false,
+  }) {
     return BottomActionBar(
       edgeToEdge: edgeToEdge,
       items: [
-        BottomActionItem(
-          icon: Icons.drive_file_move_outlined,
-          label: "move_to_other_bookshelf".tr,
-          onTap: () {
-            Get.dialog(
-              AlertDialog(
-                title: Text("move_to_other_bookshelf".tr),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(
-                    6,
-                    (i) => ListTile(
-                      onTap: () async {
-                        await currentTabController.moveNovelToOther(i);
-                        currentTabController.exitSelectionMode();
-                        Get.back(); //关闭dialog
-                        await bookshelfController.refreshBookshelf();
-                      },
-                      title: Text("bookshelf_number_selection".trParams({"no": i.toString()})),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
         BottomActionItem(
           icon: Icons.delete_outline_outlined,
           label: "remove_from_bookshelf".tr,
           onTap: () async {
             await currentTabController.removeNovelFromList();
             currentTabController.exitSelectionMode();
-            await bookshelfController.refreshBookshelf();
+            if (currentTabController.shouldRefreshAfterRemove) {
+              await bookshelfController.refreshBookshelf();
+            } else {
+              bookshelfController.loadFolders();
+            }
           },
+        ),
+        BottomActionItem(
+          icon: Icons.close,
+          label: "cancel".tr,
+          onTap: currentTabController.exitSelectionMode,
         ),
       ],
     );
   }
 
-  static void showCommentOrReplyBottomSheet(BuildContext context, String content) {
+  static void showCommentOrReplyBottomSheet(
+    BuildContext context,
+    String content,
+  ) {
     showModalBottomSheet(
       context: context,
       builder: (_) {
         return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(context).bottom + 20),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewPaddingOf(context).bottom + 20,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -69,7 +61,12 @@ class CommonWidgets {
                     child: Container(
                       width: 32,
                       height: 3,
-                      decoration: BoxDecoration(color: Theme.of(context).colorScheme.outline, borderRadius: const BorderRadius.all(Radius.circular(3))),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.outline,
+                        borderRadius: const BorderRadius.all(
+                          Radius.circular(3),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -92,7 +89,10 @@ class CommonWidgets {
                     builder: (_) => Dialog(
                       child: Padding(
                         padding: const .symmetric(horizontal: 20, vertical: 16),
-                        child: SelectableText(content, style: const TextStyle(fontSize: 15, height: 1.7)),
+                        child: SelectableText(
+                          content,
+                          style: const TextStyle(fontSize: 15, height: 1.7),
+                        ),
                       ),
                     ),
                   );

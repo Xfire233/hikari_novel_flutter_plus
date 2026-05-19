@@ -65,8 +65,67 @@ class $BookshelfEntityTable extends BookshelfEntity
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _updateKeyMeta = const VerificationMeta(
+    'updateKey',
+  );
   @override
-  List<GeneratedColumn> get $columns => [aid, bid, url, title, img, classId];
+  late final GeneratedColumn<String> updateKey = GeneratedColumn<String>(
+    'update_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _updateTimeMeta = const VerificationMeta(
+    'updateTime',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updateTime = GeneratedColumn<DateTime>(
+    'update_time',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _hasUpdateMeta = const VerificationMeta(
+    'hasUpdate',
+  );
+  @override
+  late final GeneratedColumn<bool> hasUpdate = GeneratedColumn<bool>(
+    'has_update',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("has_update" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _ratingMeta = const VerificationMeta('rating');
+  @override
+  late final GeneratedColumn<double> rating = GeneratedColumn<double>(
+    'rating',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    aid,
+    bid,
+    url,
+    title,
+    img,
+    classId,
+    updateKey,
+    updateTime,
+    hasUpdate,
+    rating,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -127,6 +186,30 @@ class $BookshelfEntityTable extends BookshelfEntity
     } else if (isInserting) {
       context.missing(_classIdMeta);
     }
+    if (data.containsKey('update_key')) {
+      context.handle(
+        _updateKeyMeta,
+        updateKey.isAcceptableOrUnknown(data['update_key']!, _updateKeyMeta),
+      );
+    }
+    if (data.containsKey('update_time')) {
+      context.handle(
+        _updateTimeMeta,
+        updateTime.isAcceptableOrUnknown(data['update_time']!, _updateTimeMeta),
+      );
+    }
+    if (data.containsKey('has_update')) {
+      context.handle(
+        _hasUpdateMeta,
+        hasUpdate.isAcceptableOrUnknown(data['has_update']!, _hasUpdateMeta),
+      );
+    }
+    if (data.containsKey('rating')) {
+      context.handle(
+        _ratingMeta,
+        rating.isAcceptableOrUnknown(data['rating']!, _ratingMeta),
+      );
+    }
     return context;
   }
 
@@ -160,6 +243,22 @@ class $BookshelfEntityTable extends BookshelfEntity
         DriftSqlType.string,
         data['${effectivePrefix}class_id'],
       )!,
+      updateKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}update_key'],
+      )!,
+      updateTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}update_time'],
+      ),
+      hasUpdate: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}has_update'],
+      )!,
+      rating: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}rating'],
+      )!,
     );
   }
 
@@ -177,6 +276,10 @@ class BookshelfEntityData extends DataClass
   final String title;
   final String img;
   final String classId;
+  final String updateKey;
+  final DateTime? updateTime;
+  final bool hasUpdate;
+  final double rating;
   const BookshelfEntityData({
     required this.aid,
     required this.bid,
@@ -184,6 +287,10 @@ class BookshelfEntityData extends DataClass
     required this.title,
     required this.img,
     required this.classId,
+    required this.updateKey,
+    this.updateTime,
+    required this.hasUpdate,
+    required this.rating,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -194,6 +301,12 @@ class BookshelfEntityData extends DataClass
     map['title'] = Variable<String>(title);
     map['img'] = Variable<String>(img);
     map['class_id'] = Variable<String>(classId);
+    map['update_key'] = Variable<String>(updateKey);
+    if (!nullToAbsent || updateTime != null) {
+      map['update_time'] = Variable<DateTime>(updateTime);
+    }
+    map['has_update'] = Variable<bool>(hasUpdate);
+    map['rating'] = Variable<double>(rating);
     return map;
   }
 
@@ -205,6 +318,12 @@ class BookshelfEntityData extends DataClass
       title: Value(title),
       img: Value(img),
       classId: Value(classId),
+      updateKey: Value(updateKey),
+      updateTime: updateTime == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updateTime),
+      hasUpdate: Value(hasUpdate),
+      rating: Value(rating),
     );
   }
 
@@ -220,6 +339,10 @@ class BookshelfEntityData extends DataClass
       title: serializer.fromJson<String>(json['title']),
       img: serializer.fromJson<String>(json['img']),
       classId: serializer.fromJson<String>(json['classId']),
+      updateKey: serializer.fromJson<String>(json['updateKey']),
+      updateTime: serializer.fromJson<DateTime?>(json['updateTime']),
+      hasUpdate: serializer.fromJson<bool>(json['hasUpdate']),
+      rating: serializer.fromJson<double>(json['rating']),
     );
   }
   @override
@@ -232,6 +355,10 @@ class BookshelfEntityData extends DataClass
       'title': serializer.toJson<String>(title),
       'img': serializer.toJson<String>(img),
       'classId': serializer.toJson<String>(classId),
+      'updateKey': serializer.toJson<String>(updateKey),
+      'updateTime': serializer.toJson<DateTime?>(updateTime),
+      'hasUpdate': serializer.toJson<bool>(hasUpdate),
+      'rating': serializer.toJson<double>(rating),
     };
   }
 
@@ -242,6 +369,10 @@ class BookshelfEntityData extends DataClass
     String? title,
     String? img,
     String? classId,
+    String? updateKey,
+    Value<DateTime?> updateTime = const Value.absent(),
+    bool? hasUpdate,
+    double? rating,
   }) => BookshelfEntityData(
     aid: aid ?? this.aid,
     bid: bid ?? this.bid,
@@ -249,6 +380,10 @@ class BookshelfEntityData extends DataClass
     title: title ?? this.title,
     img: img ?? this.img,
     classId: classId ?? this.classId,
+    updateKey: updateKey ?? this.updateKey,
+    updateTime: updateTime.present ? updateTime.value : this.updateTime,
+    hasUpdate: hasUpdate ?? this.hasUpdate,
+    rating: rating ?? this.rating,
   );
   BookshelfEntityData copyWithCompanion(BookshelfEntityCompanion data) {
     return BookshelfEntityData(
@@ -258,6 +393,12 @@ class BookshelfEntityData extends DataClass
       title: data.title.present ? data.title.value : this.title,
       img: data.img.present ? data.img.value : this.img,
       classId: data.classId.present ? data.classId.value : this.classId,
+      updateKey: data.updateKey.present ? data.updateKey.value : this.updateKey,
+      updateTime: data.updateTime.present
+          ? data.updateTime.value
+          : this.updateTime,
+      hasUpdate: data.hasUpdate.present ? data.hasUpdate.value : this.hasUpdate,
+      rating: data.rating.present ? data.rating.value : this.rating,
     );
   }
 
@@ -269,13 +410,28 @@ class BookshelfEntityData extends DataClass
           ..write('url: $url, ')
           ..write('title: $title, ')
           ..write('img: $img, ')
-          ..write('classId: $classId')
+          ..write('classId: $classId, ')
+          ..write('updateKey: $updateKey, ')
+          ..write('updateTime: $updateTime, ')
+          ..write('hasUpdate: $hasUpdate, ')
+          ..write('rating: $rating')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(aid, bid, url, title, img, classId);
+  int get hashCode => Object.hash(
+    aid,
+    bid,
+    url,
+    title,
+    img,
+    classId,
+    updateKey,
+    updateTime,
+    hasUpdate,
+    rating,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -285,7 +441,11 @@ class BookshelfEntityData extends DataClass
           other.url == this.url &&
           other.title == this.title &&
           other.img == this.img &&
-          other.classId == this.classId);
+          other.classId == this.classId &&
+          other.updateKey == this.updateKey &&
+          other.updateTime == this.updateTime &&
+          other.hasUpdate == this.hasUpdate &&
+          other.rating == this.rating);
 }
 
 class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
@@ -295,6 +455,10 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
   final Value<String> title;
   final Value<String> img;
   final Value<String> classId;
+  final Value<String> updateKey;
+  final Value<DateTime?> updateTime;
+  final Value<bool> hasUpdate;
+  final Value<double> rating;
   final Value<int> rowid;
   const BookshelfEntityCompanion({
     this.aid = const Value.absent(),
@@ -303,6 +467,10 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
     this.title = const Value.absent(),
     this.img = const Value.absent(),
     this.classId = const Value.absent(),
+    this.updateKey = const Value.absent(),
+    this.updateTime = const Value.absent(),
+    this.hasUpdate = const Value.absent(),
+    this.rating = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BookshelfEntityCompanion.insert({
@@ -312,6 +480,10 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
     required String title,
     required String img,
     required String classId,
+    this.updateKey = const Value.absent(),
+    this.updateTime = const Value.absent(),
+    this.hasUpdate = const Value.absent(),
+    this.rating = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : aid = Value(aid),
        bid = Value(bid),
@@ -326,6 +498,10 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
     Expression<String>? title,
     Expression<String>? img,
     Expression<String>? classId,
+    Expression<String>? updateKey,
+    Expression<DateTime>? updateTime,
+    Expression<bool>? hasUpdate,
+    Expression<double>? rating,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -335,6 +511,10 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
       if (title != null) 'title': title,
       if (img != null) 'img': img,
       if (classId != null) 'class_id': classId,
+      if (updateKey != null) 'update_key': updateKey,
+      if (updateTime != null) 'update_time': updateTime,
+      if (hasUpdate != null) 'has_update': hasUpdate,
+      if (rating != null) 'rating': rating,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -346,6 +526,10 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
     Value<String>? title,
     Value<String>? img,
     Value<String>? classId,
+    Value<String>? updateKey,
+    Value<DateTime?>? updateTime,
+    Value<bool>? hasUpdate,
+    Value<double>? rating,
     Value<int>? rowid,
   }) {
     return BookshelfEntityCompanion(
@@ -355,6 +539,10 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
       title: title ?? this.title,
       img: img ?? this.img,
       classId: classId ?? this.classId,
+      updateKey: updateKey ?? this.updateKey,
+      updateTime: updateTime ?? this.updateTime,
+      hasUpdate: hasUpdate ?? this.hasUpdate,
+      rating: rating ?? this.rating,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -380,6 +568,18 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
     if (classId.present) {
       map['class_id'] = Variable<String>(classId.value);
     }
+    if (updateKey.present) {
+      map['update_key'] = Variable<String>(updateKey.value);
+    }
+    if (updateTime.present) {
+      map['update_time'] = Variable<DateTime>(updateTime.value);
+    }
+    if (hasUpdate.present) {
+      map['has_update'] = Variable<bool>(hasUpdate.value);
+    }
+    if (rating.present) {
+      map['rating'] = Variable<double>(rating.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -395,6 +595,10 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
           ..write('title: $title, ')
           ..write('img: $img, ')
           ..write('classId: $classId, ')
+          ..write('updateKey: $updateKey, ')
+          ..write('updateTime: $updateTime, ')
+          ..write('hasUpdate: $hasUpdate, ')
+          ..write('rating: $rating, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1057,7 +1261,7 @@ class $ReadHistoryEntityTable extends ReadHistoryEntity
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {cid};
+  Set<GeneratedColumn> get $primaryKey => {aid, cid};
   @override
   ReadHistoryEntityData map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
@@ -1612,6 +1816,10 @@ typedef $$BookshelfEntityTableCreateCompanionBuilder =
       required String title,
       required String img,
       required String classId,
+      Value<String> updateKey,
+      Value<DateTime?> updateTime,
+      Value<bool> hasUpdate,
+      Value<double> rating,
       Value<int> rowid,
     });
 typedef $$BookshelfEntityTableUpdateCompanionBuilder =
@@ -1622,6 +1830,10 @@ typedef $$BookshelfEntityTableUpdateCompanionBuilder =
       Value<String> title,
       Value<String> img,
       Value<String> classId,
+      Value<String> updateKey,
+      Value<DateTime?> updateTime,
+      Value<bool> hasUpdate,
+      Value<double> rating,
       Value<int> rowid,
     });
 
@@ -1661,6 +1873,26 @@ class $$BookshelfEntityTableFilterComposer
 
   ColumnFilters<String> get classId => $composableBuilder(
     column: $table.classId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get updateKey => $composableBuilder(
+    column: $table.updateKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updateTime => $composableBuilder(
+    column: $table.updateTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hasUpdate => $composableBuilder(
+    column: $table.hasUpdate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get rating => $composableBuilder(
+    column: $table.rating,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1703,6 +1935,26 @@ class $$BookshelfEntityTableOrderingComposer
     column: $table.classId,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get updateKey => $composableBuilder(
+    column: $table.updateKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updateTime => $composableBuilder(
+    column: $table.updateTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hasUpdate => $composableBuilder(
+    column: $table.hasUpdate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get rating => $composableBuilder(
+    column: $table.rating,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BookshelfEntityTableAnnotationComposer
@@ -1731,6 +1983,20 @@ class $$BookshelfEntityTableAnnotationComposer
 
   GeneratedColumn<String> get classId =>
       $composableBuilder(column: $table.classId, builder: (column) => column);
+
+  GeneratedColumn<String> get updateKey =>
+      $composableBuilder(column: $table.updateKey, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updateTime => $composableBuilder(
+    column: $table.updateTime,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get hasUpdate =>
+      $composableBuilder(column: $table.hasUpdate, builder: (column) => column);
+
+  GeneratedColumn<double> get rating =>
+      $composableBuilder(column: $table.rating, builder: (column) => column);
 }
 
 class $$BookshelfEntityTableTableManager
@@ -1776,6 +2042,10 @@ class $$BookshelfEntityTableTableManager
                 Value<String> title = const Value.absent(),
                 Value<String> img = const Value.absent(),
                 Value<String> classId = const Value.absent(),
+                Value<String> updateKey = const Value.absent(),
+                Value<DateTime?> updateTime = const Value.absent(),
+                Value<bool> hasUpdate = const Value.absent(),
+                Value<double> rating = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BookshelfEntityCompanion(
                 aid: aid,
@@ -1784,6 +2054,10 @@ class $$BookshelfEntityTableTableManager
                 title: title,
                 img: img,
                 classId: classId,
+                updateKey: updateKey,
+                updateTime: updateTime,
+                hasUpdate: hasUpdate,
+                rating: rating,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1794,6 +2068,10 @@ class $$BookshelfEntityTableTableManager
                 required String title,
                 required String img,
                 required String classId,
+                Value<String> updateKey = const Value.absent(),
+                Value<DateTime?> updateTime = const Value.absent(),
+                Value<bool> hasUpdate = const Value.absent(),
+                Value<double> rating = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BookshelfEntityCompanion.insert(
                 aid: aid,
@@ -1802,6 +2080,10 @@ class $$BookshelfEntityTableTableManager
                 title: title,
                 img: img,
                 classId: classId,
+                updateKey: updateKey,
+                updateTime: updateTime,
+                hasUpdate: hasUpdate,
+                rating: rating,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

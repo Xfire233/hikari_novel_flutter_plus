@@ -9,20 +9,24 @@ class VerticalReadPage extends StatefulWidget {
   final String text;
   final List<String> images;
   final int initialOffset;
+  final int? initialProgress;
   final EdgeInsets padding;
   final TextStyle style;
   final int paraSpacing;
   final int paraIndent;
+  final bool eInkMode;
   final Function(double position, double max) onScroll;
 
   const VerticalReadPage(
     this.text,
     this.images, {
     required this.initialOffset,
+    this.initialProgress,
     required this.padding,
     required this.style,
     required this.paraSpacing,
     required this.paraIndent,
+    this.eInkMode = false,
     required this.onScroll,
     super.key,
   });
@@ -86,6 +90,10 @@ class VerticalReadPageState extends State<VerticalReadPage> {
     if (!position.hasContentDimensions) return;
 
     double targetOffset = widget.initialOffset.toDouble();
+    final progress = widget.initialProgress;
+    if (progress != null) {
+      targetOffset = position.maxScrollExtent * (progress.clamp(0, 100) / 100);
+    }
     targetOffset = targetOffset.clamp(0, position.maxScrollExtent);
 
     controller.jumpTo(targetOffset);
@@ -103,6 +111,29 @@ class VerticalReadPageState extends State<VerticalReadPage> {
     targetOffset = targetOffset.clamp(0, maxPositionPixels);
 
     controller.jumpTo(targetOffset);
+  }
+
+  bool turnPage({required bool forward, bool animate = false}) {
+    if (!controller.hasClients || maxPositionPixels <= 0) return false;
+
+    final distance = controller.position.viewportDimension * 0.92;
+    final current = currentPositionPixels;
+    final targetOffset = forward ? current + distance : current - distance;
+
+    if (forward && current >= maxPositionPixels) return false;
+    if (!forward && current <= 0) return false;
+
+    final target = targetOffset.clamp(0, maxPositionPixels).toDouble();
+    if (animate && !widget.eInkMode) {
+      controller.animateTo(
+        target,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      controller.jumpTo(target);
+    }
+    return true;
   }
 
   void resetPage() {
@@ -144,6 +175,7 @@ class VerticalReadPageState extends State<VerticalReadPage> {
 
     return CustomScrollView(
       controller: controller,
+      physics: widget.eInkMode ? const ClampingScrollPhysics() : null,
       slivers: [
         SliverPadding(
           padding: padding,
@@ -173,7 +205,9 @@ class VerticalReadPageState extends State<VerticalReadPage> {
             style: textStyle,
             children: [
               WidgetSpan(
-                child: SizedBox(width: textStyle.fontSize! * paraIndent), //按汉字宽度缩进
+                child: SizedBox(
+                  width: textStyle.fontSize! * paraIndent,
+                ), //按汉字宽度缩进
               ),
               TextSpan(text: content),
             ],
@@ -188,15 +222,39 @@ class VerticalReadPageState extends State<VerticalReadPage> {
       child: Padding(
         padding: const EdgeInsets.only(bottom: 20),
         child: GestureDetector(
-          onDoubleTap: () => Get.toNamed(RoutePath.photo, arguments: {"gallery_mode": true, "list": widget.images, "index": index}),
-          onLongPress: () => Get.toNamed(RoutePath.photo, arguments: {"gallery_mode": true, "list": widget.images, "index": index}),
+          onDoubleTap: () => Get.toNamed(
+            RoutePath.photo,
+            arguments: {
+              "gallery_mode": true,
+              "list": widget.images,
+              "index": index,
+            },
+          ),
+          onLongPress: () => Get.toNamed(
+            RoutePath.photo,
+            arguments: {
+              "gallery_mode": true,
+              "list": widget.images,
+              "index": index,
+            },
+          ),
           child: CachedNetworkImage(
             width: double.infinity,
             imageUrl: url,
             httpHeaders: Request.userAgent,
             fit: BoxFit.fitWidth,
-            progressIndicatorBuilder: (context, url, progress) => Center(child: CircularProgressIndicator(value: progress.progress)),
-            errorWidget: (context, url, error) => Column(children: [const Icon(Icons.error_outline), Text(error.toString())]),
+            progressIndicatorBuilder: (context, url, progress) =>
+                widget.eInkMode
+                ? const SizedBox.shrink()
+                : Center(
+                    child: CircularProgressIndicator(value: progress.progress),
+                  ),
+            errorWidget: (context, url, error) => Column(
+              children: [
+                const Icon(Icons.error_outline),
+                Text(error.toString()),
+              ],
+            ),
           ),
         ),
       ),
@@ -204,7 +262,9 @@ class VerticalReadPageState extends State<VerticalReadPage> {
   }
 
   void _splitItems() {
-    final paragraphs = widget.text.split('\n\n').where((e) => e.trim().isNotEmpty);
+    final paragraphs = widget.text
+        .split('\n\n')
+        .where((e) => e.trim().isNotEmpty);
 
     _items = [];
 

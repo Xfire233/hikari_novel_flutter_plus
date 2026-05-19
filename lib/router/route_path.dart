@@ -38,4 +38,10 @@ class RoutePath {
   static const userBookshelf = "/user_bookshelf";
 
   static const devTools = "/dev_tools";
+
+  static const yamiboForum = "/yamibo_forum";
+
+  static const yamiboAuthorThreads = "/yamibo_author_threads";
+
+  static const esjzone = "/esjzone";
 }

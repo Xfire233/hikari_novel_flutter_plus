@@ -23,7 +23,16 @@ class BrowsingHistoryController extends GetxController {
         return;
       }
       list.clear();
-      list.addAll((history.map((e) => BrowsingHistory(aid: e.aid, title: e.title, img: e.img, time: e.time))));
+      list.addAll(
+        (history.map(
+          (e) => BrowsingHistory(
+            aid: e.aid,
+            title: e.title,
+            img: e.img,
+            time: e.time,
+          ),
+        )),
+      );
       pageState.value = PageState.success;
     });
   }
@@ -36,10 +45,13 @@ class BrowsingHistoryController extends GetxController {
         content: Text("delete_all_browsing_history_tip".tr),
         actions: [
           TextButton(onPressed: Get.back, child: Text("cancel".tr)),
-          TextButton(onPressed: () {
-            DBService.instance.deleteAllBrowsingHistory();
-            Get.back();
-          }, child: Text("confirm".tr)),
+          TextButton(
+            onPressed: () {
+              DBService.instance.deleteAllBrowsingHistory();
+              Get.back();
+            },
+            child: Text("confirm".tr),
+          ),
         ],
       ),
     );

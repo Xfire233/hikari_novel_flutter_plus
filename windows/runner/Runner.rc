@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "hikari_novel_flutter" "\0"
+            VALUE "FileDescription", "Hikari Novel Modified" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "hikari_novel_flutter" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
             VALUE "OriginalFilename", "hikari_novel_flutter.exe" "\0"
-            VALUE "ProductName", "hikari_novel_flutter" "\0"
+            VALUE "ProductName", "Hikari Novel Modified" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

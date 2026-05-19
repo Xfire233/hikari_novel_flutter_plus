@@ -4,7 +4,13 @@ import 'package:hikari_novel_flutter/models/custom_exception.dart';
 import 'package:wx_divider/wx_divider.dart';
 
 class ErrorMessage extends StatelessWidget {
-  const ErrorMessage({super.key, required this.msg, required this.action, this.buttonText = "retry", this.iconData = Icons.refresh});
+  const ErrorMessage({
+    super.key,
+    required this.msg,
+    required this.action,
+    this.buttonText = "retry",
+    this.iconData = Icons.refresh,
+  });
 
   final String msg;
   final Function()? action;
@@ -21,10 +27,23 @@ class ErrorMessage extends StatelessWidget {
         children: [
           Text(
             "error".tr,
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
-          Padding(padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20), child: _buildErrorInfo()),
-          action == null ? Container() : FilledButton.icon(onPressed: action, icon: Icon(iconData), label: Text(buttonText.tr)),
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+            child: _buildErrorInfo(),
+          ),
+          action == null
+              ? Container()
+              : FilledButton.icon(
+                  onPressed: action,
+                  icon: Icon(iconData),
+                  label: Text(buttonText.tr),
+                ),
         ],
       ),
     );
@@ -56,7 +75,13 @@ class LogoPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(child: Image.asset("assets/images/logo_transparent.png", width: 150, height: 150));
+    return Center(
+      child: Image.asset(
+        "assets/images/logo_transparent.png",
+        width: 150,
+        height: 150,
+      ),
+    );
   }
 }
 
@@ -71,7 +96,10 @@ class PleaseSelectPage extends StatelessWidget {
         children: [
           const Icon(Icons.ads_click, size: 48),
           const SizedBox(height: 16),
-          Text("please_select_type".tr, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          Text(
+            "please_select_type".tr,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );
@@ -91,8 +119,17 @@ class EmptyPage extends StatelessWidget {
         children: [
           const Icon(Icons.inbox, size: 48),
           const SizedBox(height: 16),
-          Text("empty_content".tr, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          onRefresh != null ? TextButton.icon(onPressed: onRefresh, icon: Icon(Icons.refresh), label: Text("refresh".tr)) : const SizedBox(),
+          Text(
+            "empty_content".tr,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          onRefresh != null
+              ? TextButton.icon(
+                  onPressed: onRefresh,
+                  icon: Icon(Icons.refresh),
+                  label: Text("refresh".tr),
+                )
+              : const SizedBox(),
         ],
       ),
     );
@@ -112,7 +149,11 @@ Widget _getCommonErrorInfoView(String msg) {
       children: [
         Text(tip),
         const SizedBox(height: 6),
-        WxDivider(pattern: WxDivider.dashed, color: Theme.of(Get.context!).colorScheme.onSurface,child: Text("Raw Message")),
+        WxDivider(
+          pattern: WxDivider.dashed,
+          color: Theme.of(Get.context!).colorScheme.onSurface,
+          child: Text("Raw Message"),
+        ),
         const SizedBox(height: 6),
         Text(msg),
       ],
@@ -128,7 +169,9 @@ Future showErrorDialog(String msg, List<Widget> actions) {
     content = SingleChildScrollView(child: Text(msg));
   }
 
-  return Get.dialog(AlertDialog(title: Text("error".tr), content: content, actions: actions));
+  return Get.dialog(
+    AlertDialog(title: Text("error".tr), content: content, actions: actions),
+  );
 }
 
 //参考https://pub.dev/packages/floating_snackbar
@@ -140,8 +183,13 @@ void showSnackBar({
 }) {
   // Create a SnackBar widget with specified properties
   var snack = SnackBar(
-    margin: const EdgeInsets.symmetric(vertical: 20, horizontal: 10), // Set margin around the SnackBar
-    duration: duration ?? const Duration(milliseconds: 4000), // Default duration if not provided
+    margin: const EdgeInsets.symmetric(
+      vertical: 20,
+      horizontal: 10,
+    ), // Set margin around the SnackBar
+    duration:
+        duration ??
+        const Duration(milliseconds: 4000), // Default duration if not provided
     content: Text(
       message, // Display the provided message text
       style: textStyle ?? TextStyle(), // Apply provided or default text style
@@ -155,4 +203,6 @@ void showSnackBar({
   ScaffoldMessenger.of(context).showSnackBar(snack);
 }
 
-bool isSpecificMessage(String msg) => msg.contains(cloudflareChallengeExceptionMessage) || msg.contains(cloudflare403ExceptionMessage);
+bool isSpecificMessage(String msg) =>
+    msg.contains(cloudflareChallengeExceptionMessage) ||
+    msg.contains(cloudflare403ExceptionMessage);

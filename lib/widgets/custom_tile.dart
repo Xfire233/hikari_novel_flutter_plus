@@ -9,18 +9,31 @@ class NormalTile extends StatelessWidget {
   final Widget? trailing;
   final void Function()? onTap;
 
-  const NormalTile({required this.title, this.subtitle, required this.leading, this.trailing, this.onTap, super.key});
+  const NormalTile({
+    required this.title,
+    this.subtitle,
+    required this.leading,
+    this.trailing,
+    this.onTap,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       onTap: onTap,
       title: Text(title, style: kBaseTileTitleTextStyle),
-      subtitle: subtitle == null ? null : Text(subtitle!, style: kBaseTileSubtitleTextStyle),
+      subtitle: subtitle == null
+          ? null
+          : Text(subtitle!, style: kBaseTileSubtitleTextStyle),
       leading: leading,
       trailing: Padding(
         padding: EdgeInsets.only(right: 4),
-        child: Transform.scale(scale: 0.9, alignment: .centerRight, child: trailing),
+        child: Transform.scale(
+          scale: 0.9,
+          alignment: .centerRight,
+          child: trailing,
+        ),
       ),
     );
   }
@@ -31,17 +44,27 @@ class SwitchTile extends StatelessWidget {
   final String? subtitle;
   final Widget leading;
   final void Function()? onTap;
-  final void Function(bool value) onChanged;
+  final void Function(bool value)? onChanged;
   final bool value;
 
-  const SwitchTile({super.key, required this.title, this.subtitle, required this.leading, this.onTap, required this.onChanged, required this.value});
+  const SwitchTile({
+    super.key,
+    required this.title,
+    this.subtitle,
+    required this.leading,
+    this.onTap,
+    required this.onChanged,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       onTap: onTap,
       title: Text(title, style: kBaseTileTitleTextStyle),
-      subtitle: subtitle == null ? null : Text(subtitle!, style: kBaseTileSubtitleTextStyle),
+      subtitle: subtitle == null
+          ? null
+          : Text(subtitle!, style: kBaseTileSubtitleTextStyle),
       leading: leading,
       trailing: Transform.scale(
         scale: 0.9,
@@ -84,10 +107,20 @@ class SliderTile extends StatelessWidget {
         children: [
           Text(title, style: kBaseTileTitleTextStyle),
           const Spacer(),
-          Text(value.toStringAsFixed(decimalPlaces), style: kBaseTileSubtitleTextStyle),
+          Text(
+            value.toStringAsFixed(decimalPlaces),
+            style: kBaseTileSubtitleTextStyle,
+          ),
         ],
       ),
-      subtitle: Slider(min: min.toDouble(), max: max.toDouble(), divisions: divisions, value: value.toDouble(), onChanged: onChanged, onChangeEnd: onChangeEnd),
+      subtitle: Slider(
+        min: min.toDouble(),
+        max: max.toDouble(),
+        divisions: divisions,
+        value: value.toDouble(),
+        onChanged: onChanged,
+        onChangeEnd: onChangeEnd,
+      ),
     );
   }
 }
@@ -99,7 +132,14 @@ class RadioListDialog<T> extends StatelessWidget {
   final Widget Function(BuildContext, int)? subtitleBuilder;
   final bool toggleable;
 
-  const RadioListDialog({super.key, required this.value, required this.values, required this.title, this.subtitleBuilder, this.toggleable = false});
+  const RadioListDialog({
+    super.key,
+    required this.value,
+    required this.values,
+    required this.title,
+    this.subtitleBuilder,
+    this.toggleable = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +147,9 @@ class RadioListDialog<T> extends StatelessWidget {
     return AlertDialog(
       clipBehavior: Clip.hardEdge,
       title: Text(title),
-      constraints: subtitleBuilder != null ? const BoxConstraints(maxWidth: 320, minWidth: 320) : null,
+      constraints: subtitleBuilder != null
+          ? const BoxConstraints(maxWidth: 320, minWidth: 320)
+          : null,
       contentPadding: const EdgeInsets.symmetric(vertical: 12),
       content: Material(
         type: .transparency,
@@ -130,7 +172,12 @@ class RadioListDialog<T> extends StatelessWidget {
           ),
         ),
       ),
-      actions: [TextButton(onPressed: Navigator.of(context).pop, child: Text("cancel".tr))],
+      actions: [
+        TextButton(
+          onPressed: Navigator.of(context).pop,
+          child: Text("cancel".tr),
+        ),
+      ],
     );
   }
 }
@@ -140,7 +187,12 @@ class NormalListDialog<T> extends StatelessWidget {
   final List<(T, String)> values;
   final Widget Function(BuildContext, int)? subtitleBuilder;
 
-  const NormalListDialog({super.key, required this.values, required this.title, this.subtitleBuilder});
+  const NormalListDialog({
+    super.key,
+    required this.values,
+    required this.title,
+    this.subtitleBuilder,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -148,7 +200,9 @@ class NormalListDialog<T> extends StatelessWidget {
     return AlertDialog(
       clipBehavior: Clip.hardEdge,
       title: Text(title),
-      constraints: subtitleBuilder != null ? const BoxConstraints(maxWidth: 320, minWidth: 320) : null,
+      constraints: subtitleBuilder != null
+          ? const BoxConstraints(maxWidth: 320, minWidth: 320)
+          : null,
       contentPadding: const EdgeInsets.symmetric(vertical: 12),
       content: Material(
         type: .transparency,
@@ -169,7 +223,12 @@ class NormalListDialog<T> extends StatelessWidget {
           ),
         ),
       ),
-      actions: [TextButton(onPressed: Navigator.of(context).pop, child: Text("cancel".tr))],
+      actions: [
+        TextButton(
+          onPressed: Navigator.of(context).pop,
+          child: Text("cancel".tr),
+        ),
+      ],
     );
   }
 }

@@ -30,8 +30,11 @@ class Parser {
     if (contentElement == null) {
       return result;
     }
-    const String targetStyle = "width:373px;height:136px;float:left;margin:5px 0px 5px 5px;";
-    final List<Element> bookItems = contentElement.querySelectorAll('[style="$targetStyle"]');
+    const String targetStyle =
+        "width:373px;height:136px;float:left;margin:5px 0px 5px 5px;";
+    final List<Element> bookItems = contentElement.querySelectorAll(
+      '[style="$targetStyle"]',
+    );
 
     for (final Element novelItem in bookItems) {
       try {
@@ -151,12 +154,25 @@ class Parser {
     final tags = tag.replaceRange(0, 7, "").split(" ");
     final heat = "heat".tr + tempHeat.substring(5, 7);
 
-    return NovelDetail(title, author, status, finUpdate, imgUrl, introduce, tags, heat, trending, isAnimated);
+    return NovelDetail(
+      title,
+      author,
+      status,
+      finUpdate,
+      imgUrl,
+      introduce,
+      tags,
+      heat,
+      trending,
+      isAnimated,
+    );
   }
 
   static int getMaxNum(String html) {
     final document = parse(html);
-    final List<Element> lastPageElements = document.getElementsByClassName("last");
+    final List<Element> lastPageElements = document.getElementsByClassName(
+      "last",
+    );
     int pageCount = 0;
     for (final tempElement in lastPageElements) {
       final String textContent = tempElement.text.trim();
@@ -180,7 +196,9 @@ class Parser {
       if (i == 1) {
         blockTitle = blockTitle.split("(")[0];
       }
-      List<Element> tempBlock1Content = block.querySelectorAll("div[style='float: left;text-align:center;width: 95px; height:155px;overflow:hidden;']");
+      List<Element> tempBlock1Content = block.querySelectorAll(
+        "div[style='float: left;text-align:center;width: 95px; height:155px;overflow:hidden;']",
+      );
       for (var j in tempBlock1Content) {
         String title = j.getElementsByTagName("a")[1].text;
         String img = j.getElementsByTagName("img")[0].attributes["src"] ?? "";
@@ -188,7 +206,9 @@ class Parser {
           img = img.replaceFirst("http", "https");
         }
         String url = j.getElementsByTagName("a")[0].attributes["href"] ?? "";
-        String aid = url.contains("book/") ? url.substring(url.indexOf("book/") + 5, url.indexOf(".htm")) : "";
+        String aid = url.contains("book/")
+            ? url.substring(url.indexOf("book/") + 5, url.indexOf(".htm"))
+            : "";
         blockList.add(NovelCover(title, img, aid));
       }
       recommendBlockList.add(RecommendBlock(blockTitle, blockList));
@@ -201,7 +221,9 @@ class Parser {
       if (i == 3) {
         blockTitle = blockTitle.split("(")[0];
       }
-      List<Element> tempBlock1Content = b.querySelectorAll("div[style='float: left;text-align:center;width: 95px; height:155px;overflow:hidden;']");
+      List<Element> tempBlock1Content = b.querySelectorAll(
+        "div[style='float: left;text-align:center;width: 95px; height:155px;overflow:hidden;']",
+      );
       for (var j in tempBlock1Content) {
         try {
           String title = j.getElementsByTagName("a")[1].text;
@@ -211,7 +233,9 @@ class Parser {
             img = img.replaceFirst("http", "https");
           }
           String url = j.getElementsByTagName("a")[0].attributes["href"] ?? "";
-          String aid = url.contains("book/") ? url.substring(url.indexOf("book/") + 5, url.indexOf(".htm")) : "";
+          String aid = url.contains("book/")
+              ? url.substring(url.indexOf("book/") + 5, url.indexOf(".htm"))
+              : "";
           blockList.add(NovelCover(title, img, aid));
         } catch (e) {
           continue;
@@ -239,7 +263,9 @@ class Parser {
       final volTd = row.querySelector('td.vcss');
       if (volTd != null) {
         if (currentVolumeTitle != null) {
-          volumes.add(CatVolume(title: currentVolumeTitle, chapters: currentChapters));
+          volumes.add(
+            CatVolume(title: currentVolumeTitle, chapters: currentChapters),
+          );
           currentChapters = [];
         }
         currentVolumeTitle = volTd.text.trim();
@@ -267,7 +293,9 @@ class Parser {
     }
 
     if (currentVolumeTitle != null) {
-      volumes.add(CatVolume(title: currentVolumeTitle, chapters: currentChapters));
+      volumes.add(
+        CatVolume(title: currentVolumeTitle, chapters: currentChapters),
+      );
     }
 
     return volumes;
@@ -301,7 +329,9 @@ class Parser {
       final viewAndReply = tds[1].text.trim();
       final idx = viewAndReply.indexOf('/');
       final replyCount = idx > 0 ? viewAndReply.substring(0, idx) : '';
-      final viewCount = (idx >= 0 && idx + 1 < viewAndReply.length) ? viewAndReply.substring(idx + 1) : '';
+      final viewCount = (idx >= 0 && idx + 1 < viewAndReply.length)
+          ? viewAndReply.substring(idx + 1)
+          : '';
       final a2 = tds[2].querySelector('a');
       final userName = a2?.text.trim() ?? '';
       final href2 = a2?.attributes['href'] ?? '';
@@ -309,7 +339,17 @@ class Parser {
       final timeRaw = tds[3].text.trim();
       final time = Util.getDateTime(timeRaw);
 
-      comments.add(CommentItem(rid: reply, content: contentText, replyCount: replyCount, viewCount: viewCount, userName: userName, uid: uid, time: time));
+      comments.add(
+        CommentItem(
+          rid: reply,
+          content: contentText,
+          replyCount: replyCount,
+          viewCount: viewCount,
+          userName: userName,
+          uid: uid,
+          time: time,
+        ),
+      );
     }
 
     return comments;
@@ -322,7 +362,9 @@ class Parser {
       return [];
     }
     final List<Element> b = a.getElementsByTagName("table");
-    final List<Element> paddingTables = a.querySelectorAll("table[cellpadding='3']");
+    final List<Element> paddingTables = a.querySelectorAll(
+      "table[cellpadding='3']",
+    );
     if (paddingTables.length > 1) {
       final Element d = paddingTables[1];
       final Element? lastElement = d.querySelector(".last");
@@ -372,7 +414,14 @@ class Parser {
         content = contentDiv.text;
       }
       final String formattedTime = Util.getDateTime(time.trim());
-      tempR.add(ReplyItem(content: content, userName: userName, uid: uid, time: formattedTime));
+      tempR.add(
+        ReplyItem(
+          content: content,
+          userName: userName,
+          uid: uid,
+          time: formattedTime,
+        ),
+      );
     }
     return tempR;
   }
@@ -389,18 +438,32 @@ class Parser {
     final rows = content.getElementsByTagName('tr');
     for (final row in rows) {
       if (row.attributes.containsKey('align')) continue;
-      final firstTd = row.getElementsByTagName('td').isNotEmpty ? row.getElementsByTagName('td')[0] : null;
-      if (firstTd != null && firstTd.classes.contains('foot')) continue;
+      final cells = row.getElementsByTagName('td');
+      if (cells.length < 2) continue;
+      final firstTd = cells.first;
+      if (firstTd.classes.contains('foot')) continue;
 
-      final bid = row.getElementsByTagName('td')[0].querySelector('input')?.attributes['value'] ?? '';
+      final bid = cells[0].querySelector('input')?.attributes['value'] ?? '';
 
-      final linkEl = row.getElementsByTagName('td')[1].querySelector('a');
+      final linkEl = cells[1].querySelector('a');
       final bookUrl = linkEl?.attributes['href'] ?? '';
       final title = linkEl?.text.trim() ?? '';
+      if (bookUrl.isEmpty || title.isEmpty) continue;
+
+      final updateCell = cells.length > 2 ? cells[2] : null;
+      final updateLink = updateCell?.querySelector('a');
+      final updateTitle =
+          updateLink?.text.trim() ?? updateCell?.text.trim() ?? '';
+      final updateHref = updateLink?.attributes['href'] ?? '';
+      final updateKey = updateHref.isNotEmpty ? updateHref : updateTitle;
+      final updateTime = _parseBookshelfUpdateTime(row);
 
       final aidStart = bookUrl.indexOf('aid=') + 4;
       final aidEnd = bookUrl.indexOf('&', aidStart);
-      final aid = aidStart >= 4 && aidEnd > aidStart ? bookUrl.substring(aidStart, aidEnd) : '';
+      final aid = aidStart >= 4 && aidEnd > aidStart
+          ? bookUrl.substring(aidStart, aidEnd)
+          : '';
+      if (aid.isEmpty) continue;
 
       String imgUrl;
       if (aid.length <= 3) {
@@ -409,7 +472,17 @@ class Parser {
         imgUrl = 'https://img.wenku8.com/image/${aid[0]}/$aid/${aid}s.jpg';
       }
 
-      novels.add(BookshelfNovelInfo(bid: bid, aid: aid, url: bookUrl, title: title, img: imgUrl));
+      novels.add(
+        BookshelfNovelInfo(
+          bid: bid,
+          aid: aid,
+          url: bookUrl,
+          title: title,
+          img: imgUrl,
+          updateKey: updateKey,
+          updateTime: updateTime,
+        ),
+      );
     }
 
     final gridtop = content.querySelector('div.gridtop')?.text.trim() ?? '';
@@ -420,33 +493,84 @@ class Parser {
     return Bookshelf(list: novels, classId: classId.toString());
   }
 
+  static DateTime? _parseBookshelfUpdateTime(Element row) {
+    for (final td in row.getElementsByTagName('td').reversed) {
+      final text = td.text.trim();
+      final match = RegExp(
+        r'(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:\s+(\d{1,2}):(\d{1,2}))?',
+      ).firstMatch(text);
+      if (match == null) continue;
+      return DateTime(
+        int.parse(match.group(1)!),
+        int.parse(match.group(2)!),
+        int.parse(match.group(3)!),
+        int.tryParse(match.group(4) ?? '') ?? 0,
+        int.tryParse(match.group(5) ?? '') ?? 0,
+      );
+    }
+    return null;
+  }
+
   static String novelVote(String html) {
     Document document = parse(html);
     var blockContent = document.getElementsByClassName("blockcontent");
     if (blockContent.isNotEmpty) {
-      var targetDiv = blockContent[0].querySelector("div[style='padding:10px']");
+      var targetDiv = blockContent[0].querySelector(
+        "div[style='padding:10px']",
+      );
       return targetDiv!.text;
     }
     return "";
   }
 
   static UserInfo getUserInfo(String html) {
-    Document document = parse(html);
-    Element content = document.getElementById('content')!;
-    Element tbody = content.querySelector('tbody')!;
-    List<Element> rows = tbody.querySelectorAll('tr');
-    Element row0 = rows[0];
-    String avatar = row0.querySelectorAll('td')[2].querySelector('img')!.attributes['src']!.replaceAll("https", "http");
-    String userID = row0.querySelectorAll('td')[1].text.trim();
-    String userName = rows[2].querySelectorAll('td')[1].text.trim();
-    String userLevel = rows[4].querySelectorAll('td')[1].text.trim();
-    String email = rows[7].querySelector('a')!.text.trim();
-    String signUpDate = rows[12].querySelectorAll('td')[1].text.trim();
-    String contribution = rows[13].querySelectorAll('td')[1].text.trim();
-    String experience = rows[14].querySelectorAll('td')[1].text.trim();
-    String score = rows[15].querySelectorAll('td')[1].text.trim();
-    String maxBookcase = rows[18].querySelectorAll('td')[1].text.trim();
-    String maxRecommend = rows[19].querySelectorAll('td')[1].text.trim();
+    final Document document = parse(html);
+    final Element? content = document.getElementById('content');
+    final List<Element> rows =
+        content?.querySelector('tbody')?.querySelectorAll('tr') ?? <Element>[];
+    if (rows.isEmpty) {
+      throw StateError('Wenku8 user info content not found');
+    }
+
+    String cellText(int rowIndex, int cellIndex) {
+      if (rowIndex >= rows.length) return "";
+      final cells = rows[rowIndex].querySelectorAll('td');
+      if (cellIndex >= cells.length) return "";
+      return cells[cellIndex].text.trim();
+    }
+
+    String linkText(int rowIndex, int cellIndex) {
+      if (rowIndex >= rows.length) return "";
+      final cells = rows[rowIndex].querySelectorAll('td');
+      if (cellIndex >= cells.length) return "";
+      return cells[cellIndex].querySelector('a')?.text.trim() ??
+          cells[cellIndex].text.trim();
+    }
+
+    final row0Cells = rows.first.querySelectorAll('td');
+    String avatar = row0Cells.length > 2
+        ? row0Cells[2].querySelector('img')?.attributes['src']?.trim() ?? ""
+        : "";
+    if (avatar.isEmpty) {
+      avatar = "${Api.wenku8Node.node}/images/noavatar.jpg";
+    } else {
+      avatar = ImageUrlHelper.normalize(avatar).replaceAll("https", "http");
+    }
+
+    final String userID = cellText(0, 1);
+    final String userName = cellText(2, 1);
+    if (userID.isEmpty && userName.isEmpty) {
+      throw StateError('Wenku8 user info fields not found');
+    }
+
+    String userLevel = cellText(4, 1);
+    String email = linkText(7, 1);
+    String signUpDate = cellText(12, 1);
+    String contribution = cellText(13, 1);
+    String experience = cellText(14, 1);
+    String score = cellText(15, 1);
+    String maxBookcase = cellText(18, 1);
+    String maxRecommend = cellText(19, 1);
     return UserInfo(
       avatar: avatar,
       uid: userID,
@@ -484,7 +608,9 @@ class Parser {
       final Document document = parse(html);
       final Element? content = document.getElementById('content');
       if (content == null) return null;
-      final List<Element> divs = content.getElementsByTagName('div')[0].querySelectorAll('div[style="margin:0px auto;overflow:hidden;"]');
+      final List<Element> divs = content
+          .getElementsByTagName('div')[0]
+          .querySelectorAll('div[style="margin:0px auto;overflow:hidden;"]');
       if (divs.isEmpty) return null;
       final List<Element> spans = divs[0].getElementsByTagName('span');
       if (spans.length < 2) return null;
@@ -494,8 +620,17 @@ class Parser {
       final List<Element> tables = content.getElementsByTagName('table');
       if (tables.isEmpty) return null;
       final Element table0 = tables[0];
-      final String title = table0.querySelectorAll('span').first.querySelector('b')?.text.trim() ?? '';
-      final String imgUrl = ImageUrlHelper.normalize(content.querySelectorAll('img').first.attributes['src']?.trim() ?? '');
+      final String title =
+          table0
+              .querySelectorAll('span')
+              .first
+              .querySelector('b')
+              ?.text
+              .trim() ??
+          '';
+      final String imgUrl = ImageUrlHelper.normalize(
+        content.querySelectorAll('img').first.attributes['src']?.trim() ?? '',
+      );
       final int idx = bookHref.indexOf('bid=');
       if (idx == -1) return null;
       final String aid = bookHref.substring(idx + 4);
@@ -526,7 +661,10 @@ class Parser {
 
     // 去除文本首尾的空行（核心处理）
     // 正则说明：^[\n\s]* 匹配开头的所有换行/空白；[\n\s]*$ 匹配结尾的所有换行/空白
-    String trimmedText = contentElement.text.replaceAll(RegExp(r'^[\n\s]*|[\n\s]*$'), '');
+    String trimmedText = contentElement.text.replaceAll(
+      RegExp(r'^[\n\s]*|[\n\s]*$'),
+      '',
+    );
 
     // 按空行分割成段落列表（兼容含空格的空行）
     List<String> paragraphs = trimmedText.split(RegExp(r'\n\s*\n'));

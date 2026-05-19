@@ -2,6 +2,7 @@ import 'package:easy_refresh/easy_refresh.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 
+import '../../models/novel_cover.dart';
 import '../../models/recommend_block.dart';
 import '../../models/resource.dart';
 import '../../network/api.dart';
@@ -12,6 +13,9 @@ class RecommendController extends GetxController {
 
   Rx<PageState> pageState = Rx(PageState.loading);
   String errorMsg = "";
+
+  List<NovelCover> get eInkNovels =>
+      data.expand((block) => block.list).toList(growable: false);
 
   @override
   void onReady() {

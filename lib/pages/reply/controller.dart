@@ -8,7 +8,8 @@ import '../../models/resource.dart';
 import '../../network/api.dart';
 import '../../network/parser.dart';
 
-class ReplyController extends BaseListPageController<ReplyItem> with GetSingleTickerProviderStateMixin {
+class ReplyController extends BaseListPageController<ReplyItem>
+    with GetSingleTickerProviderStateMixin {
   final String aid;
   final String rid;
 
@@ -32,8 +33,16 @@ class ReplyController extends BaseListPageController<ReplyItem> with GetSingleTi
   @override
   void onInit() {
     super.onInit();
-    _fabAnimationCtr = AnimationController(vsync: this, duration: const Duration(milliseconds: 100))..forward();
-    animation = _fabAnimationCtr.drive(Tween<Offset>(begin: const Offset(0.0, 2.0), end: Offset.zero).chain(CurveTween(curve: Curves.easeInOut)));
+    _fabAnimationCtr = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    )..forward();
+    animation = _fabAnimationCtr.drive(
+      Tween<Offset>(
+        begin: const Offset(0.0, 2.0),
+        end: Offset.zero,
+      ).chain(CurveTween(curve: Curves.easeInOut)),
+    );
   }
 
   @override
@@ -61,7 +70,11 @@ class ReplyController extends BaseListPageController<ReplyItem> with GetSingleTi
       return "word_number_too_low_tip".tr;
     }
 
-    final result = await Api.sendReply(aid: aid, rid: rid, content: replyContentController.text);
+    final result = await Api.sendReply(
+      aid: aid,
+      rid: rid,
+      content: replyContentController.text,
+    );
     replyContentController.clear();
     switch (result) {
       case Success():

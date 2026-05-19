@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/pages/bookshelf/controller.dart';
+import 'package:hikari_novel_flutter/router/app_sub_router.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
 import 'package:responsive_grid_list/responsive_grid_list.dart';
 
-import '../../../models/novel_cover.dart';
 import '../../../widgets/novel_cover_card.dart';
 
 class BookshelfSearchView extends StatelessWidget {
@@ -46,36 +46,46 @@ class BookshelfSearchView extends StatelessWidget {
             },
           ),
         ),
-        titleSpacing: 0,
+        titleSpacing: 16,
       ),
-      body: Stack(
-        children: [
-          Obx(
-            () => Offstage(
-              offstage: controller.pageState.value != PageState.success,
-              child:
-                  controller.data.isEmpty == true
-                      ? Container()
-                      : Padding(
-                        padding: EdgeInsets.fromLTRB(8, 0, 8, 0),
-                        child: Obx(
-                          () => ResponsiveGridList(
-                            minItemWidth: 100,
-                            horizontalGridSpacing: 4,
-                            verticalGridSpacing: 4,
-                            children:
-                                controller.data.map((item) {
-                                  return NovelCoverCard(novelCover: NovelCover(item.title, item.img, item.aid));
-                                }).toList(),
-                          ),
-                        ),
-                      ),
-            ),
+      body: Obx(
+        () => AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          child: KeyedSubtree(
+            key: ValueKey('bookshelf-search-${controller.pageState.value}'),
+            child: _buildBodyState(),
           ),
-          Obx(() => Offstage(offstage: controller.pageState.value != PageState.empty, child: EmptyPage())),
-          Obx(() => Offstage(offstage: controller.pageState.value != PageState.placeholder, child: Container()))
-        ],
+        ),
       ),
     );
+  }
+
+  Widget _buildBodyState() {
+    return switch (controller.pageState.value) {
+      PageState.success =>
+        controller.data.isEmpty == true
+            ? const SizedBox.shrink()
+            : Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
+                child: ResponsiveGridList(
+                  minItemWidth: 100,
+                  horizontalGridSpacing: 4,
+                  verticalGridSpacing: 4,
+                  children: controller.data.map((item) {
+                    return BookshelfCoverCard(
+                      bookshelfNovelInfo: item,
+                      onTap: () => AppSubRouter.toNovelDetail(aid: item.aid),
+                      onLongPress: () {},
+                      onRatingChanged: (rating) =>
+                          controller.setRating(item.aid, rating),
+                    );
+                  }).toList(),
+                ),
+              ),
+      PageState.empty => EmptyPage(),
+      _ => const SizedBox.shrink(),
+    };
   }
 }

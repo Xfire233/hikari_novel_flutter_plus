@@ -14,11 +14,20 @@ class CacheQueuePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text("view_cache_queue".tr),
-        titleSpacing: 0,
+        titleSpacing: 16,
         actions: [
-          IconButton(icon: Icon(Icons.play_circle_outline), onPressed: () => controller.startAll()),
-          IconButton(icon: Icon(Icons.pause_circle_outline), onPressed: () => controller.pauseAll()),
-          IconButton(icon: Icon(Icons.delete_outline), onPressed: () => controller.clearAll()),
+          IconButton(
+            icon: Icon(Icons.play_circle_outline),
+            onPressed: () => controller.startAll(),
+          ),
+          IconButton(
+            icon: Icon(Icons.pause_circle_outline),
+            onPressed: () => controller.pauseAll(),
+          ),
+          IconButton(
+            icon: Icon(Icons.delete_outline),
+            onPressed: () => controller.clearAll(),
+          ),
         ],
       ),
       body: Obx(() {
@@ -33,8 +42,13 @@ class CacheQueuePage extends StatelessWidget {
                 children: [
                   _buildTile(t),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0),
-                    child: t.progress >= 0 && t.progress <= 1 ? LinearProgressIndicator(value: t.progress) : LinearProgressIndicator(),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 0,
+                    ),
+                    child: t.progress >= 0 && t.progress <= 1
+                        ? LinearProgressIndicator(value: t.progress)
+                        : LinearProgressIndicator(),
                   ),
                 ],
               ),
@@ -48,9 +62,9 @@ class CacheQueuePage extends StatelessWidget {
   Widget _buildTile(ChapterCacheTask t) {
     String subtitle = statusToString(t.status).tr;
     if (t.progress >= 0 && t.progress <= 1) {
-      subtitle += " · ${(t.progress * 100).toStringAsFixed(0)}%";
+      subtitle += " 路 ${(t.progress * 100).toStringAsFixed(0)}%";
     } else if (t.progress == -1) {
-      subtitle += " · ${"unknownProgress".tr}";
+      subtitle += " 路 ${"unknownProgress".tr}";
     }
 
     return ListTile(
@@ -60,10 +74,25 @@ class CacheQueuePage extends StatelessWidget {
       trailing: Wrap(
         spacing: 4,
         children: [
-          if (t.status == CacheStatus.pending) IconButton(icon: Icon(Icons.play_arrow), onPressed: () => controller.resumeTask(t.uuid)),
-          if (t.status == CacheStatus.downloading) IconButton(icon: Icon(Icons.pause), onPressed: () => controller.pauseTask(t.uuid)),
-          if (t.status == CacheStatus.failed) IconButton(icon: Icon(Icons.refresh), onPressed: () => controller.resumeTask(t.uuid)),
-          IconButton(icon: Icon(Icons.delete), onPressed: () => controller.removeTask(t.uuid)),
+          if (t.status == CacheStatus.pending)
+            IconButton(
+              icon: Icon(Icons.play_arrow),
+              onPressed: () => controller.resumeTask(t.uuid),
+            ),
+          if (t.status == CacheStatus.downloading)
+            IconButton(
+              icon: Icon(Icons.pause),
+              onPressed: () => controller.pauseTask(t.uuid),
+            ),
+          if (t.status == CacheStatus.failed)
+            IconButton(
+              icon: Icon(Icons.refresh),
+              onPressed: () => controller.resumeTask(t.uuid),
+            ),
+          IconButton(
+            icon: Icon(Icons.delete),
+            onPressed: () => controller.removeTask(t.uuid),
+          ),
         ],
       ),
     );

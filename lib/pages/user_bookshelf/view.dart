@@ -18,15 +18,28 @@ class UserBookshelfPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("user_bookshelf".tr), titleSpacing: 0),
+      appBar: AppBar(title: Text("user_bookshelf".tr), titleSpacing: 16),
       body: Stack(
         children: [
-          Obx(() => Offstage(offstage: controller.pageState.value != PageState.success, child: _buildPage())),
-          Obx(() => Offstage(offstage: controller.pageState.value != PageState.loading, child: LoadingPage())),
+          Obx(
+            () => Offstage(
+              offstage: controller.pageState.value != PageState.success,
+              child: _buildPage(),
+            ),
+          ),
+          Obx(
+            () => Offstage(
+              offstage: controller.pageState.value != PageState.loading,
+              child: LoadingPage(),
+            ),
+          ),
           Obx(
             () => Offstage(
               offstage: controller.pageState.value != PageState.error,
-              child: ErrorMessage(msg: controller.errorMsg, action: controller.getPage),
+              child: ErrorMessage(
+                msg: controller.errorMsg,
+                action: controller.getPage,
+              ),
             ),
           ),
         ],
@@ -39,7 +52,8 @@ class UserBookshelfPage extends StatelessWidget {
     if (controller.list.value!.isEmpty) return EmptyPage();
     return ListView.builder(
       itemCount: controller.list.value!.length,
-      itemBuilder: (context, index) => UserNovelCard(novelCover: controller.list.value![index]),
+      itemBuilder: (context, index) =>
+          UserNovelCard(novelCover: controller.list.value![index]),
     );
   }
 }

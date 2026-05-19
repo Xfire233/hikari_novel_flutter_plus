@@ -1,12 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' as io;
-import 'dart:typed_data';
 
 import 'package:cookie_jar/cookie_jar.dart' as ckjar;
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:enough_convert/enough_convert.dart';
-import 'package:flutter/foundation.dart';
 import 'package:hikari_novel_flutter/models/common/wenku8_node.dart';
 import 'package:hikari_novel_flutter/models/custom_exception.dart';
 import 'package:hikari_novel_flutter/models/resource.dart';
@@ -20,7 +19,7 @@ import 'api.dart';
 class Request {
   static const userAgent = {
     io.HttpHeaders.userAgentHeader:
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0",
   };
 
   static final _dioCookieJar = ckjar.CookieJar();
@@ -41,13 +40,24 @@ class Request {
 
     if (localCookie == null) return;
 
-    final cookies = localCookie.split(';').map((e) => e.trim()).where((e) => e.contains('=')).map((e) {
-      final kv = e.split('=');
-      return ckjar.Cookie(kv[0], kv.sublist(1).join('='));
-    }).toList();
+    final cookies = localCookie
+        .split(';')
+        .map((e) => e.trim())
+        .where((e) => e.contains('='))
+        .map((e) {
+          final kv = e.split('=');
+          return ckjar.Cookie(kv[0], kv.sublist(1).join('='));
+        })
+        .toList();
 
-    _dioCookieJar.saveFromResponse(Uri.parse(Wenku8Node.wwwWenku8Cc.node), cookies);
-    _dioCookieJar.saveFromResponse(Uri.parse(Wenku8Node.wwwWenku8Net.node), cookies);
+    _dioCookieJar.saveFromResponse(
+      Uri.parse(Wenku8Node.wwwWenku8Cc.node),
+      cookies,
+    );
+    _dioCookieJar.saveFromResponse(
+      Uri.parse(Wenku8Node.wwwWenku8Net.node),
+      cookies,
+    );
   }
 
   static void deleteCookie() => _dioCookieJar.deleteAll();
@@ -64,10 +74,33 @@ class Request {
     }
   }
 
+  static Future<Resource> getUtf8(
+    String url, {
+    Map<String, String>? headers,
+  }) async {
+    try {
+      final response = await dio.get(
+        url,
+        options: Options(
+          headers: headers,
+          responseType: ResponseType.bytes,
+          followRedirects: true,
+        ),
+      );
+      return Success(utf8.decode(response.data as List<int>));
+    } catch (e) {
+      Log.e(e.toString());
+      return Error(e.toString());
+    }
+  }
+
   ///获取wenku8数据
   /// - [url] 对应的url
   /// - [charsetsType] response解码的方式
-  static Future<Resource> get(String url, {required CharsetsType charsetsType}) async {
+  static Future<Resource> get(
+    String url, {
+    required CharsetsType charsetsType,
+  }) async {
     try {
       if (!url.contains("?")) url += "?";
       switch (charsetsType) {
@@ -84,7 +117,7 @@ class Request {
       //检查是否有重定向
       final result = await _checkRedirects(response);
 
-      final raw = result as Uint8List;
+      final raw = result as List<int>;
       late String decodedHtml;
       switch (charsetsType) {
         case CharsetsType.gbk:
@@ -103,10 +136,14 @@ class Request {
   /// 检查Response包中是否要求重定向
   /// - [response] 要检查的Response包
   static Future<dynamic> _checkRedirects(Response response) async {
-    if (response.statusCode != null && response.statusCode! >= 300 && response.statusCode! < 400) {
+    if (response.statusCode != null &&
+        response.statusCode! >= 300 &&
+        response.statusCode! < 400) {
       final location = response.headers.value('location');
       if (location != null) {
-        final redirectedResponse = await dio.get("${Api.wenku8Node.node}/$location");
+        final redirectedResponse = await dio.get(
+          "${Api.wenku8Node.node}/$location",
+        );
         return redirectedResponse.data;
       }
     }
@@ -118,22 +155,28 @@ class Request {
   /// - [url] 要请求的url
   /// - [data] 此post请求的body，当body中含有url编码的内容时，需要使用String类型而非Map类型！目前不知道是什么原因，可能是因为dio的二次编码？
   /// - [charsetsType] response解码的方式
-  static Future<Resource> postForm(String url, {required Object? data, required CharsetsType charsetsType}) async {
+  static Future<Resource> postForm(
+    String url, {
+    required Object? data,
+    required CharsetsType charsetsType,
+  }) async {
     try {
       final response = await dio.post(
         url,
         data: data,
-        options: Options(contentType: Headers.formUrlEncodedContentType), //设置为application/x-www-form-urlencoded
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+        ), //设置为application/x-www-form-urlencoded
       );
       String decodedHtml;
       switch (charsetsType) {
         case CharsetsType.gbk:
           {
-            decodedHtml = GbkCodec().decode(response.data as Uint8List);
+            decodedHtml = GbkCodec().decode(response.data as List<int>);
           }
         case CharsetsType.big5Hkscs:
           {
-            decodedHtml = Big5Codec().decode(response.data as Uint8List);
+            decodedHtml = Big5Codec().decode(response.data as List<int>);
           }
       }
       return Success(decodedHtml);
@@ -146,10 +189,15 @@ class Request {
 
 class CloudflareInterceptor extends Interceptor {
   @override
-  void onResponse(Response<dynamic> response, ResponseInterceptorHandler handler) async {
+  void onResponse(
+    Response<dynamic> response,
+    ResponseInterceptorHandler handler,
+  ) async {
     final statusCode = response.statusCode;
     if (statusCode == 403) {
-      handler.reject(Cloudflare403Exception(requestOptions: response.requestOptions));
+      handler.reject(
+        Cloudflare403Exception(requestOptions: response.requestOptions),
+      );
       return;
     }
 
@@ -158,6 +206,8 @@ class CloudflareInterceptor extends Interceptor {
       handler.next(response);
       return;
     }
-    handler.reject(CloudflareChallengeException(requestOptions: response.requestOptions));
+    handler.reject(
+      CloudflareChallengeException(requestOptions: response.requestOptions),
+    );
   }
 }

@@ -4,8 +4,10 @@ import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/common/extension.dart';
+import 'package:hikari_novel_flutter/service/local_storage_service.dart';
 import 'package:hikari_novel_flutter/service/tts_service.dart';
 import 'package:hikari_novel_flutter/widgets/custom_tile.dart';
+import 'package:hikari_novel_flutter/widgets/inline_color_picker.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
 
 import '../../../models/dual_page_mode.dart';
@@ -24,17 +26,27 @@ class ReaderSettingPage extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: Text("setting".tr),
-          titleSpacing: 0,
+          titleSpacing: 16,
           bottom: TabBar(
             tabs: [
               Tab(icon: const Icon(Icons.settings_outlined), text: "basic".tr),
               Tab(icon: const Icon(Icons.palette_outlined), text: "theme".tr),
-              Tab(icon: const Icon(Icons.record_voice_over_outlined), text: "listen_to_books".tr),
+              Tab(
+                icon: const Icon(Icons.record_voice_over_outlined),
+                text: "listen_to_books".tr,
+              ),
               Tab(icon: const Icon(Icons.padding), text: "margin".tr),
             ],
           ),
         ),
-        body: TabBarView(children: [_buildBasic(context), _buildTheme(context), _buildListen(context), _buildPadding()]),
+        body: TabBarView(
+          children: [
+            _buildBasic(context),
+            _buildTheme(context),
+            _buildListen(context),
+            _buildPadding(),
+          ],
+        ),
       ),
     );
   }
@@ -51,7 +63,8 @@ class ReaderSettingPage extends StatelessWidget {
             divisions: 41,
             decimalPlaces: 0,
             value: controller.readerSettingsState.value.fontSize,
-            onChanged: (value) => controller.readerSettingsState.value = controller.readerSettingsState.value.copyWith(fontSize: value),
+            onChanged: (value) => controller.readerSettingsState.value =
+                controller.readerSettingsState.value.copyWith(fontSize: value),
             onChangeEnd: (value) => controller.changeFontSize(value),
           ),
         ),
@@ -64,7 +77,11 @@ class ReaderSettingPage extends StatelessWidget {
             divisions: 29,
             decimalPlaces: 1,
             value: controller.readerSettingsState.value.lineSpacing,
-            onChanged: (value) => controller.readerSettingsState.value = controller.readerSettingsState.value.copyWith(lineSpacing: value),
+            onChanged: (value) =>
+                controller.readerSettingsState.value = controller
+                    .readerSettingsState
+                    .value
+                    .copyWith(lineSpacing: value),
             onChangeEnd: (value) => controller.changeLineSpacing(value),
           ),
         ),
@@ -77,8 +94,13 @@ class ReaderSettingPage extends StatelessWidget {
             divisions: 10,
             decimalPlaces: 0,
             value: controller.readerSettingsState.value.readerParaIndent,
-            onChanged: (value) => controller.readerSettingsState.value = controller.readerSettingsState.value.copyWith(readerParaIndent: value.toInt()),
-            onChangeEnd: (value) => controller.changeReaderParaIndent(value.toInt()),
+            onChanged: (value) =>
+                controller.readerSettingsState.value = controller
+                    .readerSettingsState
+                    .value
+                    .copyWith(readerParaIndent: value.toInt()),
+            onChangeEnd: (value) =>
+                controller.changeReaderParaIndent(value.toInt()),
           ),
         ),
         Obx(
@@ -90,8 +112,13 @@ class ReaderSettingPage extends StatelessWidget {
             divisions: 50,
             decimalPlaces: 0,
             value: controller.readerSettingsState.value.readerParaSpacing,
-            onChanged: (value) => controller.readerSettingsState.value = controller.readerSettingsState.value.copyWith(readerParaSpacing: value.toInt()),
-            onChangeEnd: (value) => controller.changeReaderParaSpacing(value.toInt()),
+            onChanged: (value) =>
+                controller.readerSettingsState.value = controller
+                    .readerSettingsState
+                    .value
+                    .copyWith(readerParaSpacing: value.toInt()),
+            onChangeEnd: (value) =>
+                controller.changeReaderParaSpacing(value.toInt()),
           ),
         ),
         Obx(() {
@@ -122,12 +149,23 @@ class ReaderSettingPage extends StatelessWidget {
           );
         }),
         Obx(
+          () => SwitchTile(
+            title: "eink_mode".tr,
+            subtitle: "eink_mode_desc".tr,
+            leading: const Icon(Icons.tablet_android_outlined),
+            onChanged: (enabled) => controller.changeReaderEInkMode(enabled),
+            value: controller.readerSettingsState.value.eInkMode,
+          ),
+        ),
+        Obx(
           () => Offstage(
-            offstage: controller.readerSettingsState.value.direction == ReaderDirection.upToDown,
+            offstage: controller.readerSettingsState.value.eInkMode,
             child: SwitchTile(
               title: "page_turning_animation".tr,
+              subtitle: "page_turning_animation_desc".tr,
               leading: const Icon(Icons.animation),
-              onChanged: (enabled) => controller.changeReaderPageTurningAnimation(enabled),
+              onChanged: (enabled) =>
+                  controller.changeReaderPageTurningAnimation(enabled),
               value: controller.readerSettingsState.value.pageTurningAnimation,
             ),
           ),
@@ -159,19 +197,39 @@ class ReaderSettingPage extends StatelessWidget {
             value: controller.readerSettingsState.value.showStatusBar,
           ),
         ),
+        Offstage(
+          offstage: !Platform.isAndroid,
+          child: Obx(
+            () => SwitchTile(
+              title: "volume_key_turning".tr,
+              subtitle: "volume_key_turning_desc".tr,
+              leading: const Icon(Icons.volume_up_outlined),
+              onChanged: (enabled) =>
+                  controller.changeVolumeKeyTurning(enabled),
+              value: controller.readerSettingsState.value.volumeKeyTurning,
+            ),
+          ),
+        ),
         Obx(
           () => Offstage(
-            offstage: controller.readerSettingsState.value.direction == ReaderDirection.upToDown,
+            offstage:
+                controller.readerSettingsState.value.direction ==
+                ReaderDirection.upToDown,
             child: NormalTile(
               title: "dual_page".tr,
-              subtitle: controller.readerSettingsState.value.dualPageMode.name.tr,
+              subtitle:
+                  controller.readerSettingsState.value.dualPageMode.name.tr,
               leading: const Icon(Icons.looks_two_outlined),
               trailing: const Icon(Icons.keyboard_arrow_down),
               onTap: () =>
                   Get.dialog(
                     RadioListDialog(
                       value: controller.readerSettingsState.value.dualPageMode,
-                      values: [(DualPageMode.auto, "auto".tr), (DualPageMode.enabled, "enable".tr), (DualPageMode.disabled, "disable".tr)],
+                      values: [
+                        (DualPageMode.auto, "auto".tr),
+                        (DualPageMode.enabled, "enable".tr),
+                        (DualPageMode.disabled, "disable".tr),
+                      ],
                       title: "dual_page".tr,
                     ),
                   ).then((value) {
@@ -181,13 +239,17 @@ class ReaderSettingPage extends StatelessWidget {
           ),
         ),
         Obx(() {
-          final dualPageMode = switch (controller.readerSettingsState.value.dualPageMode) {
-            DualPageMode.auto => Get.context!.shouldAutoUseDualPage(),
-            DualPageMode.enabled => true,
-            DualPageMode.disabled => false,
-          };
+          final dualPageMode =
+              switch (controller.readerSettingsState.value.dualPageMode) {
+                DualPageMode.auto => Get.context!.shouldAutoUseDualPage(),
+                DualPageMode.enabled => true,
+                DualPageMode.disabled => false,
+              };
           return Offstage(
-            offstage: !dualPageMode || controller.readerSettingsState.value.direction == ReaderDirection.upToDown,
+            offstage:
+                !dualPageMode ||
+                controller.readerSettingsState.value.direction ==
+                    ReaderDirection.upToDown,
             child: SliderTile(
               title: "dual_page_spacing".tr,
               leading: const Icon(Icons.space_bar_outlined),
@@ -196,7 +258,11 @@ class ReaderSettingPage extends StatelessWidget {
               divisions: 120,
               decimalPlaces: 1,
               value: controller.readerSettingsState.value.dualPageSpacing,
-              onChanged: (value) => controller.readerSettingsState.value = controller.readerSettingsState.value.copyWith(dualPageSpacing: value),
+              onChanged: (value) =>
+                  controller.readerSettingsState.value = controller
+                      .readerSettingsState
+                      .value
+                      .copyWith(dualPageSpacing: value),
               onChangeEnd: (value) => controller.changeDualPageSpacing(value),
             ),
           );
@@ -211,94 +277,194 @@ class ReaderSettingPage extends StatelessWidget {
         Obx(
           () => NormalTile(
             title: "font".tr,
-            subtitle: controller.isFontFileAvailable.value ? controller.readerSettingsState.value.textFamily.toString() : "system_font".tr,
+            subtitle: controller.isFontFileAvailable.value
+                ? controller.readerSettingsState.value.textFamily.toString()
+                : "system_font".tr,
             leading: const Icon(Icons.format_shapes_outlined),
             trailing: const Icon(Icons.keyboard_arrow_down),
-            onTap: () => Get.dialog(NormalListDialog(values: [(0, "system_font".tr), (1, "custom_font".tr)], title: "font".tr)).then((value) async {
-              if (value == 0) {
-                await controller.deleteFontDir();
-                controller.changeReaderTextStyleFilePath(null);
-                controller.changeReaderTextFamily(null);
-                controller.checkFontFile(false);
-                showSnackBar(message: "set_system_font_successfully".tr, context: Get.context!);
-              } else if (value == 1) {
-                final result = await controller.pickTextStyleFile();
-                switch (result) {
-                  case null:
-                    return;
-                  case true:
-                    {
-                      showSnackBar(message: "set_font_successfully".tr, context: Get.context!);
-                      controller.checkFontFile(false);
-                    }
-                  case false:
-                    showSnackBar(message: "set_font_failed".tr, context: Get.context!);
-                }
-              }
-            }),
-          ),
-        ),
-        Obx(
-          () => NormalTile(
-            title: "font_color".tr,
-            leading: const Icon(Icons.format_color_text_outlined),
-            trailing: controller.currentTextColor.value == null
-                ? const Icon(Icons.keyboard_arrow_down)
-                : ColorIndicator(width: 20, height: 20, borderRadius: 100, color: controller.currentTextColor.value!),
-            onTap: () => Get.dialog(NormalListDialog(values: [(0, "change_font_color".tr), (1, "reset_font_color".tr)], title: "font_color".tr)).then((value) {
-              if (value == 0) {
-                _buildColorPickerDialog(Get.context!, true);
-              } else if (value == 1) {
-                Get.context!.isDarkMode ? controller.changeReaderNightTextColor(null) : controller.changeReaderDayTextColor(null);
-                showSnackBar(message: "reset_font_color_successfully".tr, context: Get.context!);
-              }
-            }),
-          ),
-        ),
-        Obx(
-          () => NormalTile(
-            title: "background_color".tr,
-            leading: const Icon(Icons.format_color_fill_rounded),
-            trailing: controller.currentBgColor.value == null
-                ? const Icon(Icons.keyboard_arrow_down)
-                : ColorIndicator(width: 20, height: 20, borderRadius: 100, color: controller.currentBgColor.value!),
             onTap: () =>
-                Get.dialog(NormalListDialog(values: [(0, "change_background_color".tr), (1, "reset_background_color".tr)], title: "background_color".tr)).then((
-                  value,
-                ) {
+                Get.dialog(
+                  NormalListDialog(
+                    values: [(0, "system_font".tr), (1, "custom_font".tr)],
+                    title: "font".tr,
+                  ),
+                ).then((value) async {
                   if (value == 0) {
-                    _buildColorPickerDialog(Get.context!, false);
+                    await controller.deleteFontDir();
+                    controller.changeReaderTextStyleFilePath(null);
+                    controller.changeReaderTextFamily(null);
+                    controller.checkFontFile(false);
+                    showSnackBar(
+                      message: "set_system_font_successfully".tr,
+                      context: Get.context!,
+                    );
                   } else if (value == 1) {
-                    Get.context!.isDarkMode ? controller.changeReaderNightBgColor(null) : controller.changeReaderDayBgColor(null);
-                    showSnackBar(message: "reset_background_color_successfully".tr, context: Get.context!);
+                    final result = await controller.pickTextStyleFile();
+                    switch (result) {
+                      case null:
+                        return;
+                      case true:
+                        {
+                          showSnackBar(
+                            message: "set_font_successfully".tr,
+                            context: Get.context!,
+                          );
+                          controller.checkFontFile(false);
+                        }
+                      case false:
+                        showSnackBar(
+                          message: "set_font_failed".tr,
+                          context: Get.context!,
+                        );
+                    }
                   }
                 }),
           ),
         ),
-        NormalTile(
-          title: "background_image".tr,
-          leading: const Icon(Icons.image_outlined),
-          trailing: const Icon(Icons.keyboard_arrow_down),
-          onTap: () => Get.dialog(NormalListDialog(values: [(0, "change_background_image".tr), (1, "reset_background_image".tr)], title: "background_image".tr))
-              .then((value) async {
-                if (value == 0) {
-                  final result = await controller.pickBgImageFile(Get.context!.isDarkMode);
-                  switch (result) {
-                    case null:
-                      return;
-                    case true:
-                      showSnackBar(message: "set_background_successfully".tr, context: Get.context!);
-                    case false:
-                      showSnackBar(message: "set_background_failed".tr, context: Get.context!);
-                  }
-                } else if (value == 1) {
-                  Get.context!.isDarkMode ? controller.changeReaderNightBgImage(null) : controller.changeReaderDayBgImage(null);
-                  showSnackBar(message: "reset_background_image_successfully".tr, context: Get.context!);
-                }
-              }),
+        Obx(() => _buildReaderColorTile(context, isTextColor: true)),
+        Obx(() => _buildReaderColorTile(context, isTextColor: false)),
+        Obx(() => _buildBackgroundImageTile(context)),
+      ],
+    );
+  }
+
+  Widget _buildReaderColorTile(
+    BuildContext context, {
+    required bool isTextColor,
+  }) {
+    final currentColor = isTextColor
+        ? controller.currentTextColor.value
+        : controller.currentBgColor.value;
+    final fallbackColor = isTextColor
+        ? Theme.of(context).colorScheme.onSurface
+        : Theme.of(context).colorScheme.surface;
+    return ExpansionTile(
+      leading: Icon(
+        isTextColor
+            ? Icons.format_color_text_outlined
+            : Icons.format_color_fill_rounded,
+      ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(isTextColor ? "font_color".tr : "background_color".tr),
+          ),
+          if (currentColor != null)
+            ColorIndicator(
+              width: 22,
+              height: 22,
+              borderRadius: 100,
+              color: currentColor,
+            ),
+        ],
+      ),
+      children: [
+        InlineColorPicker(
+          color: currentColor ?? fallbackColor,
+          recentColors: isTextColor
+              ? LocalStorageService.instance.getRecentReaderTextColors()
+              : LocalStorageService.instance.getRecentReaderBgColors(),
+          resetLabel: isTextColor
+              ? "reset_font_color".tr
+              : "reset_background_color".tr,
+          onChanged: (color) => _setReaderColor(color, isTextColor),
+          onCommitted: (color) {
+            if (isTextColor) {
+              LocalStorageService.instance.addRecentReaderTextColor(color);
+            } else {
+              LocalStorageService.instance.addRecentReaderBgColor(color);
+            }
+          },
+          onReset: () {
+            _setReaderColor(null, isTextColor);
+            showSnackBar(
+              message: isTextColor
+                  ? "reset_font_color_successfully".tr
+                  : "reset_background_color_successfully".tr,
+              context: context,
+            );
+          },
         ),
       ],
     );
+  }
+
+  Widget _buildBackgroundImageTile(BuildContext context) {
+    final imagePath = controller.currentBgImagePath.value;
+    return ExpansionTile(
+      leading: const Icon(Icons.image_outlined),
+      title: Text("background_image".tr),
+      subtitle: imagePath == null || imagePath.isEmpty
+          ? null
+          : Text(
+              File(imagePath).uri.pathSegments.last,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _pickBackgroundImage,
+              icon: const Icon(Icons.image_search_outlined),
+              label: Text("change_background_image".tr),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Get.context!.isDarkMode
+                    ? controller.changeReaderNightBgImage(null)
+                    : controller.changeReaderDayBgImage(null);
+                showSnackBar(
+                  message: "reset_background_image_successfully".tr,
+                  context: context,
+                );
+              },
+              icon: const Icon(Icons.restart_alt),
+              label: Text("reset_background_image".tr),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _setReaderColor(Color? color, bool isTextColor) {
+    if (Get.context!.isDarkMode) {
+      isTextColor
+          ? controller.changeReaderNightTextColor(color)
+          : controller.changeReaderNightBgColor(color);
+    } else {
+      isTextColor
+          ? controller.changeReaderDayTextColor(color)
+          : controller.changeReaderDayBgColor(color);
+    }
+  }
+
+  void _pickBackgroundImage() {
+    controller.pickBgImageFile(Get.context!.isDarkMode).then((result) {
+      switch (result) {
+        case null:
+          return;
+        case true:
+          _showReaderSnack("set_background_successfully".tr);
+        case false:
+          _showReaderSnack("set_background_failed".tr);
+      }
+    });
+  }
+
+  void _showReaderSnack(String message) {
+    final context = Get.context;
+    if (context == null) return;
+    showSnackBar(message: message, context: context);
   }
 
   Widget _buildListen(BuildContext context) {
@@ -328,7 +494,9 @@ class ReaderSettingPage extends StatelessWidget {
                   () => NormalTile(
                     title: "tts_engine".tr,
                     subtitle: tts.engine.value == null
-                        ? (Platform.isAndroid ? "auto".tr : "unsupportable_os_tip".tr)
+                        ? (Platform.isAndroid
+                              ? "auto".tr
+                              : "unsupportable_os_tip".tr)
                         : tts.displayEngineName(tts.engine.value!),
                     leading: const Icon(Icons.settings_outlined),
                     trailing: const Icon(Icons.keyboard_arrow_down),
@@ -336,7 +504,12 @@ class ReaderSettingPage extends StatelessWidget {
                       await tts.refreshEngines();
                       Get.dialog(
                         NormalListDialog(
-                          values: [(null, "auto".tr), ...tts.engines.map((value) => (value, tts.displayEngineName(value)))],
+                          values: [
+                            (null, "auto".tr),
+                            ...tts.engines.map(
+                              (value) => (value, tts.displayEngineName(value)),
+                            ),
+                          ],
                           title: "tts_engine".tr,
                         ),
                       ).then((value) async {
@@ -353,14 +526,24 @@ class ReaderSettingPage extends StatelessWidget {
                 Obx(
                   () => NormalTile(
                     title: "timbre".tr,
-                    subtitle: tts.voice.value == null ? "auto".tr : "${tts.voice.value!["name"]}(${tts.voice.value!["locale"]})",
+                    subtitle: tts.voice.value == null
+                        ? "auto".tr
+                        : "${tts.voice.value!["name"]}(${tts.voice.value!["locale"]})",
                     leading: const Icon(Icons.surround_sound_outlined),
                     trailing: const Icon(Icons.keyboard_arrow_down),
                     onTap: () async {
                       await tts.refreshVoices();
                       Get.dialog(
                         NormalListDialog(
-                          values: [(null, "auto".tr), ...tts.voices.map((value) => (value, "${value["name"]}(${value["locale"]})"))],
+                          values: [
+                            (null, "auto".tr),
+                            ...tts.voices.map(
+                              (value) => (
+                                value,
+                                "${value["name"]}(${value["locale"]})",
+                              ),
+                            ),
+                          ],
                           title: "timbre".tr,
                         ),
                       ).then((value) async {
@@ -414,14 +597,19 @@ class ReaderSettingPage extends StatelessWidget {
                   ),
                 ),
                 const Divider(height: 1),
-                NormalTile(title: "refresh_setting".tr, subtitle: "refresh_tts_setting_tip".tr, leading: const Icon(Icons.refresh)),
+                NormalTile(
+                  title: "refresh_setting".tr,
+                  subtitle: "refresh_tts_setting_tip".tr,
+                  leading: const Icon(Icons.refresh),
+                ),
                 const SizedBox(height: 6),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: () => tts.refreshSettings(restartIfPlaying: true),
+                      onPressed: () =>
+                          tts.refreshSettings(restartIfPlaying: true),
                       icon: const Icon(Icons.refresh),
                       label: Text("refresh_setting".tr),
                     ),
@@ -448,7 +636,11 @@ class ReaderSettingPage extends StatelessWidget {
             divisions: 100,
             decimalPlaces: 0,
             value: controller.readerSettingsState.value.leftMargin,
-            onChanged: (value) => controller.readerSettingsState.value = controller.readerSettingsState.value.copyWith(leftMargin: value),
+            onChanged: (value) =>
+                controller.readerSettingsState.value = controller
+                    .readerSettingsState
+                    .value
+                    .copyWith(leftMargin: value),
             onChangeEnd: (value) => controller.changeLeftMargin(value),
           ),
         ),
@@ -461,7 +653,8 @@ class ReaderSettingPage extends StatelessWidget {
             divisions: 100,
             decimalPlaces: 0,
             value: controller.readerSettingsState.value.topMargin,
-            onChanged: (value) => controller.readerSettingsState.value = controller.readerSettingsState.value.copyWith(topMargin: value),
+            onChanged: (value) => controller.readerSettingsState.value =
+                controller.readerSettingsState.value.copyWith(topMargin: value),
             onChangeEnd: (value) => controller.changeTopMargin(value),
           ),
         ),
@@ -474,7 +667,11 @@ class ReaderSettingPage extends StatelessWidget {
             divisions: 100,
             decimalPlaces: 0,
             value: controller.readerSettingsState.value.rightMargin,
-            onChanged: (value) => controller.readerSettingsState.value = controller.readerSettingsState.value.copyWith(rightMargin: value),
+            onChanged: (value) =>
+                controller.readerSettingsState.value = controller
+                    .readerSettingsState
+                    .value
+                    .copyWith(rightMargin: value),
             onChangeEnd: (value) => controller.changeRightMargin(value),
           ),
         ),
@@ -487,7 +684,11 @@ class ReaderSettingPage extends StatelessWidget {
             divisions: 100,
             decimalPlaces: 0,
             value: controller.readerSettingsState.value.bottomMargin,
-            onChanged: (value) => controller.readerSettingsState.value = controller.readerSettingsState.value.copyWith(bottomMargin: value),
+            onChanged: (value) =>
+                controller.readerSettingsState.value = controller
+                    .readerSettingsState
+                    .value
+                    .copyWith(bottomMargin: value),
             onChangeEnd: (value) => controller.changeBottomMargin(value),
           ),
         ),
@@ -499,49 +700,19 @@ class ReaderSettingPage extends StatelessWidget {
             max: 100,
             divisions: 100,
             decimalPlaces: 0,
-            value: controller.readerSettingsState.value.readerBottomStatusBarHorizontalSpacing,
-            onChanged: (value) =>
-                controller.readerSettingsState.value = controller.readerSettingsState.value.copyWith(readerBottomStatusBarHorizontalSpacing: value.toInt()),
-            onChangeEnd: (value) => controller.changeReaderBottomStatusBarHorizontalSpacing(value.toInt()),
+            value: controller
+                .readerSettingsState
+                .value
+                .readerBottomStatusBarHorizontalSpacing,
+            onChanged: (value) => controller.readerSettingsState.value =
+                controller.readerSettingsState.value.copyWith(
+                  readerBottomStatusBarHorizontalSpacing: value.toInt(),
+                ),
+            onChangeEnd: (value) => controller
+                .changeReaderBottomStatusBarHorizontalSpacing(value.toInt()),
           ),
         ),
       ],
     );
-  }
-
-  /// [isChangeText] `true` 表示修改字体颜色，`false` 表示修改背景颜色`
-  void _buildColorPickerDialog(BuildContext context, bool isChangeText) async {
-    final initColor = isChangeText
-        ? controller.currentTextColor.value ?? Theme.of(context).colorScheme.onSurface
-        : controller.currentBgColor.value ?? Theme.of(context).colorScheme.surface;
-    final newColor = await showColorPickerDialog(
-      context,
-      initColor,
-      showMaterialName: true,
-      showColorName: true,
-      showColorCode: true,
-      materialNameTextStyle: Theme.of(context).textTheme.bodySmall,
-      colorNameTextStyle: Theme.of(context).textTheme.bodySmall,
-      colorCodeTextStyle: Theme.of(context).textTheme.bodySmall,
-      pickersEnabled: const <ColorPickerType, bool>{
-        ColorPickerType.both: false,
-        ColorPickerType.primary: false,
-        ColorPickerType.accent: false,
-        ColorPickerType.bw: false,
-        ColorPickerType.custom: false,
-        ColorPickerType.wheel: true,
-      },
-      enableShadesSelection: false,
-      actionButtons: ColorPickerActionButtons(dialogOkButtonLabel: "save".tr, dialogCancelButtonLabel: "cancel".tr),
-      copyPasteBehavior: ColorPickerCopyPasteBehavior().copyWith(copyFormat: ColorPickerCopyFormat.hexRRGGBB),
-    );
-    if (newColor == initColor) return;
-    if (Get.context!.isDarkMode) {
-      isChangeText ? controller.changeReaderNightTextColor(newColor) : controller.changeReaderNightBgColor(newColor);
-    } else {
-      isChangeText ? controller.changeReaderDayTextColor(newColor) : controller.changeReaderDayBgColor(newColor);
-    }
-
-    showSnackBar(message: "color_set_successfully".tr, context: Get.context!);
   }
 }

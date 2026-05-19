@@ -1,9 +1,9 @@
 name: hikari_novel_flutter
-description: "An app for reading wenku8, refactor with flutter"
+description: "A multi-source novel reader for Wenku8, ESJZone, and Yamibo."
 
 publish_to: 'none'
 
-version: 0.4.0-beta.3+8
+version: 1.1.4-beta.1+22
 
 environment:
   sdk: ^3.10.7
@@ -39,6 +39,7 @@ dependencies:
 
   # 图片缓存
   cached_network_image: ^3.4.1
+  flutter_svg: ^2.2.3
 
   # html解析
   html: ^0.15.4
@@ -107,9 +108,6 @@ dependencies:
   # 自定义divider
   wx_divider: ^1.0.0
 
-  # markdown显示
-  markdown_widget: ^2.3.2+8
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -133,6 +131,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/source/
 
 # dart run flutter_native_splash:create
 flutter_native_splash:

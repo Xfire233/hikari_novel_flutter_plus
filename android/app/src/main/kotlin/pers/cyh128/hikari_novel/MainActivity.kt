@@ -2,13 +2,18 @@ package pers.cyh128.hikari_novel
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.view.KeyEvent
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val intentChannelName = "hikari/system_intents"
+    private val volumeKeyChannelName = "hikari/volume_keys"
+
+    private var volumeKeySink: EventChannel.EventSink? = null
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -73,5 +78,32 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, volumeKeyChannelName)
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    volumeKeySink = events
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    volumeKeySink = null
+                }
+            })
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_VOLUME_UP -> {
+                    volumeKeySink?.success("volumeUp")
+                    return true
+                }
+                KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                    volumeKeySink?.success("volumeDown")
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 }

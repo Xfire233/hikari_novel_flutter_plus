@@ -17,14 +17,19 @@ class CategoryController extends BaseSelectListPageController<NovelCover> {
 
     //监听参数变化
     everAll([category, sortText], (_) {
-      if (category.value != "please_select".tr && sortText.value != "please_select".tr) {
-        easyRefreshController.callRefresh(force: true);
+      if (category.value != "please_select".tr &&
+          sortText.value != "please_select".tr) {
+        getPage(false);
       }
     });
   }
 
   @override
-  Future<Resource> getData(int index) => Api.getNovelByCategory(category: category.value, sort: sortValue, index: index);
+  Future<Resource> getData(int index) => Api.getNovelByCategory(
+    category: category.value,
+    sort: sortValue,
+    index: index,
+  );
 
   @override
   List<NovelCover> getParser(String html) => Parser.parseToList(html);

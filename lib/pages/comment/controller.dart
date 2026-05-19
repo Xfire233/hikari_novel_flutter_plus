@@ -8,7 +8,8 @@ import 'package:hikari_novel_flutter/models/resource.dart';
 import 'package:hikari_novel_flutter/network/api.dart';
 import 'package:hikari_novel_flutter/network/parser.dart';
 
-class CommentController extends BaseListPageController<CommentItem> with GetSingleTickerProviderStateMixin {
+class CommentController extends BaseListPageController<CommentItem>
+    with GetSingleTickerProviderStateMixin {
   final String aid;
 
   CommentController({required this.aid});
@@ -32,8 +33,16 @@ class CommentController extends BaseListPageController<CommentItem> with GetSing
   @override
   void onInit() {
     super.onInit();
-    _fabAnimationCtr = AnimationController(vsync: this, duration: const Duration(milliseconds: 100))..forward();
-    animation = _fabAnimationCtr.drive(Tween<Offset>(begin: const Offset(0.0, 2.0), end: Offset.zero).chain(CurveTween(curve: Curves.easeInOut)));
+    _fabAnimationCtr = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    )..forward();
+    animation = _fabAnimationCtr.drive(
+      Tween<Offset>(
+        begin: const Offset(0.0, 2.0),
+        end: Offset.zero,
+      ).chain(CurveTween(curve: Curves.easeInOut)),
+    );
   }
 
   @override
@@ -57,7 +66,8 @@ class CommentController extends BaseListPageController<CommentItem> with GetSing
   }
 
   Future<String> sendComment() async {
-    if (commentTitleController.text.isEmpty || commentContentController.text.isEmpty) {
+    if (commentTitleController.text.isEmpty ||
+        commentContentController.text.isEmpty) {
       return "send_comment_tip".tr;
     }
 
@@ -65,7 +75,11 @@ class CommentController extends BaseListPageController<CommentItem> with GetSing
       return "send_comment_tip_2".tr;
     }
 
-    final result = await Api.sendComment(aid: aid, title: commentTitleController.text, content: commentContentController.text);
+    final result = await Api.sendComment(
+      aid: aid,
+      title: commentTitleController.text,
+      content: commentContentController.text,
+    );
     commentContentController.clear();
     switch (result) {
       case Success():

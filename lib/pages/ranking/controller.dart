@@ -15,13 +15,14 @@ class RankingController extends BaseSelectListPageController<NovelCover> {
     //监听参数变化
     ever(ranking, (value) {
       if (value != "please_select".tr) {
-        easyRefreshController.callRefresh(force: true);
+        getPage(false);
       }
     });
   }
 
   @override
-  Future<Resource> getData(int index) => Api.getNovelByRanking(ranking: ranking.value, index: index);
+  Future<Resource> getData(int index) =>
+      Api.getNovelByRanking(ranking: ranking.value, index: index);
 
   @override
   List<NovelCover> getParser(String html) => Parser.parseToList(html);

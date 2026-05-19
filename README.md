@@ -1,103 +1,143 @@
-### 📣自0.2.0版本开始，本软件开始转为使用网页源，放弃了mewx源📣
-### ⚠️我还要说明一点，如果你编译出来了，就自己用，不要发到其他地方。分享欲再旺盛也别发，你这是在害我们，老版的Hikari Novel就是一个例子。不要让我把这个项目也关停了，大家到时候都别用！⚠️
+# Hikari Novel Plus 叉烧魔改版
 
-<hr>
+> 基于 [15dd/hikari_novel_flutter](https://github.com/15dd/hikari_novel_flutter) 的独立 fork。当前版本：`beta1.1.4-beta.1`。
 
-<div align="center">
+这是一个大幅魔改版。原项目主要是 Wenku8 第三方轻小说文库客户端；本 fork 的核心变化是新增 ESJZone、Yamibo 两个来源，并围绕三来源并行使用重做启动、登录、书架、搜索、收藏同步和阅读适配。
 
-  <div align="center">
-    <img src="./assets/images/logo_transparent.png" alt="Logo" height="250">
-  </div>
+本项目后续作为独立 fork 使用，不以向原项目开发分支提交 PR 为目标。
 
-# Hikari Novel
+## 重要声明
 
-  <p align="center"><font>使用Flutter构建的第三方轻小说文库客户端</font></p>
+- 本项目仅供个人学习、交流和测试使用。
+- 大量功能、代码整理、文档和 UI 改造由 AI 辅助生成或直接生成，人工审阅和实机测试不充分。
+- 当前存在大量缺陷、兼容性问题和架构债，不应视为稳定客户端。
+- 本项目与 Wenku8、ESJZone、Yamibo 及原 Hikari Novel 项目均无官方关系。
+- 请尊重来源网站规则，不要高频抓取、批量下载或公开分发编译产物。
 
-  <div>
-    <img alt="GitHub Release" src="https://img.shields.io/github/v/release/15dd/hikari_novel_flutter?style=for-the-badge&color=%23408A23">
-    <img alt="License" src="https://img.shields.io/badge/License-MIT-Green?style=for-the-badge&color=rgb(164%2C25%2C49)">
-  </div>
+## 平台状态
 
-</div>
+| 平台 | 状态 | 说明 |
+| --- | --- | --- |
+| Android | 主要可用 | 当前主要开发、编译和实机测试平台。 |
+| iOS | 待测试 | 尚未验证登录、Cookie、文件选择、权限和构建链路。 |
+| Windows | 半可用 | 可辅助调试，鼠标键盘体验仍不完整。 |
+| macOS | 未测试 | 未做专项适配。 |
+| Linux / Web | 不支持 | 暂无支持计划。 |
 
+## 相较原项目的关键变化
 
-## ✨ 功能
-- Material Design 3风格
-- 支持深浅模式切换
-- 适配平板
-- 支持章节缓存
-- 支持查看评论与回复
-- 阅读进度保存
+- 新增 ESJZone 来源：浏览、详情、章节阅读、收藏同步和阅读进度导入。
+- 新增 Yamibo 来源：文学区原生列表浏览、分区筛选、关键词搜索、作者主题列表和收藏拉取。
+- 改造 Wenku8 启动依赖：不再强制先登录 Wenku8 才能使用其他来源。
+- 三来源并行：来源可单独启用、登录、搜索、同步和配置。
+- 统一本地书架：来源书架、子书架、最近阅读、标签智能书架、排序记忆和本地评分。
+- 在线收藏同步：默认从网页端拉取到本地，回写需要手动开启，尽量避免干扰网页端收藏夹。
+- 阅读适配：为 ESJZone / Yamibo 接入本地阅读器、阅读进度、章节缓存和图片查看。
+- 电子墨水屏适配：阅读页和部分浏览页支持分页、音量键翻页和减少滚动动画。
+- 搜索重构：只显示已启用来源，每个来源保留独立搜索和高级筛选。
+- 本地备份：JSON 单文件备份 Cookie、设置、书架、阅读数据和评分。
 
+## 当前功能状态
 
-## 📱 支持平台
-| 平台      | 最小支持版本  | 备注                               |
-|----------|-------------|------------------------------------|
-| Android  | 6.0         | -                                  |
-| iOS      | N/A         | 理论上支持，未测试                    |
-| macOS    | N/A         | 理论上支持，未测试。未对键鼠操作进行适配  |
-| Windows  | 10          | 未对键鼠操作进行适配，处于半可用状态     |
-| Linux    | 不支持       | -                                  |
-| Web      | 不支持       | -                                  |
+- Wenku8：保留原有核心阅读链路，接入新书架和多来源设置。
+- ESJZone：可用于浏览、阅读和收藏同步，但网页结构变化可能导致解析失效。
+- Yamibo：文学区浏览和收藏拉取可用，回写能力暂不开放。
+- 书架：支持列表/网格、单独排序、子书架、智能书架、书架封面和本地评分。
+- 阅读器：支持滚动、翻页、双页、点按翻页、音量键翻页、电子墨水屏模式和全面屏避让。
+- 主题：支持应用主题、阅读主题、来源图标和来源背景水印。
 
+## 已知问题
 
-## 🖼️ 软件截图
-- 手机
-<div align="center">
-  <img src="./readme/1.jpg" width="30%"></img> <img src="./readme/2.jpg" width="30%"></img> <img src="./readme/3.jpg" width="30%">
-</div>
+- AI 生成代码较多，局部逻辑可能存在未发现的运行时问题。
+- 多来源收藏回写仍有风险，使用前请备份。
+- iOS 未测试，不保证可编译或可登录。
+- Windows 端不是主要目标，体验不完整。
+- ESJZone / Yamibo 页面结构变化会直接影响解析。
+- 电子墨水屏适配只在少量 Android 设备上验证过。
 
-- 平板
-<div align="center">
-  <img src="./readme/1_tablet.png" width="80%"></img> <img src="./readme/2_tablet.png" width="80%"></img>
-</div>
+## 使用说明
 
+1. 首次启动选择需要启用的来源，之后可在“设置 > 来源设置”中调整。
+2. Wenku8 通常需要登录后才能正常访问。
+3. ESJZone 和 Yamibo 需要先登录网页端，再同步收藏。
+4. 默认同步策略是“在线收藏 -> 本地书架”，不会修改网页端收藏夹。
+5. 需要本地变动回写到网页端时，手动开启对应来源的回写设置。
+6. 备份文件可能包含 Cookie，请勿公开分享。
+7. 同包名覆盖安装不会清理本地数据库、Hive 设置、书架、阅读记录和缓存；卸载应用或清除应用数据会丢失本地数据。
 
-## ⛓️ 分支介绍
-- `main` 主分支。发布版本用
-- `develop` 开发分支。想要提pr的人请拉取这个分支进行开发，然后提pr时也请merge到这个分支
+## 版本记录
 
+### beta1.1.4-beta.1
 
-## 📦 安装
-- 本项目不提供安装包，请参考下方 `编译` 自行编译使用
+- 整理公开 fork README，标注 AI 生成风险、平台状态、协议和参考项目。
+- 调整书架首页布局，支持列表/网格切换、来源图标封面、自定义书架封面。
+- 修正来源页、搜索页、书架、详情页等标题贴边问题。
+- 统一来源 SVG 图标和来源背景水印。
+- 默认关闭 Android 动态取色，提高用户主题色对来源背景的影响。
 
+### beta1.1.4-pre
 
-## 💻 编译
-- ##### 我的开发环境
-  ```
-  [√] Flutter (Channel stable, 3.38.7, on Microsoft Windows [版本 10.0.26200.7840], locale zh-CN)
-  [√] Windows Version (Windows 11 or higher, 25H2, 2009)
-  [√] Android toolchain - develop for Android devices (Android SDK version 36.1.0)
-  [√] Visual Studio - develop Windows apps (Visual Studio 生成工具 2026 18.2.0)
-  ```
-- ##### 编译
-  1. 克隆此仓库
-  2. 安装flutter，参考 [flutter.dev](https://flutter.dev/docs/get-started/install)
-  3. 编译出对应平台的安装包，如 `flutter build apk`
+- 来源浏览、搜索和书籍详情页接入来源背景水印。
+- 搜索、首页、我的、设置、欢迎页和书架来源目录统一使用来源图标。
+- 移除旧 Hikari Novel 检查更新链路和未使用依赖。
+- 首页在所有来源禁用时引导进入来源设置。
 
-- ##### 警告
-  ⚠️我要说明一点，如果你编译出来了，就自己用，不要发到其他地方。分享欲再旺盛也别发，你这是在害我们，老版的Hikari Novel就是一个例子。不要让我把这个项目也关停了，大家到时候都别用！⚠️
+### beta1.1.3
 
-## 🧑‍💻 交流
-&nbsp;&nbsp;<a href="https://t.me/+CUSABNkX5U83NGNl"><img alt="Static Badge" src="https://img.shields.io/badge/Telegram-加入群组-blue?style=for-the-badge&logo=telegram"></a>
+- 新增本地 JSON 单文件备份和恢复。
+- 可选择备份 Cookie、应用设置、阅读设置、书架、阅读历史和本地评分。
+- 搜索页高级筛选改为可折叠结构。
 
+### beta1.1.2
 
-## 📣 声明
-- 本项目是个人为了兴趣以及学习移动端开发而开发的，仅用于学习和测试
-- 本项目所用API均从轻小说文库官方网站收集，不提供任何破解内容
-- 本项目是个人项目，与轻小说文库官方无关，请注意辨别
+- Yamibo 搜索限制在文学区及子区。
+- 搜索结果支持长标题完整显示模式。
+- 每个书架和子书架可分别记忆排序方式。
+- 首字母排序支持右侧字母索引栏。
 
+### beta1.1.1
 
-## 📖 参考
-- [flutter_dmzj](https://github.com/xiaoyaocz/flutter_dmzj)
-- [venera](https://github.com/venera-app/venera)
-- [mihon](https://github.com/mihonapp/mihon)
-- [mikan_flutter](https://github.com/iota9star/mikan_flutter)
-- [pilipala](https://github.com/guozhigq/pilipala)
-- [PiliPalaX](https://github.com/orz12/PiliPalaX)
-- [PiliPlus](https://github.com/bggRGjQaUbCoE/PiliPlus)
-- AI
+- 阅读页适配全面屏状态栏、刘海和摄像头区域。
+- 切换滚动、翻页、墨水屏等模式时迁移页内进度。
+- Yamibo 首页精简为单行来源栏，登录和同步入口移动到菜单。
 
+### beta1.1
 
-## ⭐ 星标数趋势
-[![星标数趋势](https://starchart.cc/15dd/hikari_novel_flutter.svg?variant=adaptive)](https://starchart.cc/15dd/hikari_novel_flutter)
+- 搜索页改为来源优先，只显示已启用来源。
+- 从当前来源浏览页点击搜索会默认进入该来源搜索。
+- Yamibo 文学区改为 Flutter 原生列表浏览。
+- 浏览页电子墨水屏模式改为无滚动分页，并适配音量键翻页。
+
+### beta1.0
+
+- 引入多来源架构，新增 ESJZone 和 Yamibo 来源。
+- 解除 Wenku8 强制登录启动逻辑，改为首次来源选择。
+- 接入 ESJZone / Yamibo 在线收藏拉取。
+- 修复多来源 aid/cid、章节缓存、离线读取和阅读进度保存的一批兼容问题。
+- 保留 schemaVersion 4 -> 5 -> 6 的迁移路径。
+
+## 构建
+
+推荐环境：
+
+- Flutter SDK 3.38.x
+- Android Studio JBR 17
+- Android SDK 36.x
+
+Android release APK 构建示例：
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
+$env:Path="C:\Windows\System32\WindowsPowerShell\v1.0;C:\flutter\bin;$env:JAVA_HOME\bin;$env:Path"
+C:\flutter\bin\flutter.bat build apk --release --no-pub
+```
+
+## 开源协议与参考项目
+
+本 fork 沿用原项目的 MIT License。保留原项目版权声明；本 fork 的新增代码、文档和素材同样按 MIT License 发布。
+
+参考和借鉴的开源项目：
+
+- [15dd/hikari_novel_flutter](https://github.com/15dd/hikari_novel_flutter)：原始项目和基础阅读器、书架框架。
+- [EnableAria/Esjzone](https://github.com/EnableAria/Esjzone)：ESJZone 来源实现参考。
+- [prprbell/YamiboReaderPro](https://github.com/prprbell/YamiboReaderPro)：Yamibo 来源实现参考。

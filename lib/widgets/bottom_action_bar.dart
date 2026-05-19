@@ -5,7 +5,12 @@ class BottomActionBar extends StatefulWidget {
   final double height;
   final bool edgeToEdge;
 
-  const BottomActionBar({super.key, required this.items, required this.edgeToEdge,this.height = 72}) : assert(items.length >= 2 && items.length <= 3);
+  const BottomActionBar({
+    super.key,
+    required this.items,
+    required this.edgeToEdge,
+    this.height = 72,
+  }) : assert(items.length >= 2 && items.length <= 3);
 
   @override
   State<StatefulWidget> createState() => _BottomActionBarState();
@@ -16,7 +21,9 @@ class _BottomActionBarState extends State<BottomActionBar> {
   Widget build(BuildContext context) {
     return Container(
       color: Theme.of(context).colorScheme.secondaryContainer,
-      padding: EdgeInsets.only(bottom: widget.edgeToEdge ? MediaQuery.of(context).padding.bottom : 0),
+      padding: EdgeInsets.only(
+        bottom: widget.edgeToEdge ? MediaQuery.of(context).padding.bottom : 0,
+      ),
       child: SizedBox(
         height: widget.height,
         child: Row(
@@ -61,7 +68,11 @@ class _ActionItem extends StatelessWidget {
               height: 16,
               child: Text(
                 item.label,
-                style: TextStyle(color: labelColor, fontSize: 12, fontWeight: FontWeight.w400),
+                style: TextStyle(
+                  color: labelColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                ),
               ),
             ),
           ],
@@ -76,5 +87,9 @@ class BottomActionItem {
   final String label;
   final VoidCallback onTap;
 
-  const BottomActionItem({required this.icon, required this.label, required this.onTap});
+  const BottomActionItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 }

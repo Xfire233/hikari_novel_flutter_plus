@@ -1,8 +1,8 @@
 import 'package:get/get.dart';
-import 'package:hikari_novel_flutter/widgets/state_page.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:hikari_novel_flutter/router/app_sub_router.dart';
 import 'package:hikari_novel_flutter/service/dev_mode_service.dart';
-import 'package:hikari_novel_flutter/router/route_path.dart';
+import 'package:hikari_novel_flutter/widgets/state_page.dart';
 
 class AboutController extends GetxController {
   int _versionTapCount = 0;
@@ -12,8 +12,11 @@ class AboutController extends GetxController {
     if (_versionTapCount >= 5) {
       _versionTapCount = 0;
       final enabled = DevModeService.instance.toggle();
-      showSnackBar(message: enabled ? "dev_setting_opened".tr : "dev_setting_closed".tr, context: Get.context!);
-      if (enabled) Get.toNamed(RoutePath.devTools);
+      showSnackBar(
+        message: enabled ? "dev_setting_opened".tr : "dev_setting_closed".tr,
+        context: Get.context!,
+      );
+      if (enabled) AppSubRouter.toDevTools();
     }
   }
 

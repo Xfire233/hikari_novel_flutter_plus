@@ -14,15 +14,28 @@ class UserInfoPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("user_information".tr), titleSpacing: 0),
+      appBar: AppBar(title: Text("user_information".tr), titleSpacing: 16),
       body: Stack(
         children: [
-          Obx(() => Offstage(offstage: controller.pageState.value != PageState.success, child: _buildPage())),
-          Obx(() => Offstage(offstage: controller.pageState.value != PageState.loading, child: LoadingPage())),
+          Obx(
+            () => Offstage(
+              offstage: controller.pageState.value != PageState.success,
+              child: _buildPage(),
+            ),
+          ),
+          Obx(
+            () => Offstage(
+              offstage: controller.pageState.value != PageState.loading,
+              child: LoadingPage(),
+            ),
+          ),
           Obx(
             () => Offstage(
               offstage: controller.pageState.value != PageState.error,
-              child: ErrorMessage(msg: controller.errorMsg, action: controller.getPage),
+              child: ErrorMessage(
+                msg: controller.errorMsg,
+                action: controller.getPage,
+              ),
             ),
           ),
         ],
@@ -38,15 +51,42 @@ class UserInfoPage extends StatelessWidget {
             child: Column(
               children: [
                 ItemText(title: "UID", desc: controller.userInfo.value!.uid),
-                ItemText(title: "username".tr, desc: controller.userInfo.value!.username),
-                ItemText(title: "level".tr, desc: controller.userInfo.value!.userLevel),
-                ItemText(title: "Email", desc: controller.userInfo.value!.email),
-                ItemText(title: "register_date".tr, desc: controller.userInfo.value!.registerDate),
-                ItemText(title: "contribution_point".tr, desc: controller.userInfo.value!.contribution),
-                ItemText(title: "experience_point".tr, desc: controller.userInfo.value!.experience),
-                ItemText(title: "current_point".tr, desc: controller.userInfo.value!.point),
-                ItemText(title: "max_bookshelf_capacity".tr, desc: controller.userInfo.value!.maxBookshelfNum),
-                ItemText(title: "daily_recommendation_limit".tr, desc: controller.userInfo.value!.maxRecommendNum),
+                ItemText(
+                  title: "username".tr,
+                  desc: controller.userInfo.value!.username,
+                ),
+                ItemText(
+                  title: "level".tr,
+                  desc: controller.userInfo.value!.userLevel,
+                ),
+                ItemText(
+                  title: "Email",
+                  desc: controller.userInfo.value!.email,
+                ),
+                ItemText(
+                  title: "register_date".tr,
+                  desc: controller.userInfo.value!.registerDate,
+                ),
+                ItemText(
+                  title: "contribution_point".tr,
+                  desc: controller.userInfo.value!.contribution,
+                ),
+                ItemText(
+                  title: "experience_point".tr,
+                  desc: controller.userInfo.value!.experience,
+                ),
+                ItemText(
+                  title: "current_point".tr,
+                  desc: controller.userInfo.value!.point,
+                ),
+                ItemText(
+                  title: "max_bookshelf_capacity".tr,
+                  desc: controller.userInfo.value!.maxBookshelfNum,
+                ),
+                ItemText(
+                  title: "daily_recommendation_limit".tr,
+                  desc: controller.userInfo.value!.maxRecommendNum,
+                ),
               ],
             ),
           );

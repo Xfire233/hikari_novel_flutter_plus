@@ -37,7 +37,7 @@ class PaperCurlPager extends StatefulWidget {
     this.onCenterTap,
     this.onReachStart,
     this.onReachEnd,
-    this.edgeTapWidthFactor = 0.28,
+    this.edgeTapWidthFactor = 1 / 3,
   });
 
   final PaperCurlPagerController? controller;
@@ -59,9 +59,12 @@ class PaperCurlPager extends StatefulWidget {
   State<PaperCurlPager> createState() => _PaperCurlPagerState();
 }
 
-class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProviderStateMixin {
+class _PaperCurlPagerState extends State<PaperCurlPager>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  final ValueNotifier<_PaperPoint> _paper = ValueNotifier<_PaperPoint>(_PaperPoint(const math.Point<double>(0, 0), const Size(1, 1)));
+  final ValueNotifier<_PaperPoint> _paper = ValueNotifier<_PaperPoint>(
+    _PaperPoint(const math.Point<double>(0, 0), const Size(1, 1)),
+  );
 
   Size _size = Size.zero;
   Offset _downPos = Offset.zero;
@@ -76,7 +79,10 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
 
   Offset _logicalOffset(Offset physical) {
     if (!widget.reverse || _size.width <= 0) return physical;
-    return Offset((_size.width - physical.dx).clamp(0.0, _size.width), physical.dy);
+    return Offset(
+      (_size.width - physical.dx).clamp(0.0, _size.width),
+      physical.dy,
+    );
   }
 
   int get _lastIndex => widget.pages.isEmpty ? 0 : widget.pages.length - 1;
@@ -103,7 +109,8 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
       _controller.duration = newDuration;
     }
     final safeInitial = _safeIndex(widget.initialIndex);
-    final needResetIndex = widget.pages.length != oldWidget.pages.length || safeInitial != _index;
+    final needResetIndex =
+        widget.pages.length != oldWidget.pages.length || safeInitial != _index;
     if (!_isAnimating && needResetIndex) {
       _index = safeInitial;
       _resetToIdle();
@@ -118,14 +125,17 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
     super.dispose();
   }
 
-  Duration get _effectiveDuration => widget.animationEnabled ? widget.duration : const Duration(milliseconds: 1);
+  Duration get _effectiveDuration => widget.animationEnabled
+      ? widget.duration
+      : const Duration(milliseconds: 1);
 
   int _safeIndex(int raw) {
     if (widget.pages.isEmpty) return 0;
     return raw.clamp(0, widget.pages.length - 1);
   }
 
-  bool get _currentPageInteractive => widget.interactivePageIndices.contains(_index);
+  bool get _currentPageInteractive =>
+      widget.interactivePageIndices.contains(_index);
 
   void _jumpToExternal(int target) {
     final safeTarget = _safeIndex(target);
@@ -136,7 +146,8 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
     widget.onIndexChanged?.call(_index);
   }
 
-  math.Point<double> _idlePoint() => math.Point(_size.width, _fromTop ? 0 : _size.height);
+  math.Point<double> _idlePoint() =>
+      math.Point(_size.width, _fromTop ? 0 : _size.height);
 
   _PaperPoint _makePaper(math.Point<double> point) {
     if (_size.width <= 0 || _size.height <= 0) {
@@ -173,15 +184,19 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
     if (_size.width <= 0 || _size.height <= 0) return;
     final targetY = _fromTop ? 0.0 : _size.height;
     if (_isForward) {
-      _paper.value = _makePaper(math.Point(
-        _currentA.x - (_currentA.x + _size.width) * _controller.value,
-        _currentA.y + (targetY - _currentA.y) * _controller.value,
-      ));
+      _paper.value = _makePaper(
+        math.Point(
+          _currentA.x - (_currentA.x + _size.width) * _controller.value,
+          _currentA.y + (targetY - _currentA.y) * _controller.value,
+        ),
+      );
     } else {
-      _paper.value = _makePaper(math.Point(
-        _currentA.x + (_size.width - _currentA.x) * _controller.value,
-        _currentA.y + (targetY - _currentA.y) * _controller.value,
-      ));
+      _paper.value = _makePaper(
+        math.Point(
+          _currentA.x + (_size.width - _currentA.x) * _controller.value,
+          _currentA.y + (targetY - _currentA.y) * _controller.value,
+        ),
+      );
     }
   }
 
@@ -204,13 +219,18 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
     if (_isAnimating || widget.pages.isEmpty || _index >= _lastIndex) {
       return;
     }
-    final startY = fromTop ? 28.0.clamp(1.0, _size.height) : (_size.height - 28).clamp(1.0, _size.height);
+    final startY = fromTop
+        ? 28.0.clamp(1.0, _size.height)
+        : (_size.height - 28).clamp(1.0, _size.height);
     setState(() {
       _useClip = true;
       _isAnimating = true;
       _isForward = true;
       _fromTop = fromTop;
-      _currentA = math.Point((_size.width - 28).clamp(1.0, _size.width), startY);
+      _currentA = math.Point(
+        (_size.width - 28).clamp(1.0, _size.width),
+        startY,
+      );
       _paper.value = _makePaper(_currentA);
     });
     _controller.forward(from: 0);
@@ -220,7 +240,9 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
     if (_isAnimating || widget.pages.isEmpty || _index <= 0) {
       return;
     }
-    final startY = fromTop ? 100.0.clamp(1.0, _size.height) : (_size.height - 100).clamp(1.0, _size.height);
+    final startY = fromTop
+        ? 100.0.clamp(1.0, _size.height)
+        : (_size.height - 100).clamp(1.0, _size.height);
     setState(() {
       _useClip = true;
       _isAnimating = true;
@@ -240,8 +262,9 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
     }
     final pos = _logicalOffset(details.localPosition);
     final x = pos.dx;
-    final left = _size.width * widget.edgeTapWidthFactor;
-    final right = _size.width * (1 - widget.edgeTapWidthFactor);
+    final edgeTapWidthFactor = widget.edgeTapWidthFactor.clamp(0.0, 0.5);
+    final left = _size.width * edgeTapWidthFactor;
+    final right = _size.width * (1 - edgeTapWidthFactor);
     final fromTop = pos.dy <= (_size.height / 2);
     if (x <= left) {
       if (_index <= 0) {
@@ -271,7 +294,10 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
     if (_isAnimating || widget.pages.isEmpty) return;
     if (_index >= _lastIndex) return;
     final move = _logicalOffset(details.localPosition);
-    if (move.dx >= _size.width || move.dx < 0 || move.dy >= _size.height || move.dy < 0) {
+    if (move.dx >= _size.width ||
+        move.dx < 0 ||
+        move.dy >= _size.height ||
+        move.dy < 0) {
       return;
     }
     if (_downPos.dx < _size.width / 2) {
@@ -323,10 +349,18 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
     if (widget.pages.isEmpty || index < 0 || index >= widget.pages.length) {
       return const SizedBox.shrink();
     }
-    final background = widget.backgroundColor ?? Theme.of(context).colorScheme.surface;
-    Widget page = ColoredBox(color: background, child: SizedBox.expand(child: widget.pages[index]));
+    final background =
+        widget.backgroundColor ?? Theme.of(context).colorScheme.surface;
+    Widget page = ColoredBox(
+      color: background,
+      child: SizedBox.expand(child: widget.pages[index]),
+    );
     if (widget.reverse) {
-      page = Transform(alignment: Alignment.center, transform: Matrix4.diagonal3Values(-1, 1, 1), child: page);
+      page = Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.diagonal3Values(-1, 1, 1),
+        child: page,
+      );
     }
     return page;
   }
@@ -334,8 +368,15 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
   Widget _buildInternalPager() {
     if (widget.pages.isEmpty) return const SizedBox.shrink();
     final underIndex = (_index + 1).clamp(0, _lastIndex);
-    final background = widget.backgroundColor ?? Theme.of(context).colorScheme.surface;
-    final backside = widget.backsideColor ?? Color.lerp(background, Colors.black, Theme.of(context).brightness == Brightness.dark ? 0.24 : 0.14)!;
+    final background =
+        widget.backgroundColor ?? Theme.of(context).colorScheme.surface;
+    final backside =
+        widget.backsideColor ??
+        Color.lerp(
+          background,
+          Colors.black,
+          Theme.of(context).brightness == Brightness.dark ? 0.24 : 0.14,
+        )!;
     return DecoratedBox(
       decoration: BoxDecoration(color: background),
       child: ClipRect(
@@ -351,7 +392,9 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
               ColoredBox(color: background, child: const SizedBox.expand()),
               _pageAt(underIndex),
               ClipPath(
-                clipper: _useClip ? _CurrentPaperClipper(_paper, _isForward, _fromTop) : null,
+                clipper: _useClip
+                    ? _CurrentPaperClipper(_paper, _isForward, _fromTop)
+                    : null,
                 child: _pageAt(_index),
               ),
               IgnorePointer(
@@ -360,7 +403,12 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
                     _paper,
                     backside,
                     fromTop: _fromTop,
-                    gutterColor: Theme.of(context).colorScheme.shadow.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.42 : 0.18),
+                    gutterColor: Theme.of(context).colorScheme.shadow
+                        .withValues(
+                          alpha: Theme.of(context).brightness == Brightness.dark
+                              ? 0.42
+                              : 0.18,
+                        ),
                   ),
                 ),
               ),
@@ -379,7 +427,11 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
         _ensureSize(size);
         Widget child = _buildInternalPager();
         if (widget.reverse) {
-          child = Transform(alignment: Alignment.center, transform: Matrix4.diagonal3Values(-1, 1, 1), child: child);
+          child = Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.diagonal3Values(-1, 1, 1),
+            child: child,
+          );
         }
         return child;
       },
@@ -388,13 +440,15 @@ class _PaperCurlPagerState extends State<PaperCurlPager> with SingleTickerProvid
 }
 
 class _CurrentPaperClipper extends CustomClipper<Path> {
-  const _CurrentPaperClipper(this.paper, this.isForward, this.fromTop) : super(reclip: paper);
+  const _CurrentPaperClipper(this.paper, this.isForward, this.fromTop)
+    : super(reclip: paper);
 
   final ValueNotifier<_PaperPoint> paper;
   final bool isForward;
   final bool fromTop;
 
-  Offset _offset(math.Point<double> point, Size size) => Offset(point.x, fromTop ? size.height - point.y : point.y);
+  Offset _offset(math.Point<double> point, Size size) =>
+      Offset(point.x, fromTop ? size.height - point.y : point.y);
 
   @override
   Path getClip(Size size) {
@@ -422,18 +476,27 @@ class _CurrentPaperClipper extends CustomClipper<Path> {
   }
 
   @override
-  bool shouldReclip(covariant _CurrentPaperClipper oldClipper) => paper != oldClipper.paper || isForward != oldClipper.isForward || fromTop != oldClipper.fromTop;
+  bool shouldReclip(covariant _CurrentPaperClipper oldClipper) =>
+      paper != oldClipper.paper ||
+      isForward != oldClipper.isForward ||
+      fromTop != oldClipper.fromTop;
 }
 
 class _BookPainter extends CustomPainter {
-  _BookPainter(this.paper, this.backsideColor, {required this.gutterColor, required this.fromTop}) : super(repaint: paper);
+  _BookPainter(
+    this.paper,
+    this.backsideColor, {
+    required this.gutterColor,
+    required this.fromTop,
+  }) : super(repaint: paper);
 
   final ValueNotifier<_PaperPoint> paper;
   final Color backsideColor;
   final Color gutterColor;
   final bool fromTop;
 
-  Offset _offset(math.Point<double> point, Size size) => Offset(point.x, fromTop ? size.height - point.y : point.y);
+  Offset _offset(math.Point<double> point, Size size) =>
+      Offset(point.x, fromTop ? size.height - point.y : point.y);
 
   Path _pathFromPoints(Size size, List<math.Point<double>> points) {
     final out = Path();
@@ -485,7 +548,10 @@ class _BookPainter extends CustomPainter {
     final xP1Delta = p.a.x - p.p1.x;
     final yP1Delta = p.a.y - p.p1.y;
     final aShadowLeftBezier = Path()
-      ..moveTo(_offset(math.Point(p.c.x - xP1Delta, p.c.y), size).dx, _offset(math.Point(p.c.x - xP1Delta, p.c.y), size).dy)
+      ..moveTo(
+        _offset(math.Point(p.c.x - xP1Delta, p.c.y), size).dx,
+        _offset(math.Point(p.c.x - xP1Delta, p.c.y), size).dy,
+      )
       ..quadraticBezierTo(
         _offset(math.Point(p.e.x - xP1Delta, p.e.y - yP1Delta), size).dx,
         _offset(math.Point(p.e.x - xP1Delta, p.e.y - yP1Delta), size).dy,
@@ -499,7 +565,10 @@ class _BookPainter extends CustomPainter {
     final xP2Delta = p.a.x - p.p2.x;
     final yP2Delta = p.a.y - p.p2.y;
     final aShadowRight = Path()
-      ..moveTo(_offset(math.Point(p.j.x, p.j.y - yP2Delta), size).dx, _offset(math.Point(p.j.x, p.j.y - yP2Delta), size).dy)
+      ..moveTo(
+        _offset(math.Point(p.j.x, p.j.y - yP2Delta), size).dx,
+        _offset(math.Point(p.j.x, p.j.y - yP2Delta), size).dy,
+      )
       ..quadraticBezierTo(
         _offset(math.Point(p.i.x - xP2Delta, p.i.y - yP2Delta), size).dx,
         _offset(math.Point(p.i.x - xP2Delta, p.i.y - yP2Delta), size).dy,
@@ -510,10 +579,32 @@ class _BookPainter extends CustomPainter {
       ..lineTo(b.dx, b.dy)
       ..lineTo(f.dx, f.dy)
       ..close();
-    final combineShadowLeft = Path.combine(PathOperation.reverseDifference, ab, aShadowLeftBezier);
-    final combineShadowRight = Path.combine(PathOperation.reverseDifference, ab, aShadowRight);
-    canvas.drawPath(combineShadowLeft, aShadowPaint..shader = ui.Gradient.linear(a, p1, [Colors.black26, Colors.transparent]));
-    canvas.drawPath(combineShadowRight, aShadowPaint..shader = ui.Gradient.linear(a, p2, [Colors.black26, Colors.transparent]));
+    final combineShadowLeft = Path.combine(
+      PathOperation.reverseDifference,
+      ab,
+      aShadowLeftBezier,
+    );
+    final combineShadowRight = Path.combine(
+      PathOperation.reverseDifference,
+      ab,
+      aShadowRight,
+    );
+    canvas.drawPath(
+      combineShadowLeft,
+      aShadowPaint
+        ..shader = ui.Gradient.linear(a, p1, [
+          Colors.black26,
+          Colors.transparent,
+        ]),
+    );
+    canvas.drawPath(
+      combineShadowRight,
+      aShadowPaint
+        ..shader = ui.Gradient.linear(a, p2, [
+          Colors.black26,
+          Colors.transparent,
+        ]),
+    );
     final crossPoint = _calculateIntersectionOfTwoLines(
       math.Point(p.b.x - xP1Delta, p.b.y - yP1Delta),
       p.p1,
@@ -521,27 +612,64 @@ class _BookPainter extends CustomPainter {
       math.Point(p.k.x - xP2Delta, p.k.y - yP2Delta),
     );
     final crossOffset = _offset(crossPoint, size);
-    final crossShadowLeft = Path()..moveTo(a.dx, a.dy)..lineTo(crossOffset.dx, crossOffset.dy)..lineTo(p1.dx, p1.dy)..close();
-    canvas.drawPath(crossShadowLeft, aShadowPaint..shader = ui.Gradient.linear(a, p1, [Colors.black26, Colors.transparent]));
-    final crossShadowRight = Path()..moveTo(a.dx, a.dy)..lineTo(crossOffset.dx, crossOffset.dy)..lineTo(p2.dx, p2.dy)..close();
-    canvas.drawPath(crossShadowRight, aShadowPaint..shader = ui.Gradient.linear(a, p2, [Colors.black26, Colors.transparent]));
+    final crossShadowLeft = Path()
+      ..moveTo(a.dx, a.dy)
+      ..lineTo(crossOffset.dx, crossOffset.dy)
+      ..lineTo(p1.dx, p1.dy)
+      ..close();
+    canvas.drawPath(
+      crossShadowLeft,
+      aShadowPaint
+        ..shader = ui.Gradient.linear(a, p1, [
+          Colors.black26,
+          Colors.transparent,
+        ]),
+    );
+    final crossShadowRight = Path()
+      ..moveTo(a.dx, a.dy)
+      ..lineTo(crossOffset.dx, crossOffset.dy)
+      ..lineTo(p2.dx, p2.dy)
+      ..close();
+    canvas.drawPath(
+      crossShadowRight,
+      aShadowPaint
+        ..shader = ui.Gradient.linear(a, p2, [
+          Colors.black26,
+          Colors.transparent,
+        ]),
+    );
     final backsidePaint = Paint()..style = PaintingStyle.fill;
     final regionB = Path.combine(PathOperation.intersect, ab, triangleB);
     canvas.drawPath(regionB, backsidePaint..color = backsideColor);
     final bShadow = _pathFromPoints(size, [p.c, p.j, p.h, p.e]);
     final combineToBC = Path.combine(PathOperation.intersect, bShadow, ab);
-    final combineToC = Path.combine(PathOperation.difference, combineToBC, regionB);
+    final combineToC = Path.combine(
+      PathOperation.difference,
+      combineToBC,
+      regionB,
+    );
     final uRaw = _calculateIntersectionOfTwoLines(p.a, p.f, p.d, p.i);
     final u = _offset(uRaw, size);
-    canvas.drawPath(combineToC, backsidePaint..shader = ui.Gradient.linear(u, g, [Colors.black38, Colors.transparent]));
+    canvas.drawPath(
+      combineToC,
+      backsidePaint
+        ..shader = ui.Gradient.linear(u, g, [
+          Colors.black38,
+          Colors.transparent,
+        ]),
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _BookPainter oldDelegate) => oldDelegate.paper != paper || oldDelegate.backsideColor != backsideColor || oldDelegate.gutterColor != gutterColor || oldDelegate.fromTop != fromTop;
+  bool shouldRepaint(covariant _BookPainter oldDelegate) =>
+      oldDelegate.paper != paper ||
+      oldDelegate.backsideColor != backsideColor ||
+      oldDelegate.gutterColor != gutterColor ||
+      oldDelegate.fromTop != fromTop;
 }
 
 class _PaperPoint {
-  _PaperPoint(this.a, this.size, {this.elevationC = 10}) {
+  _PaperPoint(this.a, this.size) : elevationC = 10 {
     f = math.Point(size.width, size.height);
     if ((a.x - f.x).abs() < 0.001 && (a.y - f.y).abs() < 0.001) {
       g = f;
@@ -626,7 +754,12 @@ _Line _calculateLineEquation(math.Point<double> p1, math.Point<double> p2) {
   return _Line(p1, p2, slope, intercept);
 }
 
-math.Point<double> _calculateIntersectionOfTwoLines(math.Point<double> a, math.Point<double> b, math.Point<double> m, math.Point<double> n) {
+math.Point<double> _calculateIntersectionOfTwoLines(
+  math.Point<double> a,
+  math.Point<double> b,
+  math.Point<double> m,
+  math.Point<double> n,
+) {
   final line1 = _calculateLineEquation(a, b);
   final line2 = _calculateLineEquation(m, n);
   final x = (line2.intercept - line1.intercept) / (line1.slope - line2.slope);
@@ -640,10 +773,14 @@ math.Point<double> _projectPointToLine(_Line line, double distance) {
   late final double y;
   if (slope > 0 || line.a.y >= line.b.y) {
     x = line.a.x - math.sqrt(distance * distance / (1 + (slope * slope)));
-    y = line.a.y - math.sqrt(distance * distance / (1 + (slope * slope))) * slope;
+    y =
+        line.a.y -
+        math.sqrt(distance * distance / (1 + (slope * slope))) * slope;
   } else {
     x = line.a.x + math.sqrt(distance * distance / (1 + (slope * slope)));
-    y = line.a.y + math.sqrt(distance * distance / (1 + (slope * slope))) * slope;
+    y =
+        line.a.y +
+        math.sqrt(distance * distance / (1 + (slope * slope))) * slope;
   }
   return math.Point(x, y);
 }

@@ -7,6 +7,9 @@ import 'package:drift/drift.dart';
 /// - [title] 小说标题
 /// - [img] 小说封面url
 /// - [classId] 该小说所在的书架号
+/// - [updateKey] 最新章节/楼层标识
+/// - [updateTime] 更新时间
+/// - [hasUpdate] 是否有未读更新
 class BookshelfEntity extends Table {
   TextColumn get aid => text()();
 
@@ -19,6 +22,14 @@ class BookshelfEntity extends Table {
   TextColumn get img => text()();
 
   TextColumn get classId => text()();
+
+  TextColumn get updateKey => text().withDefault(const Constant(''))();
+
+  DateTimeColumn get updateTime => dateTime().nullable()();
+
+  BoolColumn get hasUpdate => boolean().withDefault(const Constant(false))();
+
+  RealColumn get rating => real().withDefault(const Constant(0))();
 
   @override
   Set<Column> get primaryKey => {aid};
@@ -75,7 +86,7 @@ class ReadHistoryEntity extends Table {
   BoolColumn get isLatest => boolean()();
 
   @override
-  Set<Column> get primaryKey => {cid};
+  Set<Column> get primaryKey => {aid, cid};
 }
 
 class NovelDetailEntity extends Table {

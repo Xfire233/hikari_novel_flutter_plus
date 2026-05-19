@@ -82,7 +82,11 @@ class CacheQueueController extends GetxService {
 
   Future<void> _runTask(ChapterCacheTask task) async {
     try {
-      await downloader.download(taskId: task.uuid, aid: task.aid, cid: task.cid);
+      await downloader.download(
+        taskId: task.uuid,
+        aid: task.aid,
+        cid: task.cid,
+      );
 
       // task.status = CacheStatus.completed;
       // task.progress = 1.0;
@@ -115,14 +119,15 @@ class CacheQueueController extends GetxService {
     final idx = tasks.indexWhere((t) => t.uuid == uuid);
     if (idx != -1) {
       final t = tasks[idx];
-      if (t.status == CacheStatus.paused || t.status == CacheStatus.failed || t.status == CacheStatus.canceled) {
+      if (t.status == CacheStatus.paused ||
+          t.status == CacheStatus.failed ||
+          t.status == CacheStatus.canceled) {
         t.status = CacheStatus.pending;
         tasks[idx] = t;
         startProcessing(); // 确保会重新从头开始下载
       }
     }
   }
-
 
   Future<void> cancelTask(String uuid) async {
     downloader.cancel(uuid);
@@ -155,6 +160,9 @@ class CacheQueueController extends GetxService {
   }
 
   Future<void> clearAll() async {
+    _isProcessing = false;
+    downloader.cancelAll();
+    _running.clear();
     tasks.clear();
   }
 
