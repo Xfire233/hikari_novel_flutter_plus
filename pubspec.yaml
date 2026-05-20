@@ -3,7 +3,7 @@ description: "A multi-source novel reader for Wenku8, ESJZone, and Yamibo."
 
 publish_to: 'none'
 
-version: 1.1.4-beta.1+22
+version: 1.1.5-pre.2+24
 
 environment:
   sdk: ^3.10.7

@@ -31,6 +31,7 @@ import '../../models/resource.dart';
 import '../../network/api.dart';
 import '../../service/db_service.dart';
 import '../../service/local_storage_service.dart';
+import '../../service/source_auth_guard.dart';
 import '../../service/source_config_service.dart';
 import '../../service/source_favorite_adapter.dart';
 
@@ -310,10 +311,22 @@ class NovelDetailController extends GetxController
   }
 
   Future<void> _getYamiboNovelDetail() async {
+    if (!YamiboApi.hasCookie) {
+      SourceAuthGuard.clearLogin(NovelSource.yamibo);
+      SourceAuthGuard.showLoginRequired(NovelSource.yamibo);
+      errorMsg = 'source_login_required'.tr;
+      pageState.value = PageState.error;
+      return;
+    }
     final firstPage = await YamiboApi.getThreadPage(tid: yamiboTid);
     switch (firstPage) {
       case Success():
         {
+          if (!SourceAuthGuard.checkHtml(NovelSource.yamibo, firstPage.data)) {
+            errorMsg = 'source_login_required'.tr;
+            pageState.value = PageState.error;
+            return;
+          }
           final firstPageData = YamiboParser.getThreadDetail(firstPage.data);
           final authorPage = await YamiboApi.getThreadPage(
             tid: yamiboTid,

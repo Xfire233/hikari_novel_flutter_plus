@@ -79,7 +79,7 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
-        title: Text(_forumName),
+        title: Text(_forumTitle(_currentFid)),
         actions: [
           IconButton(
             onPressed: () => _loadPage(refresh: true),
@@ -94,10 +94,6 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
           PopupMenuButton<_YamiboAction>(
             onSelected: _handleAction,
             itemBuilder: (_) => [
-              PopupMenuItem(
-                value: _YamiboAction.syncFavorite,
-                child: Text('sync_yamibo_favorites'.tr),
-              ),
               PopupMenuItem(
                 value: _YamiboAction.openWeb,
                 child: Text('yamibo_open_web'.tr),
@@ -118,19 +114,25 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
         children: [
           SizedBox(
             height: 48,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(
-                horizontal: kPageHorizontalPadding,
-              ),
-              scrollDirection: Axis.horizontal,
-              itemCount: _forumOptions.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final item = _forumOptions[index];
-                return ChoiceChip(
-                  label: Text(item.$2.tr),
-                  selected: _currentFid == item.$1,
-                  onSelected: (_) => _changeForum(item.$1),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final scrollable = constraints.maxWidth < 340;
+                return DefaultTabController(
+                  key: ValueKey(_currentFid),
+                  length: _forumOptions.length,
+                  initialIndex: _forumOptions
+                      .indexWhere((item) => item.$1 == _currentFid)
+                      .clamp(0, _forumOptions.length - 1)
+                      .toInt(),
+                  child: TabBar(
+                    tabs: _forumOptions
+                        .map((item) => Tab(text: item.$2))
+                        .toList(),
+                    dividerHeight: 0,
+                    isScrollable: scrollable,
+                    tabAlignment: scrollable ? TabAlignment.start : null,
+                    onTap: (index) => _changeForum(_forumOptions[index].$1),
+                  ),
                 );
               },
             ),
@@ -196,14 +198,14 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
   }
 
   List<(String, String)> get _forumOptions => const [
-    (YamiboApi.literatureFid, 'yamibo_literature'),
-    (YamiboApi.lightNovelFid, 'yamibo_light_novel'),
-    (YamiboApi.txtNovelFid, 'yamibo_txt_novel'),
+    (YamiboApi.literatureFid, '文学区'),
+    (YamiboApi.lightNovelFid, '轻小说/译文区'),
+    (YamiboApi.txtNovelFid, 'TXT 小说区'),
   ];
 
   String _forumTitle(String fid) {
     for (final item in _forumOptions) {
-      if (item.$1 == fid) return item.$2.tr;
+      if (item.$1 == fid) return item.$2;
     }
     return _forumName;
   }
@@ -270,7 +272,7 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
         24,
       ),
       itemCount: _threads.length + (showLoadingFooter && _loadingMore ? 1 : 0),
-      separatorBuilder: (_, _) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (_, index) {
         if (index >= _threads.length) {
           return const Padding(
@@ -320,7 +322,7 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
       ),
       physics: const NeverScrollableScrollPhysics(),
       itemCount: visibleThreads.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (_, index) {
         final thread = visibleThreads[index];
         return _ThreadTile(
@@ -488,7 +490,7 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
         bid: thread.aid,
         url: YamiboApi.threadUrl(thread.tid),
         title: thread.title,
-        img: YamiboApi.logoUrl,
+        img: '',
         classId: BookshelfController.yamiboClassId,
         updateKey: thread.lastPostTime?.millisecondsSinceEpoch.toString() ?? '',
         updateTime: thread.lastPostTime,
@@ -509,34 +511,8 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
 
   Future<void> _handleAction(_YamiboAction action) async {
     switch (action) {
-      case _YamiboAction.syncFavorite:
-        await _syncFavorites();
       case _YamiboAction.openWeb:
         await _openWebLogin();
-    }
-  }
-
-  Future<void> _syncFavorites() async {
-    final loggedIn = YamiboApi.hasCookie;
-    if (!loggedIn) {
-      showErrorDialog('source_login_required'.tr, [
-        TextButton(onPressed: Get.back, child: Text('confirm'.tr)),
-      ]);
-      return;
-    }
-    setState(() => _loading = _threads.isEmpty);
-    final result = await BookshelfController.syncYamiboFavoritesToBookshelf();
-    if (!mounted) return;
-    setState(() => _loading = false);
-    if (result) {
-      await _loadFavorites();
-      await _refreshBookshelfFoldersIfVisible();
-      if (!mounted) return;
-      showSnackBar(message: 'update_successfully'.tr, context: context);
-    } else {
-      showErrorDialog('update_failed'.tr, [
-        TextButton(onPressed: Get.back, child: Text('confirm'.tr)),
-      ]);
     }
   }
 
@@ -669,7 +645,7 @@ class _YamiboAuthorThreadPageState extends State<YamiboAuthorThreadPage> {
         24,
       ),
       itemCount: _threads.length + (showLoadingFooter && _loadingMore ? 1 : 0),
-      separatorBuilder: (_, _) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (_, index) {
         if (index >= _threads.length) {
           return const Padding(
@@ -719,7 +695,7 @@ class _YamiboAuthorThreadPageState extends State<YamiboAuthorThreadPage> {
       ),
       physics: const NeverScrollableScrollPhysics(),
       itemCount: visibleThreads.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (_, index) {
         final thread = visibleThreads[index];
         return _ThreadTile(
@@ -910,52 +886,76 @@ class _ThreadTile extends StatelessWidget {
     final theme = Theme.of(context);
     if (compact) return _buildCompact(context, theme);
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero.copyWith(top: 8, bottom: 8),
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 6,
-            runSpacing: 4,
+    return Card.outlined(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(kCardBorderRadius),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              if (thread.isTop)
-                _Badge(label: 'TOP', color: theme.colorScheme.primary),
-              if (thread.isDigest)
-                _Badge(label: 'DIGEST', color: theme.colorScheme.tertiary),
-              if (typeName.isNotEmpty)
-                _Badge(label: typeName, color: theme.colorScheme.secondary),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        if (thread.isTop)
+                          _Badge(
+                            label: 'TOP',
+                            color: theme.colorScheme.primary,
+                          ),
+                        if (thread.isDigest)
+                          _Badge(
+                            label: 'DIGEST',
+                            color: theme.colorScheme.tertiary,
+                          ),
+                        if (typeName.isNotEmpty)
+                          _Badge(
+                            label: typeName,
+                            color: theme.colorScheme.secondary,
+                          ),
+                      ],
+                    ),
+                    if (thread.isTop || thread.isDigest || typeName.isNotEmpty)
+                      const SizedBox(height: 6),
+                    Text(
+                      thread.title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        height: 1.32,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      [
+                        if (thread.author.isNotEmpty) thread.author,
+                        '${thread.replies} 回复',
+                        '${thread.views} 浏览',
+                        if (thread.lastPostTime != null)
+                          _formatDate(thread.lastPostTime!),
+                      ].join('  ·  '),
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: favorited ? null : onFavorite,
+                icon: Icon(favorited ? Icons.star : Icons.star_border),
+                tooltip: 'favorite'.tr,
+              ),
             ],
           ),
-          if (thread.isTop || thread.isDigest || typeName.isNotEmpty)
-            const SizedBox(height: 6),
-          Text(
-            thread.title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-              height: 1.32,
-            ),
-          ),
-        ],
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Text(
-          [
-            if (thread.author.isNotEmpty) thread.author,
-            '${thread.replies} 回复',
-            '${thread.views} 浏览',
-            if (thread.lastPostTime != null) _formatDate(thread.lastPostTime!),
-          ].join('  ·  '),
-          style: theme.textTheme.bodySmall,
         ),
       ),
-      trailing: IconButton(
-        onPressed: favorited ? null : onFavorite,
-        icon: Icon(favorited ? Icons.star : Icons.star_border),
-        tooltip: 'favorite'.tr,
-      ),
-      onTap: onTap,
     );
   }
 
@@ -969,49 +969,69 @@ class _ThreadTile extends StatelessWidget {
 
     return SizedBox(
       height: 77,
-      child: ListTile(
-        dense: true,
-        minVerticalPadding: 4,
-        contentPadding: EdgeInsets.zero,
-        title: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (thread.isTop || thread.isDigest)
-              Padding(
-                padding: const EdgeInsets.only(right: 6, top: 2),
-                child: _Badge(
-                  label: thread.isTop ? 'TOP' : 'DIGEST',
-                  color: thread.isTop
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.tertiary,
+      child: Card.outlined(
+        margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kCardBorderRadius),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 2, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (thread.isTop || thread.isDigest)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6, top: 2),
+                              child: _Badge(
+                                label: thread.isTop ? 'TOP' : 'DIGEST',
+                                color: thread.isTop
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.tertiary,
+                              ),
+                            ),
+                          Expanded(
+                            child: Text(
+                              thread.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                height: 1.24,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            Expanded(
-              child: Text(
-                thread.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  height: 1.24,
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  onPressed: favorited ? null : onFavorite,
+                  icon: Icon(favorited ? Icons.star : Icons.star_border),
+                  tooltip: 'favorite'.tr,
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
-        subtitle: Text(
-          meta,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall,
-        ),
-        trailing: IconButton(
-          visualDensity: VisualDensity.compact,
-          onPressed: favorited ? null : onFavorite,
-          icon: Icon(favorited ? Icons.star : Icons.star_border),
-          tooltip: 'favorite'.tr,
-        ),
-        onTap: onTap,
       ),
     );
   }
@@ -1165,4 +1185,4 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
   }
 }
 
-enum _YamiboAction { syncFavorite, openWeb }
+enum _YamiboAction { openWeb }

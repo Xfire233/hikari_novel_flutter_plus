@@ -20,124 +20,161 @@ class EsjView extends StatelessWidget {
         children: [
           const SizedBox(height: 4),
           SourceSurface(
-            child: SizedBox(
-              height: 48,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Obx(
-                      () => ListView.separated(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: kPageHorizontalPadding,
-                        ),
-                        scrollDirection: Axis.horizontal,
-                        itemCount: controller.typeOptions.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8),
-                        itemBuilder: (context, index) {
-                          final item = controller.typeOptions[index];
-                          return ChoiceChip(
-                            label: Text(item.$2),
-                            selected: controller.type.value == item.$1,
-                            onSelected: (_) => controller.changeType(item.$1),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  Obx(
-                    () => Padding(
-                      padding: const EdgeInsets.only(right: 10),
-                      child: ActionChip(
-                        label: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(controller.sortText),
-                            const Icon(Icons.arrow_drop_down_outlined),
-                          ],
-                        ),
-                        onPressed: () =>
-                            showMenu(
-                              context: context,
-                              position: RelativeRect.fill,
-                              items: controller.sortOptions
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  height: 48,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Obx(
+                          () => LayoutBuilder(
+                            builder: (context, constraints) {
+                              final scrollable = constraints.maxWidth < 300;
+                              final tabs = controller.typeOptions
                                   .map(
-                                    (item) => PopupMenuItem(
-                                      value: item.$1,
-                                      child: Text(item.$2),
+                                    (item) => Tab(
+                                      child: Text(
+                                        item.$2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
                                   )
-                                  .toList(),
-                            ).then((value) {
-                              if (value != null) controller.changeSort(value);
-                            }),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          SourceSurface(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                kPageHorizontalPadding,
-                8,
-                kPageHorizontalPadding,
-                8,
-              ),
-              child: Obx(
-                () => Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    ChoiceChip(
-                      label: Text('esj_tag_all'.tr),
-                      selected: controller.selectedTag.value.isEmpty,
-                      onSelected: (_) => controller.changeTag(''),
-                    ),
-                    ...controller.orderedTagOptions.take(6).map(
-                      (tag) => ChoiceChip(
-                        label: Text(tag),
-                        selected: controller.selectedTag.value == tag,
-                        onSelected: (_) => controller.changeTag(tag),
-                      ),
-                    ),
-                    ActionChip(
-                      label: Text(controller.tagText),
-                      avatar: const Icon(Icons.expand_more),
-                      onPressed: () => showModalBottomSheet<void>(
-                        context: context,
-                        showDragHandle: true,
-                        builder: (_) => ListView(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                          children: [
-                            ListTile(
-                              title: Text('esj_tag_all'.tr),
-                              onTap: () {
-                                Navigator.pop(context);
-                                controller.changeTag('');
-                              },
-                            ),
-                            for (final tag in controller.orderedTagOptions)
-                              ListTile(
-                                title: Text(tag),
-                                trailing: controller.selectedTag.value == tag
-                                    ? const Icon(Icons.check)
-                                    : null,
-                                onTap: () {
-                                  Navigator.pop(context);
-                                  controller.changeTag(tag);
-                                },
-                              ),
-                          ],
+                                  .toList();
+                              return DefaultTabController(
+                                key: ValueKey(controller.type.value),
+                                length: tabs.length,
+                                initialIndex: controller.typeOptions
+                                    .indexWhere(
+                                      (item) =>
+                                          item.$1 == controller.type.value,
+                                    )
+                                    .clamp(0, tabs.length - 1)
+                                    .toInt(),
+                                child: TabBar(
+                                  tabs: tabs,
+                                  dividerHeight: 0,
+                                  isScrollable: scrollable,
+                                  tabAlignment: scrollable
+                                      ? TabAlignment.start
+                                      : null,
+                                  onTap: (index) => controller.changeType(
+                                    controller.typeOptions[index].$1,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                      Obx(
+                        () => Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: ActionChip(
+                            label: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(controller.sortText),
+                                const Icon(Icons.arrow_drop_down_outlined),
+                              ],
+                            ),
+                            onPressed: () =>
+                                showMenu(
+                                  context: context,
+                                  position: RelativeRect.fill,
+                                  items: controller.sortOptions
+                                      .map(
+                                        (item) => PopupMenuItem(
+                                          value: item.$1,
+                                          child: Text(item.$2),
+                                        ),
+                                      )
+                                      .toList(),
+                                ).then((value) {
+                                  if (value != null) {
+                                    controller.changeSort(value);
+                                  }
+                                }),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                SizedBox(
+                  height: 44,
+                  child: Obx(() {
+                    final tags = controller.orderedTagOptions.take(8).toList();
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(
+                        kPageHorizontalPadding,
+                        0,
+                        kPageHorizontalPadding,
+                        6,
+                      ),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: tags.length + 2,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return ChoiceChip(
+                            label: Text('esj_tag_all'.tr),
+                            selected: controller.selectedTag.value.isEmpty,
+                            onSelected: (_) => controller.changeTag(''),
+                          );
+                        }
+                        if (index == tags.length + 1) {
+                          return ActionChip(
+                            label: Text(controller.tagText),
+                            avatar: const Icon(Icons.expand_more),
+                            onPressed: () => showModalBottomSheet<void>(
+                              context: context,
+                              showDragHandle: true,
+                              builder: (_) => ListView(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  0,
+                                  16,
+                                  24,
+                                ),
+                                children: [
+                                  ListTile(
+                                    title: Text('esj_tag_all'.tr),
+                                    onTap: () {
+                                      Navigator.pop(context);
+                                      controller.changeTag('');
+                                    },
+                                  ),
+                                  for (final tag
+                                      in controller.orderedTagOptions)
+                                    ListTile(
+                                      title: Text(tag),
+                                      trailing:
+                                          controller.selectedTag.value == tag
+                                          ? const Icon(Icons.check)
+                                          : null,
+                                      onTap: () {
+                                        Navigator.pop(context);
+                                        controller.changeTag(tag);
+                                      },
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+                        final tag = tags[index - 1];
+                        return ChoiceChip(
+                          label: Text(tag),
+                          selected: controller.selectedTag.value == tag,
+                          onSelected: (_) => controller.changeTag(tag),
+                        );
+                      },
+                    );
+                  }),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 4),

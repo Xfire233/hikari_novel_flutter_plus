@@ -12,6 +12,7 @@ import 'package:hikari_novel_flutter/common/extension.dart';
 import 'package:hikari_novel_flutter/models/dual_page_mode.dart';
 import 'package:hikari_novel_flutter/models/reader_direction.dart';
 import 'package:hikari_novel_flutter/models/resource.dart';
+import 'package:hikari_novel_flutter/models/source_config.dart';
 import 'package:hikari_novel_flutter/models/source_id.dart';
 import 'package:hikari_novel_flutter/network/esj_api.dart';
 import 'package:hikari_novel_flutter/network/esj_parser.dart';
@@ -33,6 +34,7 @@ import '../../models/page_state.dart';
 import '../../network/api.dart';
 import '../../service/db_service.dart';
 import '../../service/local_storage_service.dart';
+import '../../service/source_auth_guard.dart';
 import '../../service/volume_key_service.dart';
 import 'widgets/paper_curl_pager.dart';
 
@@ -322,9 +324,21 @@ class ReaderController extends GetxController {
   }
 
   Future<void> _getYamiboContentByNetwork() async {
+    if (!YamiboApi.hasCookie) {
+      SourceAuthGuard.clearLogin(NovelSource.yamibo);
+      SourceAuthGuard.showLoginRequired(NovelSource.yamibo);
+      errorMsg = 'source_login_required'.tr;
+      pageState.value = PageState.error;
+      return;
+    }
     String? authorId;
     final first = await YamiboApi.getThreadPage(tid: yamiboTid);
     if (first case Success()) {
+      if (!SourceAuthGuard.checkHtml(NovelSource.yamibo, first.data)) {
+        errorMsg = 'source_login_required'.tr;
+        pageState.value = PageState.error;
+        return;
+      }
       authorId = YamiboParser.getThreadDetail(first.data).authorId;
     }
 
@@ -336,6 +350,11 @@ class ReaderController extends GetxController {
     switch (result) {
       case Success():
         {
+          if (!SourceAuthGuard.checkHtml(NovelSource.yamibo, result.data)) {
+            errorMsg = 'source_login_required'.tr;
+            pageState.value = PageState.error;
+            return;
+          }
           final requestedPage = SourceId.yamiboPage(cid);
           final actualPage = YamiboParser.getCurrentPage(result.data);
           if (actualPage != null && actualPage != requestedPage) {

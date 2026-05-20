@@ -207,6 +207,15 @@ class BookshelfPage extends StatelessWidget {
                   ),
                 ),
               if (!folder.builtIn)
+                if (folder.smartFolder)
+                  PopupMenuItem(
+                    value: _FolderAction.editSmart,
+                    child: ListTile(
+                      leading: const Icon(Icons.tune_outlined),
+                      title: Text("编辑筛选条件"),
+                    ),
+                  ),
+              if (!folder.builtIn)
                 PopupMenuItem(
                   value: _FolderAction.rename,
                   child: ListTile(
@@ -321,6 +330,15 @@ class BookshelfPage extends StatelessWidget {
                   ),
                 ),
                 if (!folder.builtIn)
+                  if (folder.smartFolder)
+                    PopupMenuItem(
+                      value: _FolderAction.editSmart,
+                      child: ListTile(
+                        leading: const Icon(Icons.tune_outlined),
+                        title: Text("编辑筛选条件"),
+                      ),
+                    ),
+                if (!folder.builtIn)
                   PopupMenuItem(
                     value: _FolderAction.rename,
                     child: ListTile(
@@ -426,6 +444,8 @@ class BookshelfPage extends StatelessWidget {
         _showFolderCoverSheet(folder);
       case _FolderAction.batchManage:
         currentTabController.enterSelectionMode();
+      case _FolderAction.editSmart:
+        _showSmartShelfDialog(folder: folder);
       case _FolderAction.rename:
         _showRenameFolderDialog(folder);
       case _FolderAction.delete:
@@ -630,20 +650,11 @@ class BookshelfPage extends StatelessWidget {
               ),
               ListTile(
                 leading: const Icon(Icons.auto_awesome_outlined),
-                title: Text("create_tag_smart_bookshelf".tr),
-                subtitle: Text("tag_smart_bookshelf_desc".tr),
-                onTap: () {
-                  Get.back();
-                  _showCreateTagSmartFolderDialog();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.rss_feed_outlined),
-                title: Text("create_advanced_smart_bookshelf".tr),
+                title: Text("smart_bookshelf".tr),
                 subtitle: Text("advanced_smart_bookshelf_desc".tr),
                 onTap: () {
                   Get.back();
-                  _showCreateAdvancedSmartFolderDialog();
+                  _showSmartShelfDialog();
                 },
               ),
             ],
@@ -697,31 +708,60 @@ class BookshelfPage extends StatelessWidget {
     if (folder != null) controller.openFolder(folder);
   }
 
-  Future<void> _showCreateTagSmartFolderDialog() async {
-    final tag = await _askFolderName(
-      "create_tag_smart_bookshelf".tr,
-      label: "tag_name".tr,
+  Future<void> _showSmartShelfDialog({BookshelfFolder? folder}) async {
+    final editing = folder != null;
+    final config = editing
+        ? controller.smartConfigForFolder(folder)
+        : const SmartShelfConfig();
+    final group = config.groups.isEmpty
+        ? const SmartShelfConditionGroup()
+        : config.groups.first;
+    final nameController = TextEditingController(
+      text: editing ? folder.name.replaceFirst(RegExp(r'\s*\(\d+\)$'), '') : '',
     );
-    if (tag == null) return;
-    await controller.createTagSmartFolder(tag);
-  }
-
-  Future<void> _showCreateAdvancedSmartFolderDialog() async {
-    final nameController = TextEditingController();
-    final tagsController = TextEditingController();
-    final authorController = TextEditingController();
-    final titleController = TextEditingController();
-    var matchAll = true;
-    var subscription = false;
-    final sources = <NovelSource>{...NovelSource.values};
+    final tagsController = TextEditingController(
+      text: group.conditions
+          .where((item) => item.type == SmartShelfConditionType.tag)
+          .map((item) => item.value)
+          .join(', '),
+    );
+    final authorController = TextEditingController(
+      text:
+          group.conditions
+              .firstWhereOrNull(
+                (item) => item.type == SmartShelfConditionType.author,
+              )
+              ?.value ??
+          '',
+    );
+    final titleController = TextEditingController(
+      text:
+          group.conditions
+              .firstWhereOrNull(
+                (item) => item.type == SmartShelfConditionType.title,
+              )
+              ?.value ??
+          '',
+    );
+    var matchAll = group.mode != SmartShelfMatchMode.any;
+    var subscription = config.isSubscription;
+    final sources = <NovelSource>{
+      ...(config.sources.isEmpty ? NovelSource.values : config.sources),
+    };
     await Get.dialog<void>(
       StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: Text("create_advanced_smart_bookshelf".tr),
+          title: Text(editing ? "编辑智能书架" : "smart_bookshelf".tr),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(
+                  "标签支持用中文逗号、英文逗号或空格分隔。开启“全部匹配”时需要同时满足所有条件；关闭后任意条件命中即可。订阅模式会在书架同步时按标签从已选来源拉取新条目。",
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: nameController,
                   decoration: InputDecoration(labelText: "bookshelf_name".tr),
@@ -750,28 +790,32 @@ class BookshelfPage extends StatelessWidget {
                   title: Text("smart_subscription_mode".tr),
                   dense: true,
                 ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(
-                    spacing: 8,
-                    children: NovelSource.values
-                        .map(
-                          (source) => FilterChip(
-                            label: Text(source.titleKey.tr),
-                            selected: sources.contains(source),
-                            onSelected: (selected) {
-                              setState(() {
-                                if (selected) {
-                                  sources.add(source);
-                                } else {
-                                  sources.remove(source);
-                                }
-                              });
-                            },
-                          ),
-                        )
-                        .toList(),
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 6),
+                  child: Text(
+                    "来源范围",
+                    style: Theme.of(context).textTheme.labelLarge,
                   ),
+                ),
+                Wrap(
+                  spacing: 8,
+                  children: NovelSource.values
+                      .map(
+                        (source) => FilterChip(
+                          label: Text(source.titleKey.tr),
+                          selected: sources.contains(source),
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                sources.add(source);
+                              } else {
+                                sources.remove(source);
+                              }
+                            });
+                          },
+                        ),
+                      )
+                      .toList(),
                 ),
               ],
             ),
@@ -801,7 +845,7 @@ class BookshelfPage extends StatelessWidget {
                       value: titleController.text.trim(),
                     ),
                 ];
-                final config = SmartShelfConfig(
+                final nextConfig = SmartShelfConfig(
                   kind: subscription
                       ? SmartShelfKind.subscription
                       : SmartShelfKind.local,
@@ -820,7 +864,18 @@ class BookshelfPage extends StatelessWidget {
                 final name = nameController.text.trim().isEmpty
                     ? "smart_bookshelf".tr
                     : nameController.text.trim();
-                await controller.createSmartShelf(name: name, config: config);
+                if (editing) {
+                  await controller.updateSmartShelf(
+                    folder: folder,
+                    name: name,
+                    config: nextConfig,
+                  );
+                } else {
+                  await controller.createSmartShelf(
+                    name: name,
+                    config: nextConfig,
+                  );
+                }
                 Get.back();
               },
               child: Text("confirm".tr),
@@ -1027,6 +1082,14 @@ class BookshelfPage extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (!child.builtIn && child.smartFolder)
+                            PopupMenuItem(
+                              value: _FolderAction.editSmart,
+                              child: ListTile(
+                                leading: const Icon(Icons.tune_outlined),
+                                title: Text("编辑筛选条件"),
+                              ),
+                            ),
                           PopupMenuItem(
                             value: _FolderAction.rename,
                             child: ListTile(
@@ -1081,6 +1144,7 @@ enum _FolderAction {
   sort,
   cover,
   batchManage,
+  editSmart,
   rename,
   delete,
   createChild,
@@ -1172,6 +1236,15 @@ class _FolderGridCard extends StatelessWidget {
                               title: Text("bookshelf_sort_type".tr),
                             ),
                           ),
+                          if (!folder.builtIn)
+                            if (folder.smartFolder)
+                              PopupMenuItem(
+                                value: _FolderAction.editSmart,
+                                child: ListTile(
+                                  leading: const Icon(Icons.tune_outlined),
+                                  title: Text("编辑筛选条件"),
+                                ),
+                              ),
                           if (!folder.builtIn)
                             PopupMenuItem(
                               value: _FolderAction.rename,

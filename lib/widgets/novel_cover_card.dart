@@ -232,7 +232,9 @@ class _CoverImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = imageUrl?.trim() ?? '';
-    if (url.isEmpty) return _CoverPlaceholder(title: title, source: source);
+    if (url.isEmpty || _isPlaceholderOnlyUrl(url)) {
+      return _CoverPlaceholder(title: title, source: source);
+    }
     return CachedNetworkImage(
       imageUrl: url,
       httpHeaders: Request.userAgent,
@@ -243,6 +245,14 @@ class _CoverImage extends StatelessWidget {
       errorWidget: (context, url, error) =>
           _CoverPlaceholder(title: title, source: source),
     );
+  }
+
+  bool _isPlaceholderOnlyUrl(String url) {
+    if (source != NovelSource.yamibo) return false;
+    final lower = url.toLowerCase();
+    return lower.contains('/static/image/common/logo') ||
+        lower.contains('discuz') ||
+        lower.contains('community');
   }
 }
 

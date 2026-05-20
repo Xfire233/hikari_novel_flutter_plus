@@ -1,9 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/common/constants.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
-import 'package:hikari_novel_flutter/network/request.dart';
 import 'package:hikari_novel_flutter/pages/my/controller.dart';
 import 'package:hikari_novel_flutter/router/app_sub_router.dart';
 import 'package:hikari_novel_flutter/widgets/source_backdrop.dart';
@@ -23,19 +21,6 @@ class MyPage extends StatelessWidget {
             const SizedBox(height: 10),
             _buildUserInfoCard(context),
             const SizedBox(height: 20),
-            Obx(
-              () => Column(
-                children: [
-                  for (final source in controller.enabledSources)
-                    ListTile(
-                      title: Text(source.titleKey.tr),
-                      subtitle: Text('source_open_entry'.tr),
-                      leading: SourceMark(source: source),
-                      onTap: () => controller.openSourceEntry(source),
-                    ),
-                ],
-              ),
-            ),
             ListTile(
               title: Text("browsing_history".tr),
               leading: const Icon(Icons.history),
@@ -114,15 +99,6 @@ class MyPage extends StatelessWidget {
   }
 
   Widget _sourceAvatar(NovelSource source) {
-    if (source == NovelSource.wenku8 &&
-        controller.userInfo.value?.avatar.isNotEmpty == true) {
-      return CircleAvatar(
-        backgroundImage: CachedNetworkImageProvider(
-          controller.userInfo.value!.avatar,
-          headers: Request.userAgent,
-        ),
-      );
-    }
     return CircleAvatar(child: SourceMark(source: source, size: 20));
   }
 }

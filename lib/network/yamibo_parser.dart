@@ -123,6 +123,30 @@ class YamiboSearchPageData {
 }
 
 class YamiboParser {
+  static String accountNameFromMobileJson(String jsonText) {
+    try {
+      final variables = _variables(jsonText);
+      for (final key in [
+        'member_username',
+        'member_username_encode',
+        'username',
+      ]) {
+        final value = _htmlToText('${variables[key] ?? ''}').trim();
+        if (value.isNotEmpty && value != 'null') return value;
+      }
+      final member = variables['member'];
+      if (member is Map) {
+        for (final key in ['username', 'member_username']) {
+          final value = _htmlToText('${member[key] ?? ''}').trim();
+          if (value.isNotEmpty && value != 'null') return value;
+        }
+      }
+    } catch (_) {
+      return '';
+    }
+    return '';
+  }
+
   static bool isUserThreadPermissionPage(String html) {
     final text = _htmlToText(html);
     if ((text.contains('提示信息') || text.contains('提示訊息')) &&
@@ -183,8 +207,7 @@ class YamiboParser {
         );
     final intro = _htmlToText('${firstAuthorPost['message'] ?? ''}');
     final cover =
-        _extractImages('${firstAuthorPost['message'] ?? ''}').firstOrNull ??
-        YamiboApi.logoUrl;
+        _extractImages('${firstAuthorPost['message'] ?? ''}').firstOrNull ?? '';
 
     final detail = NovelDetail(
       subject,
@@ -293,7 +316,9 @@ class YamiboParser {
         continue;
       }
       ownerIndex += 1;
-      final number = int.tryParse('${post['number'] ?? post['position'] ?? ''}');
+      final number = int.tryParse(
+        '${post['number'] ?? post['position'] ?? ''}',
+      );
       chapters.add(
         CatChapter(
           title: number == null ? '第 $page 页 · 楼主 $ownerIndex' : '第 $number 楼',
@@ -364,7 +389,7 @@ class YamiboParser {
             aid: SourceId.yamiboAid(tid),
             url: YamiboApi.threadUrl(tid),
             title: title.isEmpty ? 'Yamibo $tid' : title,
-            img: YamiboApi.logoUrl,
+            img: '',
             updateKey: updateKey,
             updateTime:
                 _parseUnixSeconds(item['lastpost']) ??
@@ -490,7 +515,7 @@ class YamiboParser {
         continue;
       }
 
-      items.add(NovelCover(title, YamiboApi.logoUrl, SourceId.yamiboAid(tid)));
+      items.add(NovelCover(title, '', SourceId.yamiboAid(tid)));
     }
 
     return YamiboSearchPageData(

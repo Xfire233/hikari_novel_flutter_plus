@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
-import 'package:hikari_novel_flutter/network/yamibo_api.dart';
-import 'package:hikari_novel_flutter/pages/bookshelf/controller.dart';
 import 'package:hikari_novel_flutter/pages/category/view.dart';
 import 'package:hikari_novel_flutter/pages/completion/view.dart';
 import 'package:hikari_novel_flutter/pages/esj/view.dart';
@@ -12,11 +10,7 @@ import 'package:hikari_novel_flutter/pages/recommend/view.dart';
 import 'package:hikari_novel_flutter/pages/yamibo_forum/view.dart';
 import 'package:hikari_novel_flutter/router/app_sub_router.dart';
 import 'package:hikari_novel_flutter/router/route_path.dart';
-import 'package:hikari_novel_flutter/service/source_config_service.dart';
 import 'package:hikari_novel_flutter/widgets/source_backdrop.dart';
-import 'package:hikari_novel_flutter/widgets/state_page.dart';
-
-enum _HomeYamiboAction { login, syncFavorites }
 
 class HomePage extends StatelessWidget {
   final controller = Get.put(HomeController());
@@ -28,17 +22,7 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Obx(
-          () => controller.activeSource == NovelSource.wenku8
-              ? TabBar(
-                  tabs: controller.tabs.map((e) => Tab(text: e)).toList(),
-                  controller: controller.tabController,
-                  dividerHeight: 0,
-                  isScrollable: true,
-                  tabAlignment: TabAlignment.start,
-                )
-              : Text(controller.activeSource.titleKey.tr),
-        ),
+        title: const SizedBox.shrink(),
         titleSpacing: 16,
         actions: [
           Obx(
@@ -82,24 +66,6 @@ class HomePage extends StatelessWidget {
               icon: const Icon(Icons.search),
             ),
           ),
-          Obx(
-            () => controller.activeSource == NovelSource.yamibo
-                ? PopupMenuButton<_HomeYamiboAction>(
-                    onSelected: (action) =>
-                        _handleYamiboAction(context, action),
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: _HomeYamiboAction.login,
-                        child: Text('yamibo_web_login'.tr),
-                      ),
-                      PopupMenuItem(
-                        value: _HomeYamiboAction.syncFavorites,
-                        child: Text('sync_yamibo_favorites'.tr),
-                      ),
-                    ],
-                  )
-                : const SizedBox.shrink(),
-          ),
         ],
       ),
       body: Obx(
@@ -109,13 +75,42 @@ class HomePage extends StatelessWidget {
                 child: switch (controller.activeSource) {
                   NovelSource.wenku8 =>
                     controller.isWenku8LoggedIn
-                        ? TabBarView(
-                            controller: controller.tabController,
+                        ? Column(
                             children: [
-                              RecommendView(),
-                              CategoryView(),
-                              RankingView(),
-                              CompletionView(),
+                              const SizedBox(height: 4),
+                              SourceSurface(
+                                child: SizedBox(
+                                  height: 48,
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final scrollable =
+                                          constraints.maxWidth < 340;
+                                      return TabBar(
+                                        tabs: controller.tabs
+                                            .map((e) => Tab(text: e))
+                                            .toList(),
+                                        controller: controller.tabController,
+                                        dividerHeight: 0,
+                                        isScrollable: scrollable,
+                                        tabAlignment: scrollable
+                                            ? TabAlignment.start
+                                            : null,
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: TabBarView(
+                                  controller: controller.tabController,
+                                  children: [
+                                    RecommendView(),
+                                    CategoryView(),
+                                    RankingView(),
+                                    CompletionView(),
+                                  ],
+                                ),
+                              ),
                             ],
                           )
                         : const _SourceLoginPrompt(source: NovelSource.wenku8),
@@ -129,64 +124,6 @@ class HomePage extends StatelessWidget {
             : const _NoSourcePrompt(),
       ),
     );
-  }
-
-  Future<void> _handleYamiboAction(
-    BuildContext context,
-    _HomeYamiboAction action,
-  ) async {
-    switch (action) {
-      case _HomeYamiboAction.login:
-        await _openYamiboLogin(context);
-      case _HomeYamiboAction.syncFavorites:
-        await _syncYamiboFavorites(context);
-    }
-  }
-
-  Future<void> _openYamiboLogin(BuildContext context) async {
-    final loggedIn = await Navigator.of(
-      context,
-      rootNavigator: true,
-    ).push<bool>(MaterialPageRoute(builder: (_) => const YamiboWebLoginPage()));
-    if (!context.mounted) return;
-    if (loggedIn != true && !YamiboApi.hasCookie) return;
-
-    SourceConfigService.instance.setSourceEnabled(NovelSource.yamibo, true);
-    if (SourceConfigService.instance.shouldPullOnlineToLocal(
-      NovelSource.yamibo,
-    )) {
-      await BookshelfController.syncYamiboFavoritesToBookshelf();
-      if (Get.isRegistered<BookshelfController>()) {
-        await Get.find<BookshelfController>().loadFolders();
-      }
-    }
-    controller.reloadYamiboForum();
-    if (!context.mounted) return;
-    showSnackBar(message: 'update_successfully'.tr, context: context);
-  }
-
-  Future<void> _syncYamiboFavorites(BuildContext context) async {
-    if (!YamiboApi.hasCookie) {
-      showErrorDialog('source_login_required'.tr, [
-        TextButton(onPressed: Get.back, child: Text('confirm'.tr)),
-      ]);
-      return;
-    }
-
-    final result = await BookshelfController.syncYamiboFavoritesToBookshelf();
-    if (!context.mounted) return;
-    if (result) {
-      if (Get.isRegistered<BookshelfController>()) {
-        await Get.find<BookshelfController>().loadFolders();
-      }
-      controller.reloadYamiboForum();
-      if (!context.mounted) return;
-      showSnackBar(message: 'update_successfully'.tr, context: context);
-    } else {
-      showErrorDialog('update_failed'.tr, [
-        TextButton(onPressed: Get.back, child: Text('confirm'.tr)),
-      ]);
-    }
   }
 }
 

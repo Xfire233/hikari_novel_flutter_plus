@@ -41,14 +41,26 @@ class SourceAuthGuard {
       case NovelSource.wenku8:
         return plain.contains('login.php') ||
             plain.contains('用户登录') ||
-            plain.contains('會員登錄') ||
-            plain.contains('请先登录');
+            plain.contains('会员登录') ||
+            plain.contains('请先登录') ||
+            plain.contains('鐢ㄦ埛鐧诲綍') ||
+            plain.contains('鏈冨摗鐧婚寗') ||
+            plain.contains('璇峰厛鐧诲綍');
       case NovelSource.esj:
-        return plain.contains('登入') && plain.contains('會員');
+        return (plain.contains('登入') && plain.contains('會員')) ||
+            (plain.contains('登录') && plain.contains('会员')) ||
+            plain.contains('請先登入') ||
+            plain.contains('请先登录') ||
+            (plain.contains('鐧诲叆') && plain.contains('鏈冨摗'));
       case NovelSource.yamibo:
         return plain.contains('viewperm_login_nopermission') ||
             plain.contains('您需要先登录') ||
-            plain.contains('您需要先登入');
+            plain.contains('您需要先登入') ||
+            plain.contains('请先登录') ||
+            plain.contains('請先登入') ||
+            plain.contains('登录后才可以浏览') ||
+            plain.contains('鎮ㄩ渶瑕佸厛鐧诲綍') ||
+            plain.contains('鎮ㄩ渶瑕佸厛鐧诲叆');
     }
   }
 }

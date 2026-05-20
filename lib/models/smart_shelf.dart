@@ -214,11 +214,12 @@ class SmartShelfMembership {
 
   factory SmartShelfMembership.fromJson(Map<dynamic, dynamic> json) {
     final now = DateTime.now();
+    final rawIsNew = json['isNew'];
     return SmartShelfMembership(
       aid: '${json['aid'] ?? ''}',
       firstSeenAt: DateTime.tryParse('${json['firstSeenAt'] ?? ''}') ?? now,
       lastSeenAt: DateTime.tryParse('${json['lastSeenAt'] ?? ''}') ?? now,
-      isNew: json['isNew'] == true,
+      isNew: rawIsNew == true || '$rawIsNew'.toLowerCase() == 'true',
     );
   }
 

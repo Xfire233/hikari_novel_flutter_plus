@@ -23,6 +23,32 @@ class EsjReadHistory {
 }
 
 class EsjParser {
+  static String accountName(String html) {
+    final document = parse(html);
+    final candidates = <String>[
+      for (final selector in [
+        '.dropdown-menu a[href*="/my"]',
+        'a[href*="/my"]',
+        '.navbar .dropdown-toggle',
+        '.navbar-nav .nav-link',
+      ])
+        ...document.querySelectorAll(selector).map((item) => item.text),
+    ];
+    for (final raw in candidates) {
+      final text = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (text.isEmpty) continue;
+      if (text.contains('登入') ||
+          text.contains('登录') ||
+          text.contains('收藏') ||
+          text.contains('觀看') ||
+          text.contains('观看')) {
+        continue;
+      }
+      if (text.length <= 32) return text;
+    }
+    return '';
+  }
+
   static List<NovelCover> getSearchResults(String html) {
     final document = parse(html);
     final covers = <NovelCover>[];

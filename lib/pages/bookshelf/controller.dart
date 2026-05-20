@@ -377,6 +377,32 @@ class BookshelfController extends GetxController
     return folder;
   }
 
+  Future<void> updateSmartShelf({
+    required BookshelfFolder folder,
+    required String name,
+    required SmartShelfConfig config,
+  }) async {
+    if (folder.builtIn || !folder.smartFolder) return;
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    final saved = LocalStorageService.instance.getBookshelfFolders();
+    for (final item in saved) {
+      if (item['id'] != folder.id) continue;
+      item['name'] = trimmed;
+      item.remove('tag');
+      item['smartConfig'] = jsonEncode(config.toJson());
+    }
+    LocalStorageService.instance.setBookshelfFolders(saved);
+    loadFolders();
+  }
+
+  SmartShelfConfig smartConfigForFolder(BookshelfFolder folder) {
+    final saved = LocalStorageService.instance.getBookshelfFolders();
+    final raw = saved.firstWhereOrNull((item) => item['id'] == folder.id);
+    if (raw == null) return const SmartShelfConfig();
+    return _smartShelfConfigFromFolder(raw);
+  }
+
   Future<void> renameFolder(BookshelfFolder folder, String name) async {
     if (folder.builtIn) return;
     final trimmed = name.trim();
@@ -885,9 +911,8 @@ class BookshelfController extends GetxController
       };
       final seen = <String>{};
       for (final tag in tags) {
-        for (final source in config.sources.isEmpty
-            ? NovelSource.values
-            : config.sources) {
+        for (final source
+            in config.sources.isEmpty ? NovelSource.values : config.sources) {
           final covers = await _searchSubscriptionTag(source, tag);
           for (final cover in covers) {
             seen.add(cover.aid);
@@ -928,20 +953,30 @@ class BookshelfController extends GetxController
       NovelSource.yamibo => await YamiboApi.searchThreads(keyword: tag),
     };
     if (result is! Success) return const [];
-    if (!SourceAuthGuard.checkHtml(source, '${result.data}')) return const [];
     return switch (source) {
-      NovelSource.wenku8 => Parser.parseToList(result.data),
-      NovelSource.esj => EsjParser.getSearchResults(result.data),
+      NovelSource.wenku8 =>
+        SourceAuthGuard.checkHtml(source, result.data)
+            ? Parser.parseToList(result.data)
+            : const <NovelCover>[],
+      NovelSource.esj =>
+        SourceAuthGuard.checkHtml(source, result.data)
+            ? EsjParser.getSearchResults(result.data)
+            : const <NovelCover>[],
       NovelSource.yamibo =>
         result.data is YamiboSearchPageResponse
-            ? YamiboParser.getSearchPageData(
-                (result.data as YamiboSearchPageResponse).html,
-                allowedForumIds: {
-                  YamiboApi.literatureFid,
-                  YamiboApi.lightNovelFid,
-                  YamiboApi.txtNovelFid,
-                },
-              ).items
+            ? (SourceAuthGuard.checkHtml(
+                    source,
+                    (result.data as YamiboSearchPageResponse).html,
+                  )
+                  ? YamiboParser.getSearchPageData(
+                      (result.data as YamiboSearchPageResponse).html,
+                      allowedForumIds: {
+                        YamiboApi.literatureFid,
+                        YamiboApi.lightNovelFid,
+                        YamiboApi.txtNovelFid,
+                      },
+                    ).items
+                  : const <NovelCover>[])
             : const <NovelCover>[],
     };
   }
