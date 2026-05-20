@@ -151,6 +151,15 @@ class SettingPage extends StatelessWidget {
             ),
           ),
           Obx(
+            () => SwitchTile(
+              title: "yamibo_owner_catalogue".tr,
+              subtitle: "yamibo_owner_catalogue_desc".tr,
+              leading: const Icon(Icons.format_list_numbered_outlined),
+              onChanged: (v) => controller.changeYamiboOwnerCatalogue(v),
+              value: controller.yamiboOwnerCatalogue.value,
+            ),
+          ),
+          Obx(
             () => SliderTile(
               title: "recent_bookshelf_count_setting".tr,
               leading: const Icon(Icons.history_outlined),

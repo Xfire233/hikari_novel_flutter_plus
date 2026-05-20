@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -37,6 +38,9 @@ import '../../service/source_favorite_adapter.dart';
 
 class NovelDetailController extends GetxController
     with GetSingleTickerProviderStateMixin {
+  static const _yamiboOwnerVolumeTitle = '楼主楼层';
+  static const _yamiboOwnerUpdateSeparator = '\nowner:';
+
   final String aid;
 
   bool get isYamibo => SourceId.isYamibo(aid);
@@ -51,6 +55,7 @@ class NovelDetailController extends GetxController
 
   Rx<PageState> pageState = PageState.loading.obs;
   String errorMsg = "";
+  RxString loadingMessage = ''.obs;
   Rxn<NovelDetail> novelDetail = Rxn();
 
   RxSet<String> cachedChapter = RxSet();
@@ -63,6 +68,8 @@ class NovelDetailController extends GetxController
 
   RxBool isSelectionMode = false.obs;
   String yamiboAuthorId = "";
+  RxBool yamiboCatalogueBuilding = false.obs;
+  RxString yamiboCatalogueStatus = ''.obs;
 
   bool _isFabVisible = true;
   late final AnimationController _fabAnimationCtr;
@@ -311,6 +318,7 @@ class NovelDetailController extends GetxController
   }
 
   Future<void> _getYamiboNovelDetail() async {
+    loadingMessage.value = 'yamibo_detail_loading'.tr;
     if (!YamiboApi.hasCookie) {
       SourceAuthGuard.clearLogin(NovelSource.yamibo);
       SourceAuthGuard.showLoginRequired(NovelSource.yamibo);
@@ -327,36 +335,20 @@ class NovelDetailController extends GetxController
             pageState.value = PageState.error;
             return;
           }
-          final firstPageData = YamiboParser.getThreadDetail(firstPage.data);
-          final authorPage = await YamiboApi.getThreadPage(
-            tid: yamiboTid,
-            authorId: firstPageData.authorId,
-          );
-          final data = switch (authorPage) {
-            Success() => YamiboParser.getThreadDetail(authorPage.data),
-            Error() => firstPageData,
-          };
-          final ownerChapters = <CatChapter>[];
-          if (data.authorId.isNotEmpty) {
-            final maxPage = data.maxPage.clamp(1, 80);
-            for (var page = 1; page <= maxPage; page++) {
-              final pageResult = page == 1 && authorPage is Success
-                  ? authorPage
-                  : await YamiboApi.getThreadPage(
-                      tid: yamiboTid,
-                      page: page,
-                      authorId: data.authorId,
-                    );
-              if (pageResult is! Success) break;
-              ownerChapters.addAll(
-                YamiboParser.getOwnerPostChapters(pageResult.data),
-              );
-            }
+          final threadError = YamiboParser.threadErrorMessage(firstPage.data);
+          if (threadError != null) {
+            errorMsg = threadError;
+            pageState.value = PageState.error;
+            return;
           }
-          if (ownerChapters.isNotEmpty) {
+          final data = YamiboParser.getThreadDetail(firstPage.data);
+          final cachedOwnerVolume = await _getCachedYamiboOwnerVolume(
+            data.updateKey,
+          );
+          if (cachedOwnerVolume != null) {
             data.detail.catalogue
-              ..clear()
-              ..add(CatVolume(title: '楼主楼层', chapters: ownerChapters));
+              ..removeWhere((volume) => volume.title == _yamiboOwnerVolumeTitle)
+              ..insert(0, cachedOwnerVolume);
           }
           yamiboAuthorId = data.authorId;
           novelDetail.value = data.detail;
@@ -369,6 +361,7 @@ class NovelDetailController extends GetxController
             ),
           );
           await _syncLocalBookshelfState();
+          await _syncYamiboBookshelfFromDetail(data);
           if (isInBookshelf.value) {
             await DBService.instance.clearBookshelfUpdate(aid);
           }
@@ -379,6 +372,10 @@ class NovelDetailController extends GetxController
               json: novelDetail.value!.toString(),
             ),
           );
+          if (LocalStorageService.instance.getYamiboOwnerCatalogue() &&
+              cachedOwnerVolume == null) {
+            unawaited(_buildYamiboOwnerCatalogue(data));
+          }
         }
       case Error():
         {
@@ -387,6 +384,120 @@ class NovelDetailController extends GetxController
           pageState.value = PageState.error;
         }
     }
+  }
+
+  Future<CatVolume?> _getCachedYamiboOwnerVolume(String updateKey) async {
+    if (!LocalStorageService.instance.getYamiboOwnerCatalogue()) return null;
+    final cachedKey = LocalStorageService.instance.getYamiboOwnerCatalogueKey(
+      yamiboTid,
+    );
+    if (cachedKey != updateKey) return null;
+    final local = (await DBService.instance.getNovelDetail(aid))?.json;
+    if (local == null) return null;
+    try {
+      final detail = NovelDetail.fromString(local);
+      return detail.catalogue.firstWhereOrNull(
+        (volume) => volume.title == _yamiboOwnerVolumeTitle,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _buildYamiboOwnerCatalogue(YamiboThreadData data) async {
+    if (data.authorId.isEmpty || novelDetail.value == null) return;
+    yamiboCatalogueBuilding.value = true;
+    yamiboCatalogueStatus.value = 'yamibo_catalogue_building'.tr;
+    final chapters = <CatChapter>[];
+    final maxPage = data.maxPage.clamp(1, 80);
+    try {
+      for (var page = 1; page <= maxPage; page++) {
+        yamiboCatalogueStatus.value = 'yamibo_catalogue_building_page'.trParams(
+          {'page': '$page', 'total': '$maxPage'},
+        );
+        final pageResult = await YamiboApi.getThreadPage(
+          tid: yamiboTid,
+          page: page,
+          authorId: data.authorId,
+        );
+        if (pageResult is! Success) break;
+        if (!SourceAuthGuard.checkHtml(NovelSource.yamibo, pageResult.data)) {
+          break;
+        }
+        final threadError = YamiboParser.threadErrorMessage(pageResult.data);
+        if (threadError != null) {
+          yamiboCatalogueStatus.value = threadError;
+          break;
+        }
+        chapters.addAll(YamiboParser.getOwnerPostChapters(pageResult.data));
+      }
+      if (chapters.isNotEmpty && novelDetail.value != null) {
+        final detail = novelDetail.value!;
+        detail.catalogue.removeWhere(
+          (volume) => volume.title == _yamiboOwnerVolumeTitle,
+        );
+        detail.catalogue.insert(
+          0,
+          CatVolume(title: _yamiboOwnerVolumeTitle, chapters: chapters),
+        );
+        novelDetail.refresh();
+        update(["customScrollView"]);
+        await DBService.instance.upsertNovelDetail(
+          NovelDetailEntityData(aid: aid, json: detail.toString()),
+        );
+        LocalStorageService.instance.setYamiboOwnerCatalogueKey(
+          yamiboTid,
+          data.updateKey,
+        );
+        yamiboCatalogueStatus.value = 'yamibo_catalogue_ready'.trParams({
+          'count': '${chapters.length}',
+        });
+      }
+    } finally {
+      yamiboCatalogueBuilding.value = false;
+    }
+  }
+
+  Future<void> _syncYamiboBookshelfFromDetail(YamiboThreadData data) async {
+    final items = await DBService.instance.getAllBookshelf();
+    final item = items.firstWhereOrNull((entry) => entry.aid == aid);
+    if (item == null) return;
+    final currentImg = _isYamiboPlaceholderImage(item.img) ? '' : item.img;
+    await DBService.instance.upsertBookshelf(
+      BookshelfEntityData(
+        aid: item.aid,
+        bid: item.bid,
+        url: item.url,
+        title: data.detail.title,
+        img: data.detail.imgUrl.isNotEmpty ? data.detail.imgUrl : currentImg,
+        classId: item.classId,
+        updateKey: _yamiboDetailUpdateKey(item.updateKey, data.updateKey),
+        updateTime: data.updateTime,
+        hasUpdate: item.hasUpdate,
+        rating: item.rating,
+        remoteTagsJson: BookTags.encode(data.detail.tags),
+        localTagsJson: item.localTagsJson,
+      ),
+    );
+    isInBookshelf.value = true;
+    bookshelfController.loadFolders();
+  }
+
+  String _yamiboDetailUpdateKey(String currentKey, String detailKey) {
+    if (!currentKey.contains(_yamiboOwnerUpdateSeparator)) return detailKey;
+    final parts = currentKey.split(_yamiboOwnerUpdateSeparator);
+    final ownerKey = parts.skip(1).join(_yamiboOwnerUpdateSeparator);
+    if (ownerKey.isEmpty) return detailKey;
+    return '$detailKey$_yamiboOwnerUpdateSeparator$ownerKey';
+  }
+
+  bool _isYamiboPlaceholderImage(String url) {
+    final lower = url.trim().toLowerCase();
+    if (lower.isEmpty) return false;
+    return lower == YamiboApi.logoUrl.toLowerCase() ||
+        lower.contains('/static/image/common/logo') ||
+        lower.contains('discuz') ||
+        lower.contains('community');
   }
 
   Future<void> _getEsjNovelDetail() async {

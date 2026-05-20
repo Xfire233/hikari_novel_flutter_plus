@@ -17,6 +17,9 @@ class SettingController extends GetxController {
   RxBool browsingEInkMode = LocalStorageService.instance
       .getBrowsingEInkMode()
       .obs;
+  RxBool yamiboOwnerCatalogue = LocalStorageService.instance
+      .getYamiboOwnerCatalogue()
+      .obs;
   Rx<Wenku8Node> wenku8Node = Rx(LocalStorageService.instance.getWenku8Node());
   Rx<ThemeMode> themeMode = Rx(LocalStorageService.instance.getThemeMode());
   RxBool isDynamicColor = LocalStorageService.instance.getIsDynamicColor().obs;
@@ -39,6 +42,11 @@ class SettingController extends GetxController {
     browsingEInkMode.value = enabled;
     LocalStorageService.instance.setBrowsingEInkMode(enabled);
     Get.forceAppUpdate();
+  }
+
+  void changeYamiboOwnerCatalogue(bool enabled) {
+    yamiboOwnerCatalogue.value = enabled;
+    LocalStorageService.instance.setYamiboOwnerCatalogue(enabled);
   }
 
   void changeLanguage(Language l) async {
@@ -146,6 +154,8 @@ class SettingController extends GetxController {
         isRelativeTime.value = LocalStorageService.instance.getIsRelativeTime();
         browsingEInkMode.value = LocalStorageService.instance
             .getBrowsingEInkMode();
+        yamiboOwnerCatalogue.value = LocalStorageService.instance
+            .getYamiboOwnerCatalogue();
         wenku8Node.value = LocalStorageService.instance.getWenku8Node();
         bookshelfRecentCount.value = LocalStorageService.instance
             .getBookshelfRecentCount();

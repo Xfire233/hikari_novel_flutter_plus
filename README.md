@@ -1,6 +1,6 @@
 # Hikari Novel Plus 叉烧魔改版
 
-> 基于 [15dd/hikari_novel_flutter](https://github.com/15dd/hikari_novel_flutter) 的独立 fork。当前测试版本：`beta1.1.5-pre.2`。
+> 基于 [15dd/hikari_novel_flutter](https://github.com/15dd/hikari_novel_flutter) 的独立 fork。当前测试版本：`beta1.1.5-pre.3`。
 
 这是一个围绕 Hikari Novel 大幅改造的多来源阅读器。原项目主要服务 Wenku8，本 fork 追加 ESJZone 和 Yamibo，并重做了来源启用、登录、书架、搜索、收藏同步、阅读器和电子墨水屏浏览逻辑。当前项目不以向原项目提交 PR 为目标，只作为独立 fork 使用。
 
@@ -63,6 +63,14 @@
 7. 同包名覆盖安装不会清理本地数据库、Hive 设置、书架、阅读记录和缓存；卸载应用或清除应用数据会丢失本地数据。
 
 ## 版本记录
+
+### beta1.1.5-pre.3
+
+- Yamibo 详情页不再阻塞生成楼主楼层目录，楼层目录改为可选后台任务，并在详情页显示当前处理状态。
+- Yamibo 楼主楼层目录按主题更新 key 增量复用缓存，主题未变化时不重复扫描全帖。
+- Yamibo 标题自动 tag 改为匹配 `[]` / `【】` 内文本，减少错误自动标签。
+- Yamibo 无权限主题会原样显示站点返回的错误信息。
+- Yamibo 详情页同步标题、封面和 tag 时保留书架同步阶段的楼主更新 key，避免打开详情后误清真实更新状态。
 
 ### beta1.1.5-pre.2
 

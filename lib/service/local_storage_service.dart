@@ -78,6 +78,8 @@ class LocalStorageService extends GetxService {
       kBookshelfFolders = "bookshelfFolders",
       kSmartShelfMemberships = "smartShelfMemberships",
       kSourceTagUseCounts = "sourceTagUseCounts",
+      kYamiboOwnerCatalogue = "yamiboOwnerCatalogue",
+      kYamiboOwnerCatalogueKeys = "yamiboOwnerCatalogueKeys",
       kWenku8LastCategory = "wenku8LastCategory",
       kWenku8LastCategorySort = "wenku8LastCategorySort",
       kWenku8LastRanking = "wenku8LastRanking",
@@ -396,6 +398,27 @@ class LocalStorageService extends GetxService {
   void setBrowsingEInkMode(bool enabled) =>
       _setting.put(kBrowsingEInkMode, enabled);
 
+  bool getYamiboOwnerCatalogue() =>
+      _setting.get(kYamiboOwnerCatalogue, defaultValue: false);
+
+  void setYamiboOwnerCatalogue(bool enabled) =>
+      _setting.put(kYamiboOwnerCatalogue, enabled);
+
+  Map<String, String> getYamiboOwnerCatalogueKeys() {
+    final raw = _setting.get(kYamiboOwnerCatalogueKeys, defaultValue: const {});
+    if (raw is! Map) return {};
+    return raw.map((key, value) => MapEntry('$key', '$value'));
+  }
+
+  String? getYamiboOwnerCatalogueKey(String tid) =>
+      getYamiboOwnerCatalogueKeys()[tid];
+
+  void setYamiboOwnerCatalogueKey(String tid, String updateKey) {
+    final keys = getYamiboOwnerCatalogueKeys();
+    keys[tid] = updateKey;
+    _setting.put(kYamiboOwnerCatalogueKeys, keys);
+  }
+
   int getBookshelfRecentCount() =>
       _setting.get(kBookshelfRecentCount, defaultValue: 12);
 
@@ -683,6 +706,8 @@ class LocalStorageService extends GetxService {
     'relativeTime': getIsRelativeTime(),
     'wenku8Node': getWenku8Node().index,
     'browsingEInkMode': getBrowsingEInkMode(),
+    'yamiboOwnerCatalogue': getYamiboOwnerCatalogue(),
+    'yamiboOwnerCatalogueKeys': getYamiboOwnerCatalogueKeys(),
     'devModeEnabled': getDevModeEnabled(),
     'bookshelfRecentCount': getBookshelfRecentCount(),
     'bookshelfSortType': getBookshelfSortType(),
@@ -727,6 +752,16 @@ class LocalStorageService extends GetxService {
     _setBool(data, 'dynamicColor', setIsDynamicColor);
     _setBool(data, 'relativeTime', setIsRelativeTime);
     _setBool(data, 'browsingEInkMode', setBrowsingEInkMode);
+    _setBool(data, 'yamiboOwnerCatalogue', setYamiboOwnerCatalogue);
+    final yamiboOwnerCatalogueKeys = data['yamiboOwnerCatalogueKeys'];
+    if (yamiboOwnerCatalogueKeys is Map) {
+      _setting.put(
+        kYamiboOwnerCatalogueKeys,
+        yamiboOwnerCatalogueKeys.map(
+          (key, value) => MapEntry('$key', '$value'),
+        ),
+      );
+    }
     _setBool(data, 'devModeEnabled', setDevModeEnabled);
     final wenku8Node = _intAt(data, 'wenku8Node');
     if (wenku8Node != null &&

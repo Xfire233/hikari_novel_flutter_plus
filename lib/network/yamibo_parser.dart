@@ -123,6 +123,37 @@ class YamiboSearchPageData {
 }
 
 class YamiboParser {
+  static List<String> titleTags(String title) {
+    final tags = <String>[];
+    final seen = <String>{};
+    for (final match in RegExp(r'[\[【]([^\]】]{1,24})[\]】]').allMatches(title)) {
+      final raw = match.group(1) ?? '';
+      for (final part in raw.split(RegExp(r'[/／,，、\s]+'))) {
+        final tag = part.trim();
+        if (tag.isEmpty) continue;
+        final key = tag.toLowerCase();
+        if (seen.add(key)) tags.add(tag);
+      }
+    }
+    return tags;
+  }
+
+  static String? threadErrorMessage(String jsonText) {
+    try {
+      final json = jsonDecode(jsonText);
+      if (json is! Map) return null;
+      final message = json['Message'];
+      if (message is! Map) return null;
+      final text = _htmlToText(
+        '${message['messagestr'] ?? message['message'] ?? message['messageval'] ?? ''}',
+      ).trim();
+      if (text.isEmpty) return null;
+      return text;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static String accountNameFromMobileJson(String jsonText) {
     try {
       final variables = _variables(jsonText);
@@ -187,6 +218,7 @@ class YamiboParser {
     final postList = _postList(variables);
     final authorId = '${thread['authorid'] ?? ''}';
     final subject = '${thread['subject'] ?? 'Yamibo'}'.trim();
+    final tags = ['Yamibo', '论坛主题', ...titleTags(subject)];
     final author = '${thread['author'] ?? ''}'.trim();
     final replies = int.tryParse('${thread['replies'] ?? 0}') ?? 0;
     final views = '${thread['views'] ?? 0}';
@@ -216,7 +248,7 @@ class YamiboParser {
       '${thread['lastpost'] ?? ''}',
       cover,
       intro.length > 240 ? '${intro.substring(0, 240)}...' : intro,
-      const ['Yamibo', '论坛主题'],
+      tags,
       '回复 $replies',
       '浏览 $views',
       false,
@@ -394,7 +426,7 @@ class YamiboParser {
             updateTime:
                 _parseUnixSeconds(item['lastpost']) ??
                 _parseUnixSeconds(item['dateline']),
-            remoteTags: const ['Yamibo'],
+            remoteTags: ['Yamibo', ...titleTags(title)],
           );
         })
         .where((item) => SourceId.yamiboTid(item.aid).isNotEmpty)
@@ -670,7 +702,10 @@ class YamiboParser {
       final lower = url.toLowerCase();
       return !lower.contains('smiley/') &&
           !lower.contains('static/image/smiley') &&
-          !lower.contains('avatar');
+          !lower.contains('avatar') &&
+          !lower.contains('/static/image/common/logo') &&
+          !lower.contains('discuz') &&
+          !lower.contains('community');
     }).toList();
   }
 

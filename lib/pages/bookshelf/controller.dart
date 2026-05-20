@@ -1010,6 +1010,8 @@ class BookshelfController extends GetxController
           ...BookTags.decode(previous?.remoteTagsJson),
           tag,
           source.titleKey.tr,
+          if (source == NovelSource.yamibo)
+            ...YamiboParser.titleTags(cover.title),
         ]),
         localTagsJson: previous?.localTagsJson ?? BookTags.emptyJson,
       ),
@@ -1359,19 +1361,33 @@ class BookshelfController extends GetxController
     BookshelfNovelInfo item,
     BookshelfEntityData previous,
   ) {
+    final previousImg = _isYamiboPlaceholderImage(previous.img)
+        ? ''
+        : previous.img;
     return BookshelfNovelInfo(
       bid: item.bid,
       aid: item.aid,
       url: item.url,
       title: item.title,
-      img: previous.img.isEmpty ? item.img : previous.img,
+      img: previousImg.isEmpty ? item.img : previousImg,
       updateKey: previous.updateKey,
       updateTime: previous.updateTime,
       hasUpdate: previous.hasUpdate,
       rating: previous.rating,
-      remoteTags: BookTags.decode(previous.remoteTagsJson),
+      remoteTags: item.remoteTags.isNotEmpty
+          ? item.remoteTags
+          : BookTags.decode(previous.remoteTagsJson),
       localTags: BookTags.decode(previous.localTagsJson),
     );
+  }
+
+  static bool _isYamiboPlaceholderImage(String url) {
+    final lower = url.trim().toLowerCase();
+    if (lower.isEmpty) return false;
+    return lower == YamiboApi.logoUrl.toLowerCase() ||
+        lower.contains('/static/image/common/logo') ||
+        lower.contains('discuz') ||
+        lower.contains('community');
   }
 
   static String _yamiboTopicUpdateKey(String updateKey) =>
@@ -1422,14 +1438,14 @@ class BookshelfController extends GetxController
         bid: item.bid,
         aid: item.aid,
         url: item.url,
-        title: item.title,
+        title: detail.detail.title,
         img: detail.detail.imgUrl,
         updateKey:
             '${item.updateKey}$_yamiboOwnerUpdateSeparator$ownerUpdateKey',
         updateTime: updateTime ?? item.updateTime,
         hasUpdate: item.hasUpdate,
         rating: item.rating,
-        remoteTags: item.remoteTags,
+        remoteTags: BookTags.merge(item.remoteTags, detail.detail.tags),
         localTags: item.localTags,
       );
     } catch (_) {

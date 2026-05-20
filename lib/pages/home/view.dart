@@ -22,8 +22,21 @@ class HomePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const SizedBox.shrink(),
-        titleSpacing: 16,
+        title: Obx(
+          () => controller.hasEnabledSources
+              ? switch (controller.activeSource) {
+                  NovelSource.wenku8 => _Wenku8HomeTabs(controller: controller),
+                  NovelSource.esj => EsjHomeTabs(),
+                  NovelSource.yamibo => Obx(
+                    () => YamiboHomeTabs(
+                      currentFid: controller.yamiboForumFid.value,
+                      onChanged: controller.changeYamiboForum,
+                    ),
+                  ),
+                }
+              : const SizedBox.shrink(),
+        ),
+        titleSpacing: 8,
         actions: [
           Obx(
             () => controller.hasEnabledSources
@@ -75,42 +88,13 @@ class HomePage extends StatelessWidget {
                 child: switch (controller.activeSource) {
                   NovelSource.wenku8 =>
                     controller.isWenku8LoggedIn
-                        ? Column(
+                        ? TabBarView(
+                            controller: controller.tabController,
                             children: [
-                              const SizedBox(height: 4),
-                              SourceSurface(
-                                child: SizedBox(
-                                  height: 48,
-                                  child: LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      final scrollable =
-                                          constraints.maxWidth < 340;
-                                      return TabBar(
-                                        tabs: controller.tabs
-                                            .map((e) => Tab(text: e))
-                                            .toList(),
-                                        controller: controller.tabController,
-                                        dividerHeight: 0,
-                                        isScrollable: scrollable,
-                                        tabAlignment: scrollable
-                                            ? TabAlignment.start
-                                            : null,
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: TabBarView(
-                                  controller: controller.tabController,
-                                  children: [
-                                    RecommendView(),
-                                    CategoryView(),
-                                    RankingView(),
-                                    CompletionView(),
-                                  ],
-                                ),
-                              ),
+                              RecommendView(),
+                              CategoryView(),
+                              RankingView(),
+                              CompletionView(),
                             ],
                           )
                         : const _SourceLoginPrompt(source: NovelSource.wenku8),
@@ -118,11 +102,35 @@ class HomePage extends StatelessWidget {
                   NovelSource.yamibo => YamiboForumPage(
                     key: ValueKey(controller.yamiboPageRevision.value),
                     showAppBar: false,
+                    showForumTabs: false,
+                    initialFid: controller.yamiboForumFid.value,
                   ),
                 },
               )
             : const _NoSourcePrompt(),
       ),
+    );
+  }
+}
+
+class _Wenku8HomeTabs extends StatelessWidget {
+  const _Wenku8HomeTabs({required this.controller});
+
+  final HomeController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scrollable = constraints.maxWidth < 300;
+        return TabBar(
+          tabs: controller.tabs.map((e) => Tab(text: e)).toList(),
+          controller: controller.tabController,
+          dividerHeight: 0,
+          isScrollable: scrollable,
+          tabAlignment: scrollable ? TabAlignment.start : null,
+        );
+      },
     );
   }
 }

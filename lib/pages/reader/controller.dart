@@ -339,6 +339,12 @@ class ReaderController extends GetxController {
         pageState.value = PageState.error;
         return;
       }
+      final threadError = YamiboParser.threadErrorMessage(first.data);
+      if (threadError != null) {
+        errorMsg = threadError;
+        pageState.value = PageState.error;
+        return;
+      }
       authorId = YamiboParser.getThreadDetail(first.data).authorId;
     }
 
@@ -352,6 +358,12 @@ class ReaderController extends GetxController {
         {
           if (!SourceAuthGuard.checkHtml(NovelSource.yamibo, result.data)) {
             errorMsg = 'source_login_required'.tr;
+            pageState.value = PageState.error;
+            return;
+          }
+          final threadError = YamiboParser.threadErrorMessage(result.data);
+          if (threadError != null) {
+            errorMsg = threadError;
             pageState.value = PageState.error;
             return;
           }

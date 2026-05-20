@@ -126,8 +126,18 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
     );
   }
 
-  Widget _buildLoadingPage() =>
-      Scaffold(appBar: AppBar(), body: _buildBackdrop(const LoadingPage()));
+  Widget _buildLoadingPage() => Scaffold(
+    appBar: AppBar(),
+    body: _buildBackdrop(
+      Obx(
+        () => LoadingPage(
+          message: controller.loadingMessage.value.isEmpty
+              ? null
+              : controller.loadingMessage.value,
+        ),
+      ),
+    ),
+  );
 
   Widget _buildErrorPage() => Scaffold(
     appBar: AppBar(),
@@ -231,10 +241,10 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
               ),
             ),
           SliverToBoxAdapter(child: _buildLocalTagEditor(context)),
+          if (controller.isYamibo)
+            SliverToBoxAdapter(child: _buildYamiboCatalogueStatus(context)),
           SliverToBoxAdapter(
-            child: SizedBox(
-              height: _allVisibleTags().isEmpty ? 10 : 20,
-            ),
+            child: SizedBox(height: _allVisibleTags().isEmpty ? 10 : 20),
           ),
           SliverToBoxAdapter(
             child: Obx(() {
@@ -339,6 +349,44 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
         ),
       ],
     );
+  }
+
+  Widget _buildYamiboCatalogueStatus(BuildContext context) {
+    return Obx(() {
+      final status = controller.yamiboCatalogueStatus.value.trim();
+      final building = controller.yamiboCatalogueBuilding.value;
+      if (!building && status.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(kCardBorderRadius),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                if (building) ...[
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                ] else ...[
+                  const Icon(Icons.check_circle_outline, size: 18),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(child: Text(status)),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
   }
 
   Widget _buildLocalTagEditor(BuildContext context) {

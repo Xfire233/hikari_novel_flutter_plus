@@ -23,9 +23,16 @@ import 'package:hikari_novel_flutter/widgets/state_page.dart';
 import '../../models/resource.dart';
 
 class YamiboForumPage extends StatefulWidget {
-  const YamiboForumPage({super.key, this.showAppBar = true});
+  const YamiboForumPage({
+    super.key,
+    this.showAppBar = true,
+    this.showForumTabs = true,
+    this.initialFid = YamiboApi.literatureFid,
+  });
 
   final bool showAppBar;
+  final bool showForumTabs;
+  final String initialFid;
 
   @override
   State<YamiboForumPage> createState() => _YamiboForumPageState();
@@ -37,7 +44,7 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
   final _types = <YamiboForumType>[];
   final _favoriteAids = <String>{};
 
-  String _currentFid = YamiboApi.literatureFid;
+  late String _currentFid = widget.initialFid;
   String? _selectedTypeId;
   String _forumName = 'Yamibo';
   int _page = 1;
@@ -112,31 +119,14 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            height: 48,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final scrollable = constraints.maxWidth < 340;
-                return DefaultTabController(
-                  key: ValueKey(_currentFid),
-                  length: _forumOptions.length,
-                  initialIndex: _forumOptions
-                      .indexWhere((item) => item.$1 == _currentFid)
-                      .clamp(0, _forumOptions.length - 1)
-                      .toInt(),
-                  child: TabBar(
-                    tabs: _forumOptions
-                        .map((item) => Tab(text: item.$2))
-                        .toList(),
-                    dividerHeight: 0,
-                    isScrollable: scrollable,
-                    tabAlignment: scrollable ? TabAlignment.start : null,
-                    onTap: (index) => _changeForum(_forumOptions[index].$1),
-                  ),
-                );
-              },
+          if (widget.showForumTabs)
+            SizedBox(
+              height: 48,
+              child: YamiboHomeTabs(
+                currentFid: _currentFid,
+                onChanged: _changeForum,
+              ),
             ),
-          ),
           ExpansionTile(
             tilePadding: const EdgeInsets.symmetric(
               horizontal: kPageHorizontalPadding,
@@ -496,7 +486,11 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
         updateTime: thread.lastPostTime,
         hasUpdate: false,
         rating: 0,
-        remoteTagsJson: BookTags.encode(['Yamibo', _typeName(thread.typeId)]),
+        remoteTagsJson: BookTags.encode([
+          'Yamibo',
+          _typeName(thread.typeId),
+          ...YamiboParser.titleTags(thread.title),
+        ]),
         localTagsJson: BookTags.emptyJson,
       ),
     );
@@ -537,6 +531,47 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
   Future<void> _refreshBookshelfFoldersIfVisible() async {
     if (!Get.isRegistered<BookshelfController>()) return;
     await Get.find<BookshelfController>().loadFolders();
+  }
+}
+
+class YamiboHomeTabs extends StatelessWidget {
+  const YamiboHomeTabs({
+    super.key,
+    required this.currentFid,
+    required this.onChanged,
+  });
+
+  final String currentFid;
+  final ValueChanged<String> onChanged;
+
+  static const options = [
+    (YamiboApi.literatureFid, '文学区'),
+    (YamiboApi.lightNovelFid, '轻小说/译文区'),
+    (YamiboApi.txtNovelFid, 'TXT 小说区'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scrollable = constraints.maxWidth < 300;
+        return DefaultTabController(
+          key: ValueKey(currentFid),
+          length: options.length,
+          initialIndex: options
+              .indexWhere((item) => item.$1 == currentFid)
+              .clamp(0, options.length - 1)
+              .toInt(),
+          child: TabBar(
+            tabs: options.map((item) => Tab(text: item.$2)).toList(),
+            dividerHeight: 0,
+            isScrollable: scrollable,
+            tabAlignment: scrollable ? TabAlignment.start : null,
+            onTap: (index) => onChanged(options[index].$1),
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -842,13 +877,16 @@ class _YamiboAuthorThreadPageState extends State<YamiboAuthorThreadPage> {
         bid: thread.aid,
         url: YamiboApi.threadUrl(thread.tid),
         title: thread.title,
-        img: YamiboApi.logoUrl,
+        img: '',
         classId: BookshelfController.yamiboClassId,
         updateKey: thread.lastPostTime?.millisecondsSinceEpoch.toString() ?? '',
         updateTime: thread.lastPostTime,
         hasUpdate: false,
         rating: 0,
-        remoteTagsJson: BookTags.encode(['Yamibo']),
+        remoteTagsJson: BookTags.encode([
+          'Yamibo',
+          ...YamiboParser.titleTags(thread.title),
+        ]),
         localTagsJson: BookTags.emptyJson,
       ),
     );
@@ -888,6 +926,9 @@ class _ThreadTile extends StatelessWidget {
 
     return Card.outlined(
       margin: EdgeInsets.zero,
+      elevation: 1.5,
+      color: theme.colorScheme.surface.withValues(alpha: 0.84),
+      shadowColor: theme.colorScheme.shadow.withValues(alpha: 0.18),
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(kCardBorderRadius),
@@ -971,6 +1012,9 @@ class _ThreadTile extends StatelessWidget {
       height: 77,
       child: Card.outlined(
         margin: EdgeInsets.zero,
+        elevation: 1.5,
+        color: theme.colorScheme.surface.withValues(alpha: 0.84),
+        shadowColor: theme.colorScheme.shadow.withValues(alpha: 0.18),
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(kCardBorderRadius),

@@ -59,11 +59,6 @@ class MyPage extends StatelessWidget {
         clipBehavior: Clip.hardEdge,
         child: Column(
           children: [
-            ListTile(
-              title: Text('source_account_status'.tr),
-              subtitle: Text('source_account_status_tip'.tr),
-            ),
-            const Divider(height: 1),
             if (sources.isEmpty)
               ListTile(
                 leading: const Icon(Icons.travel_explore_outlined),
