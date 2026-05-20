@@ -62,9 +62,9 @@ class CacheQueuePage extends StatelessWidget {
   Widget _buildTile(ChapterCacheTask t) {
     String subtitle = statusToString(t.status).tr;
     if (t.progress >= 0 && t.progress <= 1) {
-      subtitle += " 路 ${(t.progress * 100).toStringAsFixed(0)}%";
+      subtitle += " · ${(t.progress * 100).toStringAsFixed(0)}%";
     } else if (t.progress == -1) {
-      subtitle += " 路 ${"unknownProgress".tr}";
+      subtitle += " · ${"unknownProgress".tr}";
     }
 
     return ListTile(

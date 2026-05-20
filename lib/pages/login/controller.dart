@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/main.dart';
+import 'package:hikari_novel_flutter/models/book_tags.dart';
 import 'package:hikari_novel_flutter/models/common/wenku8_node.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
@@ -154,6 +155,8 @@ class LoginController extends GetxController {
                 updateTime: e.updateTime,
                 hasUpdate: false,
                 rating: 0,
+                remoteTagsJson: BookTags.encode(e.tags),
+                localTagsJson: BookTags.emptyJson,
               );
             });
             await DBService.instance.insertAllBookshelf(insertData);

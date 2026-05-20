@@ -4,9 +4,12 @@ import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/common/constants.dart';
 import 'package:hikari_novel_flutter/models/bookshelf.dart';
 import 'package:hikari_novel_flutter/models/novel_cover.dart';
+import 'package:hikari_novel_flutter/models/source_config.dart';
 import 'package:hikari_novel_flutter/network/request.dart';
 import 'package:hikari_novel_flutter/router/app_sub_router.dart';
+import 'package:hikari_novel_flutter/service/source_favorite_adapter.dart';
 import 'package:hikari_novel_flutter/widgets/local_rating_bar.dart';
+import 'package:hikari_novel_flutter/widgets/source_backdrop.dart';
 
 class NovelCoverCard extends StatelessWidget {
   final NovelCover novelCover;
@@ -29,7 +32,11 @@ class NovelCoverCard extends StatelessWidget {
           children: [
             AspectRatio(
               aspectRatio: 9 / 13.5,
-              child: _CoverImage(imageUrl: imageUrl),
+              child: _CoverImage(
+                imageUrl: imageUrl,
+                title: novelCover.title,
+                source: SourceFavoriteAdapter.sourceOfAid(novelCover.aid),
+              ),
             ),
             Positioned.fill(
               child: Container(
@@ -99,7 +106,13 @@ class BookshelfCoverCard extends StatelessWidget {
               children: [
                 AspectRatio(
                   aspectRatio: 9 / 13.5,
-                  child: _CoverImage(imageUrl: bookshelfNovelInfo.img),
+                  child: _CoverImage(
+                    imageUrl: bookshelfNovelInfo.img,
+                    title: bookshelfNovelInfo.title,
+                    source: SourceFavoriteAdapter.sourceOfAid(
+                      bookshelfNovelInfo.aid,
+                    ),
+                  ),
                 ),
                 Positioned.fill(
                   child: Container(
@@ -206,14 +219,20 @@ class BookshelfCoverCard extends StatelessWidget {
 }
 
 class _CoverImage extends StatelessWidget {
-  const _CoverImage({required this.imageUrl});
+  const _CoverImage({
+    required this.imageUrl,
+    required this.title,
+    required this.source,
+  });
 
   final String? imageUrl;
+  final String title;
+  final NovelSource source;
 
   @override
   Widget build(BuildContext context) {
     final url = imageUrl?.trim() ?? '';
-    if (url.isEmpty) return const _CoverPlaceholder();
+    if (url.isEmpty) return _CoverPlaceholder(title: title, source: source);
     return CachedNetworkImage(
       imageUrl: url,
       httpHeaders: Request.userAgent,
@@ -221,24 +240,59 @@ class _CoverImage extends StatelessWidget {
       progressIndicatorBuilder: (context, url, downloadProgress) => Center(
         child: CircularProgressIndicator(value: downloadProgress.progress),
       ),
-      errorWidget: (context, url, error) => const _CoverPlaceholder(),
+      errorWidget: (context, url, error) =>
+          _CoverPlaceholder(title: title, source: source),
     );
   }
 }
 
 class _CoverPlaceholder extends StatelessWidget {
-  const _CoverPlaceholder();
+  const _CoverPlaceholder({required this.title, required this.source});
+
+  final String title;
+  final NovelSource source;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final palette = SourceBackdropPalette.of(context, source);
     return ColoredBox(
-      color: colorScheme.surfaceContainerHighest,
-      child: Center(
-        child: Icon(
-          Icons.image_not_supported_outlined,
-          color: colorScheme.outline,
-        ),
+      color: Color.lerp(
+        colorScheme.surfaceContainerHighest,
+        palette.backgroundStart,
+        0.5,
+      )!,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned(
+            right: -18,
+            bottom: -12,
+            child: SourceMark(
+              source: source,
+              size: 96,
+              color: palette.mark,
+              opacity: 0.16,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Center(
+              child: Text(
+                title,
+                maxLines: 8,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                  height: 1.18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

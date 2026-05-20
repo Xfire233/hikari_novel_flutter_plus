@@ -3,6 +3,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/common/database/database.dart';
 import 'package:hikari_novel_flutter/main.dart';
+import 'package:hikari_novel_flutter/models/book_tags.dart';
 import 'package:hikari_novel_flutter/models/resource.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
 import 'package:hikari_novel_flutter/models/source_id.dart';
@@ -299,6 +300,8 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
             updateTime: null,
             hasUpdate: false,
             rating: 0,
+            remoteTagsJson: BookTags.encode(detail.tags),
+            localTagsJson: BookTags.emptyJson,
           ),
         );
         SourceConfigService.instance.restoreLocalFavorite(NovelSource.esj, aid);

@@ -16,6 +16,8 @@ final TextStyle kBaseTileSubtitleTextStyle = TextStyle(fontSize: 13);
 
 const double kCardBorderRadius = 6.0;
 
+const double kPageHorizontalPadding = 16.0;
+
 const EdgeInsets kCommentAndReplyCardPadding = EdgeInsets.fromLTRB(
   20,
   16,

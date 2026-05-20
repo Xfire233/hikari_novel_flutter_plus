@@ -19,7 +19,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 7; //版本号
+  int get schemaVersion => 8; //版本号
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -41,6 +41,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 7 && to >= 7) {
         await Migration.fromSixToSeven(this);
+      }
+      if (from < 8 && to >= 8) {
+        await Migration.fromSevenToEight(this);
       }
     },
   );
@@ -117,6 +120,16 @@ class AppDatabase extends _$AppDatabase {
   Future<void> setBookshelfRating(String aid, double rating) =>
       (update(bookshelfEntity)..where((i) => i.aid.equals(aid))).write(
         BookshelfEntityCompanion(rating: Value(rating.clamp(0, 5))),
+      );
+
+  Future<void> setBookshelfRemoteTags(String aid, String tagsJson) =>
+      (update(bookshelfEntity)..where((i) => i.aid.equals(aid))).write(
+        BookshelfEntityCompanion(remoteTagsJson: Value(tagsJson)),
+      );
+
+  Future<void> setBookshelfLocalTags(String aid, String tagsJson) =>
+      (update(bookshelfEntity)..where((i) => i.aid.equals(aid))).write(
+        BookshelfEntityCompanion(localTagsJson: Value(tagsJson)),
       );
 
   Stream<List<BookshelfEntityData>> getBookshelfByClassId(String classId) =>

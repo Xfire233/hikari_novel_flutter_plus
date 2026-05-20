@@ -19,7 +19,10 @@ class SourceId {
   static String esjBookId(String aid) =>
       isEsj(aid) ? aid.substring(esjPrefix.length) : aid;
 
-  static String yamiboCid(String tid, int page) => '$yamiboPrefix$tid:$page';
+  static String yamiboCid(String tid, int page, [int? postIndex]) =>
+      postIndex == null
+      ? '$yamiboPrefix$tid:$page'
+      : '$yamiboPrefix$tid:$page:$postIndex';
 
   static String esjCid(String chapterId) => '$esjPrefix$chapterId';
 
@@ -33,7 +36,13 @@ class SourceId {
   static int yamiboPage(String cid) {
     final parts = cid.split(':');
     if (parts.length < 3) return 1;
-    return int.tryParse(parts.last) ?? 1;
+    return int.tryParse(parts[2]) ?? 1;
+  }
+
+  static int? yamiboPostIndex(String cid) {
+    final parts = cid.split(':');
+    if (parts.length < 4) return null;
+    return int.tryParse(parts[3]);
   }
 
   static String safeFilePart(String value) =>

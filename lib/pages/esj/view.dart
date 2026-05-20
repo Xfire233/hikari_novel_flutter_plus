@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:hikari_novel_flutter/common/constants.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/pages/esj/controller.dart';
 import 'package:hikari_novel_flutter/widgets/browsing_novel_grid.dart';
@@ -19,105 +20,121 @@ class EsjView extends StatelessWidget {
         children: [
           const SizedBox(height: 4),
           SourceSurface(
-            child: Row(
-              children: [
-                const SizedBox(width: 14),
-                Obx(
-                  () => ActionChip(
-                    label: Row(
-                      children: [
-                        Text(controller.typeText),
-                        const Icon(Icons.arrow_drop_down_outlined),
-                      ],
+            child: SizedBox(
+              height: 48,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Obx(
+                      () => ListView.separated(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: kPageHorizontalPadding,
+                        ),
+                        scrollDirection: Axis.horizontal,
+                        itemCount: controller.typeOptions.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          final item = controller.typeOptions[index];
+                          return ChoiceChip(
+                            label: Text(item.$2),
+                            selected: controller.type.value == item.$1,
+                            onSelected: (_) => controller.changeType(item.$1),
+                          );
+                        },
+                      ),
                     ),
-                    onPressed: () =>
-                        showMenu(
-                          context: context,
-                          position: RelativeRect.fill,
-                          items: controller.typeOptions
-                              .map(
-                                (item) => PopupMenuItem(
-                                  value: item.$1,
-                                  child: Text(item.$2),
-                                ),
-                              )
-                              .toList(),
-                        ).then((value) {
-                          if (value != null) controller.changeType(value);
-                        }),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Obx(
-                  () => ActionChip(
-                    label: Row(
-                      children: [
-                        Text(controller.sortText),
-                        const Icon(Icons.arrow_drop_down_outlined),
-                      ],
+                  Obx(
+                    () => Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child: ActionChip(
+                        label: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(controller.sortText),
+                            const Icon(Icons.arrow_drop_down_outlined),
+                          ],
+                        ),
+                        onPressed: () =>
+                            showMenu(
+                              context: context,
+                              position: RelativeRect.fill,
+                              items: controller.sortOptions
+                                  .map(
+                                    (item) => PopupMenuItem(
+                                      value: item.$1,
+                                      child: Text(item.$2),
+                                    ),
+                                  )
+                                  .toList(),
+                            ).then((value) {
+                              if (value != null) controller.changeSort(value);
+                            }),
+                      ),
                     ),
-                    onPressed: () =>
-                        showMenu(
-                          context: context,
-                          position: RelativeRect.fill,
-                          items: controller.sortOptions
-                              .map(
-                                (item) => PopupMenuItem(
-                                  value: item.$1,
-                                  child: Text(item.$2),
-                                ),
-                              )
-                              .toList(),
-                        ).then((value) {
-                          if (value != null) controller.changeSort(value);
-                        }),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 4),
           SourceSurface(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              padding: const EdgeInsets.fromLTRB(
+                kPageHorizontalPadding,
+                8,
+                kPageHorizontalPadding,
+                8,
+              ),
               child: Obx(
-                () => ExpansionTile(
-                  tilePadding: EdgeInsets.zero,
-                  title: Row(
-                    children: [
-                      const Icon(Icons.sell_outlined, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          controller.tagText,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
+                () => Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: [
-                          ChoiceChip(
-                            label: Text('esj_tag_all'.tr),
-                            selected: controller.selectedTag.value.isEmpty,
-                            onSelected: (_) => controller.changeTag(''),
-                          ),
-                          ...controller.tagOptions.map(
-                            (tag) => ChoiceChip(
-                              label: Text(tag),
-                              selected: controller.selectedTag.value == tag,
-                              onSelected: (_) => controller.changeTag(tag),
-                            ),
-                          ),
-                        ],
+                    ChoiceChip(
+                      label: Text('esj_tag_all'.tr),
+                      selected: controller.selectedTag.value.isEmpty,
+                      onSelected: (_) => controller.changeTag(''),
+                    ),
+                    ...controller.orderedTagOptions.take(6).map(
+                      (tag) => ChoiceChip(
+                        label: Text(tag),
+                        selected: controller.selectedTag.value == tag,
+                        onSelected: (_) => controller.changeTag(tag),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    ActionChip(
+                      label: Text(controller.tagText),
+                      avatar: const Icon(Icons.expand_more),
+                      onPressed: () => showModalBottomSheet<void>(
+                        context: context,
+                        showDragHandle: true,
+                        builder: (_) => ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                          children: [
+                            ListTile(
+                              title: Text('esj_tag_all'.tr),
+                              onTap: () {
+                                Navigator.pop(context);
+                                controller.changeTag('');
+                              },
+                            ),
+                            for (final tag in controller.orderedTagOptions)
+                              ListTile(
+                                title: Text(tag),
+                                trailing: controller.selectedTag.value == tag
+                                    ? const Icon(Icons.check)
+                                    : null,
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  controller.changeTag(tag);
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

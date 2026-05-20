@@ -1,4 +1,4 @@
-import 'package:easy_refresh/easy_refresh.dart';
+﻿import 'package:easy_refresh/easy_refresh.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/novel_cover.dart';
@@ -6,6 +6,7 @@ import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/models/resource.dart';
 import 'package:hikari_novel_flutter/network/esj_api.dart';
 import 'package:hikari_novel_flutter/network/esj_parser.dart';
+import 'package:hikari_novel_flutter/service/local_storage_service.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
 
 class EsjController extends GetxController {
@@ -43,23 +44,7 @@ class EsjController extends GetxController {
     (8, 'esj_sort_words'.tr),
   ];
 
-  List<String> get tagOptions => const [
-    '異世界',
-    '轉生',
-    '奇幻',
-    '冒險',
-    '戀愛',
-    '魔法',
-    '日輕',
-    '原創',
-    'R15',
-    'R18',
-    '百合',
-    'TS',
-    '戰鬥',
-    '校園',
-    '喜劇',
-  ];
+  List<String> get tagOptions => orderedTagOptions;
 
   String get typeText =>
       typeOptions.firstWhere((item) => item.$1 == type.value).$2;
@@ -69,6 +54,34 @@ class EsjController extends GetxController {
 
   String get tagText =>
       selectedTag.value.isEmpty ? 'esj_tag_all'.tr : selectedTag.value;
+
+  List<String> get orderedTagOptions {
+    const tags = [
+      '異世界',
+      '轉生',
+      '奇幻',
+      '冒險',
+      '戀愛',
+      '魔法',
+      '日輕',
+      '原創',
+      'R15',
+      'R18',
+      '百合',
+      'TS',
+      '戰鬥',
+      '校園',
+      '喜劇',
+    ];
+    final counts = LocalStorageService.instance.getSourceTagUseCounts('esj');
+    final ordered = [...tags];
+    ordered.sort((a, b) {
+      final countResult = (counts[b] ?? 0).compareTo(counts[a] ?? 0);
+      if (countResult != 0) return countResult;
+      return tags.indexOf(a).compareTo(tags.indexOf(b));
+    });
+    return ordered;
+  }
 
   @override
   void onReady() {
@@ -88,6 +101,9 @@ class EsjController extends GetxController {
 
   void changeTag(String value) {
     selectedTag.value = value;
+    if (value.trim().isNotEmpty) {
+      LocalStorageService.instance.increaseSourceTagUseCount('esj', value);
+    }
     getPage(false);
   }
 

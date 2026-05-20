@@ -76,6 +76,11 @@ class LocalStorageService extends GetxService {
       kBookshelfViewModes = "bookshelfViewModes",
       kBookshelfFolderCovers = "bookshelfFolderCovers",
       kBookshelfFolders = "bookshelfFolders",
+      kSmartShelfMemberships = "smartShelfMemberships",
+      kSourceTagUseCounts = "sourceTagUseCounts",
+      kWenku8LastCategory = "wenku8LastCategory",
+      kWenku8LastCategorySort = "wenku8LastCategorySort",
+      kWenku8LastRanking = "wenku8LastRanking",
       kSourceSyncConfigs = "sourceSyncConfigs",
       kSourceLocalHiddenAids = "sourceLocalHiddenAids";
 
@@ -473,6 +478,89 @@ class LocalStorageService extends GetxService {
   void setBookshelfFolders(List<Map<String, String>> value) =>
       _setting.put(kBookshelfFolders, value);
 
+  Map<String, List<Map<String, String>>> getSmartShelfMemberships() {
+    final raw = _setting.get(kSmartShelfMemberships, defaultValue: const {});
+    if (raw is! Map) return {};
+    final result = <String, List<Map<String, String>>>{};
+    for (final entry in raw.entries) {
+      final value = entry.value;
+      if (value is! Iterable) continue;
+      result['${entry.key}'] = value.whereType<Map>().map((item) {
+        return item.map((key, value) => MapEntry('$key', '$value'));
+      }).toList();
+    }
+    return result;
+  }
+
+  List<Map<String, String>> getSmartShelfMembership(String shelfId) =>
+      getSmartShelfMemberships()[shelfId] ?? const [];
+
+  void setSmartShelfMembership(
+    String shelfId,
+    List<Map<String, String>> items,
+  ) {
+    final memberships = getSmartShelfMemberships();
+    memberships[shelfId] = items;
+    _setting.put(kSmartShelfMemberships, memberships);
+  }
+
+  void clearSmartShelfNewMarks(String shelfId) {
+    final items = getSmartShelfMembership(shelfId);
+    if (items.isEmpty) return;
+    setSmartShelfMembership(
+      shelfId,
+      items.map((item) => {...item, 'isNew': 'false'}).toList(),
+    );
+  }
+
+  Map<String, int> getSourceTagUseCounts(String sourceId) {
+    final raw = _setting.get(kSourceTagUseCounts, defaultValue: const {});
+    if (raw is! Map) return {};
+    final sourceRaw = raw[sourceId];
+    if (sourceRaw is! Map) return {};
+    return sourceRaw.map((key, value) {
+      final count = value is int ? value : int.tryParse('$value') ?? 0;
+      return MapEntry('$key', count);
+    });
+  }
+
+  void increaseSourceTagUseCount(String sourceId, String tag) {
+    final trimmed = tag.trim();
+    if (trimmed.isEmpty) return;
+    final raw = _setting.get(kSourceTagUseCounts, defaultValue: const {});
+    final next = <String, Map<String, int>>{};
+    if (raw is Map) {
+      for (final entry in raw.entries) {
+        final value = entry.value;
+        if (value is Map) {
+          next['${entry.key}'] = value.map((key, value) {
+            final count = value is int ? value : int.tryParse('$value') ?? 0;
+            return MapEntry('$key', count);
+          });
+        }
+      }
+    }
+    final counts = next[sourceId] ?? <String, int>{};
+    counts[trimmed] = (counts[trimmed] ?? 0) + 1;
+    next[sourceId] = counts;
+    _setting.put(kSourceTagUseCounts, next);
+  }
+
+  String? getWenku8LastCategory() => _setting.get(kWenku8LastCategory);
+
+  void setWenku8LastCategory(String value) =>
+      _setting.put(kWenku8LastCategory, value);
+
+  String? getWenku8LastCategorySort() => _setting.get(kWenku8LastCategorySort);
+
+  void setWenku8LastCategorySort(String value) =>
+      _setting.put(kWenku8LastCategorySort, value);
+
+  String? getWenku8LastRanking() => _setting.get(kWenku8LastRanking);
+
+  void setWenku8LastRanking(String value) =>
+      _setting.put(kWenku8LastRanking, value);
+
   Map<String, bool> getBookshelfViewModes() {
     final raw = _setting.get(kBookshelfViewModes, defaultValue: const {});
     if (raw is! Map) return {};
@@ -603,6 +691,14 @@ class LocalStorageService extends GetxService {
     'bookshelfViewModes': getBookshelfViewModes(),
     'bookshelfFolderCovers': getBookshelfFolderCovers(),
     'bookshelfFolders': getBookshelfFolders(),
+    'smartShelfMemberships': getSmartShelfMemberships(),
+    'sourceTagUseCounts': _setting.get(
+      kSourceTagUseCounts,
+      defaultValue: const {},
+    ),
+    'wenku8LastCategory': getWenku8LastCategory(),
+    'wenku8LastCategorySort': getWenku8LastCategorySort(),
+    'wenku8LastRanking': getWenku8LastRanking(),
     'sourceSyncConfigs': getSourceSyncConfigs().values
         .map((item) => item.toJson())
         .toList(),
@@ -694,6 +790,34 @@ class LocalStorageService extends GetxService {
             .toList(),
       );
     }
+    final memberships = data['smartShelfMemberships'];
+    if (memberships is Map) {
+      _setting.put(
+        kSmartShelfMemberships,
+        memberships.map((key, value) {
+          return MapEntry(
+            '$key',
+            value is Iterable
+                ? value.whereType<Map>().map((item) {
+                    return item.map((k, v) => MapEntry('$k', '$v'));
+                  }).toList()
+                : const <Map<String, String>>[],
+          );
+        }),
+      );
+    }
+    final tagCounts = data['sourceTagUseCounts'];
+    if (tagCounts is Map) {
+      _setting.put(kSourceTagUseCounts, tagCounts);
+    }
+    final lastCategory = data['wenku8LastCategory'];
+    if (lastCategory is String) setWenku8LastCategory(lastCategory);
+    final lastCategorySort = data['wenku8LastCategorySort'];
+    if (lastCategorySort is String) {
+      setWenku8LastCategorySort(lastCategorySort);
+    }
+    final lastRanking = data['wenku8LastRanking'];
+    if (lastRanking is String) setWenku8LastRanking(lastRanking);
     final sourceConfigs = data['sourceSyncConfigs'];
     if (sourceConfigs is List) {
       final configs = {

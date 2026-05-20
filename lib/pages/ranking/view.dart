@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:hikari_novel_flutter/common/constants.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/pages/ranking/controller.dart';
 
@@ -20,7 +21,7 @@ class RankingView extends StatelessWidget {
           SizedBox(height: 4),
           Row(
             children: [
-              SizedBox(width: 14),
+              const SizedBox(width: kPageHorizontalPadding),
               ActionChip(
                 label: Row(
                   children: [

@@ -1,9 +1,11 @@
-import 'package:easy_refresh/easy_refresh.dart';
+﻿import 'package:easy_refresh/easy_refresh.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
+import 'package:hikari_novel_flutter/common/constants.dart';
 import 'package:hikari_novel_flutter/common/database/database.dart';
 import 'package:hikari_novel_flutter/main.dart';
+import 'package:hikari_novel_flutter/models/book_tags.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
 import 'package:hikari_novel_flutter/network/request.dart';
 import 'package:hikari_novel_flutter/network/yamibo_api.dart';
@@ -12,6 +14,7 @@ import 'package:hikari_novel_flutter/pages/bookshelf/controller.dart';
 import 'package:hikari_novel_flutter/router/app_sub_router.dart';
 import 'package:hikari_novel_flutter/service/db_service.dart';
 import 'package:hikari_novel_flutter/service/local_storage_service.dart';
+import 'package:hikari_novel_flutter/service/source_auth_guard.dart';
 import 'package:hikari_novel_flutter/service/source_config_service.dart';
 import 'package:hikari_novel_flutter/widgets/browsing_novel_grid.dart';
 import 'package:hikari_novel_flutter/widgets/source_backdrop.dart';
@@ -110,68 +113,82 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
   Widget _buildForumSelector(BuildContext context) {
     final selectedTypeText = _typeName(_selectedTypeId ?? '');
     return SourceSurface(
-      child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(horizontal: 14),
-        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-        title: Row(
-          children: [
-            PopupMenuButton<String>(
-              initialValue: _currentFid,
-              onSelected: _changeForum,
-              itemBuilder: (_) => _forumOptions
-                  .map(
-                    (item) =>
-                        PopupMenuItem(value: item.$1, child: Text(item.$2.tr)),
-                  )
-                  .toList(),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(_forumTitle(_currentFid)),
-                  const Icon(Icons.arrow_drop_down_outlined),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                selectedTypeText.isEmpty
-                    ? 'yamibo_forum_type_all'.tr
-                    : selectedTypeText,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ),
-          ],
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.36,
+          SizedBox(
+            height: 48,
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(
+                horizontal: kPageHorizontalPadding,
+              ),
+              scrollDirection: Axis.horizontal,
+              itemCount: _forumOptions.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final item = _forumOptions[index];
+                return ChoiceChip(
+                  label: Text(item.$2.tr),
+                  selected: _currentFid == item.$1,
+                  onSelected: (_) => _changeForum(item.$1),
+                );
+              },
             ),
-            child: SingleChildScrollView(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    ChoiceChip(
-                      label: Text('yamibo_forum_type_all'.tr),
-                      selected: _selectedTypeId == null,
-                      onSelected: (_) => _changeType(null),
+          ),
+          ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(
+              horizontal: kPageHorizontalPadding,
+            ),
+            childrenPadding: const EdgeInsets.fromLTRB(
+              kPageHorizontalPadding,
+              0,
+              kPageHorizontalPadding,
+              10,
+            ),
+            title: Row(
+              children: [
+                const Icon(Icons.sell_outlined, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    selectedTypeText.isEmpty
+                        ? 'yamibo_forum_type_all'.tr
+                        : selectedTypeText,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.36,
+                ),
+                child: SingleChildScrollView(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        ChoiceChip(
+                          label: Text('yamibo_forum_type_all'.tr),
+                          selected: _selectedTypeId == null,
+                          onSelected: (_) => _changeType(null),
+                        ),
+                        ..._types.map(
+                          (type) => ChoiceChip(
+                            label: Text(type.title),
+                            selected: _selectedTypeId == type.id,
+                            onSelected: (_) => _changeType(type.id),
+                          ),
+                        ),
+                      ],
                     ),
-                    ..._types.map(
-                      (type) => ChoiceChip(
-                        label: Text(type.title),
-                        selected: _selectedTypeId == type.id,
-                        onSelected: (_) => _changeType(type.id),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ],
       ),
@@ -246,7 +263,12 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
   Widget _buildThreadList({required bool showLoadingFooter}) {
     return ListView.separated(
       controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+      padding: const EdgeInsets.fromLTRB(
+        kPageHorizontalPadding,
+        8,
+        kPageHorizontalPadding,
+        24,
+      ),
       itemCount: _threads.length + (showLoadingFooter && _loadingMore ? 1 : 0),
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (_, index) {
@@ -290,7 +312,12 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
         : _threads.sublist(start, end);
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: const EdgeInsets.fromLTRB(
+        kPageHorizontalPadding,
+        8,
+        kPageHorizontalPadding,
+        8,
+      ),
       physics: const NeverScrollableScrollPhysics(),
       itemCount: visibleThreads.length,
       separatorBuilder: (_, _) => const Divider(height: 1),
@@ -338,6 +365,8 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
         try {
           final data = YamiboParser.getForumPageData(result.data);
           if (data.hasPermissionError) {
+            SourceAuthGuard.clearLogin(NovelSource.yamibo);
+            SourceAuthGuard.showLoginRequired(NovelSource.yamibo);
             _showLoginRequired(refresh: replacing);
             return IndicatorResult.fail;
           }
@@ -465,6 +494,8 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
         updateTime: thread.lastPostTime,
         hasUpdate: false,
         rating: 0,
+        remoteTagsJson: BookTags.encode(['Yamibo', _typeName(thread.typeId)]),
+        localTagsJson: BookTags.emptyJson,
       ),
     );
     SourceConfigService.instance.restoreLocalFavorite(
@@ -631,7 +662,12 @@ class _YamiboAuthorThreadPageState extends State<YamiboAuthorThreadPage> {
   Widget _buildThreadList({required bool showLoadingFooter}) {
     return ListView.separated(
       controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+      padding: const EdgeInsets.fromLTRB(
+        kPageHorizontalPadding,
+        8,
+        kPageHorizontalPadding,
+        24,
+      ),
       itemCount: _threads.length + (showLoadingFooter && _loadingMore ? 1 : 0),
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (_, index) {
@@ -675,7 +711,12 @@ class _YamiboAuthorThreadPageState extends State<YamiboAuthorThreadPage> {
         : _threads.sublist(start, end);
 
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: const EdgeInsets.fromLTRB(
+        kPageHorizontalPadding,
+        8,
+        kPageHorizontalPadding,
+        8,
+      ),
       physics: const NeverScrollableScrollPhysics(),
       itemCount: visibleThreads.length,
       separatorBuilder: (_, _) => const Divider(height: 1),
@@ -727,6 +768,8 @@ class _YamiboAuthorThreadPageState extends State<YamiboAuthorThreadPage> {
       case Success():
         try {
           if (YamiboParser.isUserThreadPermissionPage(result.data)) {
+            SourceAuthGuard.clearLogin(NovelSource.yamibo);
+            SourceAuthGuard.showLoginRequired(NovelSource.yamibo);
             _showLoginRequired(refresh: replacing);
             return IndicatorResult.fail;
           }
@@ -829,6 +872,8 @@ class _YamiboAuthorThreadPageState extends State<YamiboAuthorThreadPage> {
         updateTime: thread.lastPostTime,
         hasUpdate: false,
         rating: 0,
+        remoteTagsJson: BookTags.encode(['Yamibo']),
+        localTagsJson: BookTags.emptyJson,
       ),
     );
     SourceConfigService.instance.restoreLocalFavorite(
@@ -866,7 +911,7 @@ class _ThreadTile extends StatelessWidget {
     if (compact) return _buildCompact(context, theme);
 
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+      contentPadding: EdgeInsets.zero.copyWith(top: 8, bottom: 8),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -918,16 +963,16 @@ class _ThreadTile extends StatelessWidget {
     final meta = [
       if (typeName.isNotEmpty) typeName,
       if (thread.author.isNotEmpty) thread.author,
-      '${thread.replies} 鍥炲',
+      '${thread.replies} 回复',
       if (thread.lastPostTime != null) _formatDate(thread.lastPostTime!),
-    ].join('  路  ');
+    ].join('  ·  ');
 
     return SizedBox(
       height: 77,
       child: ListTile(
         dense: true,
         minVerticalPadding: 4,
-        contentPadding: const EdgeInsets.only(left: 2, right: 0),
+        contentPadding: EdgeInsets.zero,
         title: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

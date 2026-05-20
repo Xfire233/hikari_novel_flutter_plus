@@ -464,7 +464,7 @@ class SettingPage extends StatelessWidget {
     parts.add(config.enabled ? "enable".tr : "disable".tr);
     if (config.pullOnlineToLocal) parts.add("source_pull_short".tr);
     if (config.pushLocalToRemote) parts.add("source_push_short".tr);
-    return parts.join(" 路 ");
+    return parts.join(" · ");
   }
 
   Future<void> _showRemoteTargetDialog(

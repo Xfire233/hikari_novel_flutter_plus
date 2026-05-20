@@ -6,11 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/common/constants.dart';
+import 'package:hikari_novel_flutter/models/book_tags.dart';
 import 'package:hikari_novel_flutter/models/bookshelf.dart';
+import 'package:hikari_novel_flutter/models/novel_cover.dart';
 import 'package:hikari_novel_flutter/models/novel_detail.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/models/reader_direction.dart';
 import 'package:hikari_novel_flutter/models/resource.dart';
+import 'package:hikari_novel_flutter/models/smart_shelf.dart';
 import 'package:hikari_novel_flutter/models/source_id.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
 import 'package:hikari_novel_flutter/network/api.dart';
@@ -21,6 +24,7 @@ import 'package:hikari_novel_flutter/network/yamibo_api.dart';
 import 'package:hikari_novel_flutter/network/yamibo_parser.dart';
 import 'package:hikari_novel_flutter/pages/main/controller.dart';
 import 'package:hikari_novel_flutter/service/local_storage_service.dart';
+import 'package:hikari_novel_flutter/service/source_auth_guard.dart';
 import 'package:hikari_novel_flutter/service/source_config_service.dart';
 import 'package:hikari_novel_flutter/service/source_favorite_adapter.dart';
 import 'package:path_provider/path_provider.dart';
@@ -35,6 +39,8 @@ class BookshelfController extends GetxController
   static const defaultClassId = '0';
   static const recentSmartId = 'smart_recent_12';
   static const smartTagPrefix = 'smart_tag_';
+  static const smartShelfPrefix = 'smart_filter_';
+  static const subscriptionShelfPrefix = 'smart_subscription_';
   static const _rootFolderViewModeKey = '__bookshelf_root__';
   static const _yamiboOwnerUpdateSeparator = '\nowner:';
   static const _localFolderPrefix = 'local_';
@@ -223,6 +229,33 @@ class BookshelfController extends GetxController
             ),
           ),
         );
+      } else if (id.startsWith(smartShelfPrefix) ||
+          id.startsWith(subscriptionShelfPrefix)) {
+        final config = _smartShelfConfigFromFolder(folder);
+        final name = folder['name']?.isNotEmpty == true
+            ? folder['name']!
+            : "smart_bookshelf".tr;
+        final matchingAids = _existingBookshelfAids(
+          await _getBookshelfAidsBySmartConfig(config),
+          allBooks,
+        );
+        final membership = _membershipByAid(id);
+        result.add(
+          BookshelfFolder(
+            id: id,
+            name: '$name (${matchingAids.length})',
+            parentId: parentId,
+            cover: BookshelfFolderCover.fromJson(covers[id]),
+            childCount: childCounts[id] ?? 0,
+            smartFolder: true,
+            smartFolderAids: matchingAids,
+            count: matchingAids.length,
+            hasUpdate: allBooks.any(
+              (item) => matchingAids.contains(item.aid) && item.hasUpdate,
+            ),
+            hasNew: membership.values.any((item) => item.isNew),
+          ),
+        );
       }
     }
 
@@ -240,6 +273,9 @@ class BookshelfController extends GetxController
       folderStack.add(folder);
     }
     currentFolder.value = folder;
+    if (folder.hasNew) {
+      LocalStorageService.instance.clearSmartShelfNewMarks(folder.id);
+    }
     useListView.value = useListViewForClassId(folder.id);
   }
 
@@ -295,13 +331,47 @@ class BookshelfController extends GetxController
   Future<BookshelfFolder?> createTagSmartFolder(String tag) async {
     final trimmed = tag.trim();
     if (trimmed.isEmpty) return null;
+    final config = SmartShelfConfig.tag(trimmed);
     final folder = BookshelfFolder(
       id: '$smartTagPrefix${DateTime.now().microsecondsSinceEpoch}',
       name: trimmed,
       smartFolder: true,
     );
     final saved = LocalStorageService.instance.getBookshelfFolders();
-    saved.add({'id': folder.id, 'name': folder.name, 'tag': trimmed});
+    saved.add({
+      'id': folder.id,
+      'name': folder.name,
+      'tag': trimmed,
+      'smartConfig': jsonEncode(config.toJson()),
+    });
+    LocalStorageService.instance.setBookshelfFolders(saved);
+    loadFolders();
+    return folder;
+  }
+
+  Future<BookshelfFolder?> createSmartShelf({
+    required String name,
+    required SmartShelfConfig config,
+    String? parentId,
+  }) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return null;
+    final idPrefix = config.isSubscription
+        ? subscriptionShelfPrefix
+        : smartShelfPrefix;
+    final folder = BookshelfFolder(
+      id: '$idPrefix${DateTime.now().microsecondsSinceEpoch}',
+      name: trimmed,
+      parentId: parentId,
+      smartFolder: true,
+    );
+    final saved = LocalStorageService.instance.getBookshelfFolders();
+    saved.add({
+      'id': folder.id,
+      'name': folder.name,
+      if (parentId?.isNotEmpty == true) 'parentId': parentId!,
+      'smartConfig': jsonEncode(config.toJson()),
+    });
     LocalStorageService.instance.setBookshelfFolders(saved);
     loadFolders();
     return folder;
@@ -606,6 +676,22 @@ class BookshelfController extends GetxController
         allBooks,
       );
     }
+    if (folderId.startsWith(smartShelfPrefix) ||
+        folderId.startsWith(subscriptionShelfPrefix)) {
+      final saved = LocalStorageService.instance.getBookshelfFolders();
+      final folder = saved.firstWhereOrNull((item) => item['id'] == folderId);
+      if (folder == null) return [];
+      final config = _smartShelfConfigFromFolder(folder);
+      final matched = _existingBookshelfAids(
+        await _getBookshelfAidsBySmartConfig(config),
+        allBooks,
+      );
+      final membership = _existingBookshelfAids(
+        _membershipByAid(folderId).keys,
+        allBooks,
+      );
+      return {...matched, ...membership}.toList();
+    }
     return [];
   }
 
@@ -632,7 +718,53 @@ class BookshelfController extends GetxController
     return folderId.substring(smartTagPrefix.length);
   }
 
+  SmartShelfConfig _smartShelfConfigFromFolder(Map<String, String> folder) {
+    final raw = folder['smartConfig'];
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) return SmartShelfConfig.fromJson(decoded);
+      } catch (_) {
+        // Fall through to the legacy single-tag format.
+      }
+    }
+    final tag = folder['tag'] ?? '';
+    if (tag.isNotEmpty) return SmartShelfConfig.tag(tag);
+    return const SmartShelfConfig();
+  }
+
+  Map<String, SmartShelfMembership> _membershipByAid(String folderId) {
+    return {
+      for (final item in LocalStorageService.instance.getSmartShelfMembership(
+        folderId,
+      ))
+        if ((item['aid'] ?? '').isNotEmpty)
+          item['aid']!: SmartShelfMembership.fromJson(item),
+    };
+  }
+
+  static String _sourceLabelOfAidStatic(String aid) {
+    return switch (SourceFavoriteAdapter.sourceOfAid(aid)) {
+      NovelSource.wenku8 => 'wenku8'.tr,
+      NovelSource.esj => 'esjzone'.tr,
+      NovelSource.yamibo => 'yamibo_forum'.tr,
+    };
+  }
+
   Future<List<String>> _getBookshelfAidsByTag(String tag) async {
+    final books = await DBService.instance.getAllBookshelf();
+    final directMatches = books
+        .where(
+          (book) => BookTags.containsAny(
+            BookTags.merge(
+              BookTags.decode(book.remoteTagsJson),
+              BookTags.decode(book.localTagsJson),
+            ),
+            [tag],
+          ),
+        )
+        .map((book) => book.aid)
+        .toSet();
     final details = await DBService.instance.getAllNovelDetails();
     final aids = <String>[];
     for (final detail in details) {
@@ -648,7 +780,48 @@ class BookshelfController extends GetxController
         continue;
       }
     }
-    return aids;
+    return {...directMatches, ...aids}.toList();
+  }
+
+  Future<List<String>> _getBookshelfAidsBySmartConfig(
+    SmartShelfConfig config,
+  ) async {
+    final books = await DBService.instance.getAllBookshelf();
+    final details = {
+      for (final detail in await DBService.instance.getAllNovelDetails())
+        detail.aid: detail,
+    };
+    final items = books.map((book) {
+      final detail = details[book.aid];
+      final parsedDetail = detail == null
+          ? null
+          : () {
+              try {
+                return NovelDetail.fromString(detail.json);
+              } catch (_) {
+                return null;
+              }
+            }();
+      return BookshelfNovelInfo(
+        bid: book.bid,
+        aid: book.aid,
+        url: book.url,
+        title: book.title,
+        img: book.img,
+        updateKey: book.updateKey,
+        updateTime: book.updateTime,
+        hasUpdate: book.hasUpdate,
+        author: parsedDetail?.author ?? '',
+        sourceLabel: _sourceLabelOfAidStatic(book.aid),
+        rating: book.rating,
+        remoteTags: BookTags.merge(
+          BookTags.decode(book.remoteTagsJson),
+          parsedDetail?.tags ?? const [],
+        ),
+        localTags: BookTags.decode(book.localTagsJson),
+      );
+    });
+    return items.where(config.matches).map((item) => item.aid).toSet().toList();
   }
 
   Future<List<String>> _getRecentReadAids(int limit) async {
@@ -687,10 +860,125 @@ class BookshelfController extends GetxController
       tasks.add(refreshEsjFavorites());
     }
     final results = await Future.wait(tasks);
+    await syncSubscriptionSmartShelves();
     loadFolders();
     return results.every((ok) => ok)
         ? "update_successfully".tr
         : "update_failed".tr;
+  }
+
+  Future<void> syncSubscriptionSmartShelves() async {
+    final saved = LocalStorageService.instance.getBookshelfFolders();
+    for (final folder in saved) {
+      final id = folder['id'] ?? '';
+      if (!id.startsWith(subscriptionShelfPrefix)) continue;
+      final config = _smartShelfConfigFromFolder(folder);
+      final tags = config.subscriptionTags.isNotEmpty
+          ? config.subscriptionTags
+          : _tagsFromSmartConfig(config);
+      if (tags.isEmpty) continue;
+      final previous = {
+        for (final item in LocalStorageService.instance.getSmartShelfMembership(
+          id,
+        ))
+          if ((item['aid'] ?? '').isNotEmpty) item['aid']!: item,
+      };
+      final seen = <String>{};
+      for (final tag in tags) {
+        for (final source in config.sources.isEmpty
+            ? NovelSource.values
+            : config.sources) {
+          final covers = await _searchSubscriptionTag(source, tag);
+          for (final cover in covers) {
+            seen.add(cover.aid);
+            await _upsertSubscriptionCover(cover, source, tag);
+          }
+        }
+      }
+      final now = DateTime.now().toIso8601String();
+      final next = <Map<String, String>>[];
+      for (final aid in seen) {
+        final old = previous[aid];
+        next.add({
+          'aid': aid,
+          'firstSeenAt': old?['firstSeenAt'] ?? now,
+          'lastSeenAt': now,
+          'isNew': old == null ? 'true' : (old['isNew'] ?? 'false'),
+        });
+      }
+      LocalStorageService.instance.setSmartShelfMembership(id, next);
+    }
+  }
+
+  List<String> _tagsFromSmartConfig(SmartShelfConfig config) {
+    return BookTags.normalize([
+      for (final group in config.groups)
+        for (final condition in group.conditions)
+          if (condition.type == SmartShelfConditionType.tag) condition.value,
+    ]);
+  }
+
+  Future<List<NovelCover>> _searchSubscriptionTag(
+    NovelSource source,
+    String tag,
+  ) async {
+    final result = switch (source) {
+      NovelSource.wenku8 => await Api.searchNovelByTitle(title: tag, index: 1),
+      NovelSource.esj => await EsjApi.searchNovel(keyword: tag, page: 1),
+      NovelSource.yamibo => await YamiboApi.searchThreads(keyword: tag),
+    };
+    if (result is! Success) return const [];
+    if (!SourceAuthGuard.checkHtml(source, '${result.data}')) return const [];
+    return switch (source) {
+      NovelSource.wenku8 => Parser.parseToList(result.data),
+      NovelSource.esj => EsjParser.getSearchResults(result.data),
+      NovelSource.yamibo =>
+        result.data is YamiboSearchPageResponse
+            ? YamiboParser.getSearchPageData(
+                (result.data as YamiboSearchPageResponse).html,
+                allowedForumIds: {
+                  YamiboApi.literatureFid,
+                  YamiboApi.lightNovelFid,
+                  YamiboApi.txtNovelFid,
+                },
+              ).items
+            : const <NovelCover>[],
+    };
+  }
+
+  Future<void> _upsertSubscriptionCover(
+    NovelCover cover,
+    NovelSource source,
+    String tag,
+  ) async {
+    final previous = (await DBService.instance.getAllBookshelf())
+        .firstWhereOrNull((item) => item.aid == cover.aid);
+    await DBService.instance.upsertBookshelf(
+      BookshelfEntityData(
+        aid: cover.aid,
+        bid: previous?.bid ?? cover.aid,
+        url: previous?.url ?? '',
+        title: cover.title,
+        img: cover.imageUrl ?? previous?.img ?? '',
+        classId:
+            previous?.classId ??
+            switch (source) {
+              NovelSource.wenku8 => defaultClassId,
+              NovelSource.esj => esjClassId,
+              NovelSource.yamibo => yamiboClassId,
+            },
+        updateKey: previous?.updateKey ?? '',
+        updateTime: previous?.updateTime,
+        hasUpdate: previous?.hasUpdate ?? false,
+        rating: previous?.rating ?? 0,
+        remoteTagsJson: BookTags.encode([
+          ...BookTags.decode(previous?.remoteTagsJson),
+          tag,
+          source.titleKey.tr,
+        ]),
+        localTagsJson: previous?.localTagsJson ?? BookTags.emptyJson,
+      ),
+    );
   }
 
   Future<bool> _syncWenku8Shelf(int classId) async {
@@ -701,6 +989,9 @@ class BookshelfController extends GetxController
     }
     final result = await Api.getBookshelf(classId: classId);
     if (result is! Success) return false;
+    if (!SourceAuthGuard.checkHtml(NovelSource.wenku8, result.data)) {
+      return false;
+    }
     final previous = {
       for (final item in await DBService.instance.getAllBookshelf())
         item.aid: item,
@@ -729,6 +1020,8 @@ class BookshelfController extends GetxController
           updateTime: e.updateTime,
           hasUpdate: _hasBookshelfUpdate(prev, e.updateKey),
           rating: prev?.rating ?? 0,
+          remoteTagsJson: _remoteTagsJsonFor(e, prev),
+          localTagsJson: prev?.localTagsJson ?? BookTags.emptyJson,
         ),
       );
     }
@@ -777,6 +1070,9 @@ class BookshelfController extends GetxController
       final result = await EsjApi.getFavoritePage(page: page);
       switch (result) {
         case Success():
+          if (!SourceAuthGuard.checkHtml(NovelSource.esj, result.data)) {
+            return false;
+          }
           final List<BookshelfNovelInfo> items;
           try {
             items = EsjParser.getFavoritePage(result.data);
@@ -821,6 +1117,8 @@ class BookshelfController extends GetxController
           updateTime: item.updateTime,
           hasUpdate: _hasBookshelfUpdate(prev, item.updateKey),
           rating: prev?.rating ?? 0,
+          remoteTagsJson: _remoteTagsJsonFor(item, prev),
+          localTagsJson: prev?.localTagsJson ?? BookTags.emptyJson,
         ),
       );
     }
@@ -910,6 +1208,9 @@ class BookshelfController extends GetxController
       final result = await YamiboApi.getFavoritePage(page: page);
       switch (result) {
         case Success():
+          if (!SourceAuthGuard.checkHtml(NovelSource.yamibo, result.data)) {
+            return false;
+          }
           final YamiboFavoritePageData pageData;
           try {
             pageData = YamiboParser.getFavoritePageData(result.data);
@@ -985,6 +1286,8 @@ class BookshelfController extends GetxController
           updateTime: item.updateTime,
           hasUpdate: _hasBookshelfUpdate(prev, item.updateKey),
           rating: prev?.rating ?? 0,
+          remoteTagsJson: _remoteTagsJsonFor(item, prev),
+          localTagsJson: prev?.localTagsJson ?? BookTags.emptyJson,
         ),
       );
     }
@@ -1007,6 +1310,16 @@ class BookshelfController extends GetxController
     return previous.updateKey.isNotEmpty && previous.updateKey != updateKey;
   }
 
+  static String _remoteTagsJsonFor(
+    BookshelfNovelInfo item,
+    BookshelfEntityData? previous,
+  ) {
+    final tags = item.remoteTags.isNotEmpty || item.tags.isNotEmpty
+        ? item.tags
+        : BookTags.decode(previous?.remoteTagsJson);
+    return BookTags.encode(tags);
+  }
+
   static BookshelfNovelInfo _mergeYamiboFavoriteWithPrevious(
     BookshelfNovelInfo item,
     BookshelfEntityData previous,
@@ -1021,6 +1334,8 @@ class BookshelfController extends GetxController
       updateTime: previous.updateTime,
       hasUpdate: previous.hasUpdate,
       rating: previous.rating,
+      remoteTags: BookTags.decode(previous.remoteTagsJson),
+      localTags: BookTags.decode(previous.localTagsJson),
     );
   }
 
@@ -1079,6 +1394,8 @@ class BookshelfController extends GetxController
         updateTime: updateTime ?? item.updateTime,
         hasUpdate: item.hasUpdate,
         rating: item.rating,
+        remoteTags: item.remoteTags,
+        localTags: item.localTags,
       );
     } catch (_) {
       return item;
@@ -1123,6 +1440,7 @@ class BookshelfFolder {
   final bool smartFolder;
   final List<String> smartFolderAids;
   final int childCount;
+  final bool hasNew;
 
   BookshelfFolder({
     required this.id,
@@ -1135,6 +1453,7 @@ class BookshelfFolder {
     this.smartFolder = false,
     this.smartFolderAids = const [],
     this.childCount = 0,
+    this.hasNew = false,
   });
 }
 
@@ -1341,6 +1660,8 @@ class BookshelfContentController extends GetxController {
             author: _cachedAuthorOf(i.aid),
             sourceLabel: _sourceLabelOfAid(i.aid),
             rating: i.rating,
+            remoteTags: _cachedTagsOf(i.aid, i.remoteTagsJson),
+            localTags: BookTags.decode(i.localTagsJson),
           ),
         )
         .toList();
@@ -1403,6 +1724,17 @@ class BookshelfContentController extends GetxController {
       return author;
     } catch (_) {
       return '';
+    }
+  }
+
+  List<String> _cachedTagsOf(String aid, String remoteTagsJson) {
+    final tags = BookTags.decode(remoteTagsJson);
+    final detail = _detailCache[aid];
+    if (detail == null) return tags;
+    try {
+      return BookTags.merge(tags, NovelDetail.fromString(detail.json).tags);
+    } catch (_) {
+      return tags;
     }
   }
 

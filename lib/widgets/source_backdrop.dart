@@ -200,13 +200,16 @@ class _SourceBackdropMarks extends StatelessWidget {
               top: height * 0.14,
               width: small,
               height: small,
-              child: Transform.rotate(
-                angle: 0.08,
-                child: SourceMark(
-                  source: palette.source,
-                  size: small,
-                  color: palette.mark,
-                  opacity: palette.secondaryOpacity,
+              child: Transform.flip(
+                flipX: true,
+                child: Transform.rotate(
+                  angle: 0.08,
+                  child: SourceMark(
+                    source: palette.source,
+                    size: small,
+                    color: palette.mark,
+                    opacity: palette.secondaryOpacity,
+                  ),
                 ),
               ),
             ),

@@ -201,6 +201,7 @@ class EsjParser {
           title: title,
           img: _imageFrom(card) ?? EsjApi.logoUrl,
           updateKey: updateKey,
+          remoteTags: const ['ESJZone'],
         ),
       );
     }

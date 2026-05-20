@@ -97,4 +97,13 @@ class Migration {
       "ALTER TABLE bookshelf_entity ADD COLUMN rating REAL NOT NULL DEFAULT 0;",
     );
   }
+
+  static Future<void> fromSevenToEight(AppDatabase appDatabase) async {
+    await appDatabase.customStatement(
+      "ALTER TABLE bookshelf_entity ADD COLUMN remote_tags_json TEXT NOT NULL DEFAULT '[]';",
+    );
+    await appDatabase.customStatement(
+      "ALTER TABLE bookshelf_entity ADD COLUMN local_tags_json TEXT NOT NULL DEFAULT '[]';",
+    );
+  }
 }

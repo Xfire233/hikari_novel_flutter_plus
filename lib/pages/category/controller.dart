@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/resource.dart';
+import 'package:hikari_novel_flutter/service/local_storage_service.dart';
 
 import '../../base/base_select_list_page_controller.dart';
 import '../../models/novel_cover.dart';
@@ -7,9 +8,11 @@ import '../../network/api.dart';
 import '../../network/parser.dart';
 
 class CategoryController extends BaseSelectListPageController<NovelCover> {
-  RxString category = "please_select".tr.obs;
-  RxString sortText = "please_select".tr.obs;
-  String sortValue = "";
+  RxString category =
+      (LocalStorageService.instance.getWenku8LastCategory() ?? "school".tr).obs;
+  RxString sortText = "sort_by_update".tr.obs;
+  String sortValue =
+      LocalStorageService.instance.getWenku8LastCategorySort() ?? "0";
 
   @override
   void onInit() {
@@ -17,11 +20,11 @@ class CategoryController extends BaseSelectListPageController<NovelCover> {
 
     //监听参数变化
     everAll([category, sortText], (_) {
-      if (category.value != "please_select".tr &&
-          sortText.value != "please_select".tr) {
-        getPage(false);
-      }
+      LocalStorageService.instance.setWenku8LastCategory(category.value);
+      LocalStorageService.instance.setWenku8LastCategorySort(sortValue);
+      getPage(false);
     });
+    getPage(false);
   }
 
   @override

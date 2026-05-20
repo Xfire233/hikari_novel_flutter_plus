@@ -346,6 +346,7 @@ class ReaderController extends GetxController {
           final content = await compute(_parseYamiboContent, {
             'html': result.data as String,
             'authorId': authorId,
+            'postIndex': SourceId.yamiboPostIndex(cid),
           });
           images.value = content.images;
           chapterTitle.value =
@@ -956,6 +957,7 @@ Content _parseYamiboContent(Map<String, dynamic> args) {
   return YamiboParser.getThreadContent(
     args['html'] as String,
     authorId: args['authorId'] as String?,
+    postIndex: args['postIndex'] as int?,
   );
 }
 

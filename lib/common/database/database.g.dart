@@ -113,6 +113,30 @@ class $BookshelfEntityTable extends BookshelfEntity
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _remoteTagsJsonMeta = const VerificationMeta(
+    'remoteTagsJson',
+  );
+  @override
+  late final GeneratedColumn<String> remoteTagsJson = GeneratedColumn<String>(
+    'remote_tags_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _localTagsJsonMeta = const VerificationMeta(
+    'localTagsJson',
+  );
+  @override
+  late final GeneratedColumn<String> localTagsJson = GeneratedColumn<String>(
+    'local_tags_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     aid,
@@ -125,6 +149,8 @@ class $BookshelfEntityTable extends BookshelfEntity
     updateTime,
     hasUpdate,
     rating,
+    remoteTagsJson,
+    localTagsJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -210,6 +236,24 @@ class $BookshelfEntityTable extends BookshelfEntity
         rating.isAcceptableOrUnknown(data['rating']!, _ratingMeta),
       );
     }
+    if (data.containsKey('remote_tags_json')) {
+      context.handle(
+        _remoteTagsJsonMeta,
+        remoteTagsJson.isAcceptableOrUnknown(
+          data['remote_tags_json']!,
+          _remoteTagsJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('local_tags_json')) {
+      context.handle(
+        _localTagsJsonMeta,
+        localTagsJson.isAcceptableOrUnknown(
+          data['local_tags_json']!,
+          _localTagsJsonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -259,6 +303,18 @@ class $BookshelfEntityTable extends BookshelfEntity
         DriftSqlType.double,
         data['${effectivePrefix}rating'],
       )!,
+      remoteTagsJson:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}remote_tags_json'],
+          ) ??
+          '[]',
+      localTagsJson:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}local_tags_json'],
+          ) ??
+          '[]',
     );
   }
 
@@ -280,6 +336,8 @@ class BookshelfEntityData extends DataClass
   final DateTime? updateTime;
   final bool hasUpdate;
   final double rating;
+  final String remoteTagsJson;
+  final String localTagsJson;
   const BookshelfEntityData({
     required this.aid,
     required this.bid,
@@ -291,6 +349,8 @@ class BookshelfEntityData extends DataClass
     this.updateTime,
     required this.hasUpdate,
     required this.rating,
+    this.remoteTagsJson = '[]',
+    this.localTagsJson = '[]',
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -307,6 +367,8 @@ class BookshelfEntityData extends DataClass
     }
     map['has_update'] = Variable<bool>(hasUpdate);
     map['rating'] = Variable<double>(rating);
+    map['remote_tags_json'] = Variable<String>(remoteTagsJson);
+    map['local_tags_json'] = Variable<String>(localTagsJson);
     return map;
   }
 
@@ -324,6 +386,8 @@ class BookshelfEntityData extends DataClass
           : Value(updateTime),
       hasUpdate: Value(hasUpdate),
       rating: Value(rating),
+      remoteTagsJson: Value(remoteTagsJson),
+      localTagsJson: Value(localTagsJson),
     );
   }
 
@@ -343,6 +407,10 @@ class BookshelfEntityData extends DataClass
       updateTime: serializer.fromJson<DateTime?>(json['updateTime']),
       hasUpdate: serializer.fromJson<bool>(json['hasUpdate']),
       rating: serializer.fromJson<double>(json['rating']),
+      remoteTagsJson:
+          serializer.fromJson<String?>(json['remoteTagsJson']) ?? '[]',
+      localTagsJson:
+          serializer.fromJson<String?>(json['localTagsJson']) ?? '[]',
     );
   }
   @override
@@ -359,6 +427,8 @@ class BookshelfEntityData extends DataClass
       'updateTime': serializer.toJson<DateTime?>(updateTime),
       'hasUpdate': serializer.toJson<bool>(hasUpdate),
       'rating': serializer.toJson<double>(rating),
+      'remoteTagsJson': serializer.toJson<String>(remoteTagsJson),
+      'localTagsJson': serializer.toJson<String>(localTagsJson),
     };
   }
 
@@ -373,6 +443,8 @@ class BookshelfEntityData extends DataClass
     Value<DateTime?> updateTime = const Value.absent(),
     bool? hasUpdate,
     double? rating,
+    String? remoteTagsJson,
+    String? localTagsJson,
   }) => BookshelfEntityData(
     aid: aid ?? this.aid,
     bid: bid ?? this.bid,
@@ -384,6 +456,8 @@ class BookshelfEntityData extends DataClass
     updateTime: updateTime.present ? updateTime.value : this.updateTime,
     hasUpdate: hasUpdate ?? this.hasUpdate,
     rating: rating ?? this.rating,
+    remoteTagsJson: remoteTagsJson ?? this.remoteTagsJson,
+    localTagsJson: localTagsJson ?? this.localTagsJson,
   );
   BookshelfEntityData copyWithCompanion(BookshelfEntityCompanion data) {
     return BookshelfEntityData(
@@ -399,6 +473,12 @@ class BookshelfEntityData extends DataClass
           : this.updateTime,
       hasUpdate: data.hasUpdate.present ? data.hasUpdate.value : this.hasUpdate,
       rating: data.rating.present ? data.rating.value : this.rating,
+      remoteTagsJson: data.remoteTagsJson.present
+          ? data.remoteTagsJson.value
+          : this.remoteTagsJson,
+      localTagsJson: data.localTagsJson.present
+          ? data.localTagsJson.value
+          : this.localTagsJson,
     );
   }
 
@@ -414,7 +494,9 @@ class BookshelfEntityData extends DataClass
           ..write('updateKey: $updateKey, ')
           ..write('updateTime: $updateTime, ')
           ..write('hasUpdate: $hasUpdate, ')
-          ..write('rating: $rating')
+          ..write('rating: $rating, ')
+          ..write('remoteTagsJson: $remoteTagsJson, ')
+          ..write('localTagsJson: $localTagsJson')
           ..write(')'))
         .toString();
   }
@@ -431,6 +513,8 @@ class BookshelfEntityData extends DataClass
     updateTime,
     hasUpdate,
     rating,
+    remoteTagsJson,
+    localTagsJson,
   );
   @override
   bool operator ==(Object other) =>
@@ -445,7 +529,9 @@ class BookshelfEntityData extends DataClass
           other.updateKey == this.updateKey &&
           other.updateTime == this.updateTime &&
           other.hasUpdate == this.hasUpdate &&
-          other.rating == this.rating);
+          other.rating == this.rating &&
+          other.remoteTagsJson == this.remoteTagsJson &&
+          other.localTagsJson == this.localTagsJson);
 }
 
 class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
@@ -459,6 +545,8 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
   final Value<DateTime?> updateTime;
   final Value<bool> hasUpdate;
   final Value<double> rating;
+  final Value<String> remoteTagsJson;
+  final Value<String> localTagsJson;
   final Value<int> rowid;
   const BookshelfEntityCompanion({
     this.aid = const Value.absent(),
@@ -471,6 +559,8 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
     this.updateTime = const Value.absent(),
     this.hasUpdate = const Value.absent(),
     this.rating = const Value.absent(),
+    this.remoteTagsJson = const Value.absent(),
+    this.localTagsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   BookshelfEntityCompanion.insert({
@@ -484,6 +574,8 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
     this.updateTime = const Value.absent(),
     this.hasUpdate = const Value.absent(),
     this.rating = const Value.absent(),
+    this.remoteTagsJson = const Value.absent(),
+    this.localTagsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : aid = Value(aid),
        bid = Value(bid),
@@ -502,6 +594,8 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
     Expression<DateTime>? updateTime,
     Expression<bool>? hasUpdate,
     Expression<double>? rating,
+    Expression<String>? remoteTagsJson,
+    Expression<String>? localTagsJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -515,6 +609,8 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
       if (updateTime != null) 'update_time': updateTime,
       if (hasUpdate != null) 'has_update': hasUpdate,
       if (rating != null) 'rating': rating,
+      if (remoteTagsJson != null) 'remote_tags_json': remoteTagsJson,
+      if (localTagsJson != null) 'local_tags_json': localTagsJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -530,6 +626,8 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
     Value<DateTime?>? updateTime,
     Value<bool>? hasUpdate,
     Value<double>? rating,
+    Value<String>? remoteTagsJson,
+    Value<String>? localTagsJson,
     Value<int>? rowid,
   }) {
     return BookshelfEntityCompanion(
@@ -543,6 +641,8 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
       updateTime: updateTime ?? this.updateTime,
       hasUpdate: hasUpdate ?? this.hasUpdate,
       rating: rating ?? this.rating,
+      remoteTagsJson: remoteTagsJson ?? this.remoteTagsJson,
+      localTagsJson: localTagsJson ?? this.localTagsJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -580,6 +680,12 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
     if (rating.present) {
       map['rating'] = Variable<double>(rating.value);
     }
+    if (remoteTagsJson.present) {
+      map['remote_tags_json'] = Variable<String>(remoteTagsJson.value);
+    }
+    if (localTagsJson.present) {
+      map['local_tags_json'] = Variable<String>(localTagsJson.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -599,6 +705,8 @@ class BookshelfEntityCompanion extends UpdateCompanion<BookshelfEntityData> {
           ..write('updateTime: $updateTime, ')
           ..write('hasUpdate: $hasUpdate, ')
           ..write('rating: $rating, ')
+          ..write('remoteTagsJson: $remoteTagsJson, ')
+          ..write('localTagsJson: $localTagsJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1820,6 +1928,8 @@ typedef $$BookshelfEntityTableCreateCompanionBuilder =
       Value<DateTime?> updateTime,
       Value<bool> hasUpdate,
       Value<double> rating,
+      Value<String> remoteTagsJson,
+      Value<String> localTagsJson,
       Value<int> rowid,
     });
 typedef $$BookshelfEntityTableUpdateCompanionBuilder =
@@ -1834,6 +1944,8 @@ typedef $$BookshelfEntityTableUpdateCompanionBuilder =
       Value<DateTime?> updateTime,
       Value<bool> hasUpdate,
       Value<double> rating,
+      Value<String> remoteTagsJson,
+      Value<String> localTagsJson,
       Value<int> rowid,
     });
 
@@ -1893,6 +2005,16 @@ class $$BookshelfEntityTableFilterComposer
 
   ColumnFilters<double> get rating => $composableBuilder(
     column: $table.rating,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get remoteTagsJson => $composableBuilder(
+    column: $table.remoteTagsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get localTagsJson => $composableBuilder(
+    column: $table.localTagsJson,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1955,6 +2077,16 @@ class $$BookshelfEntityTableOrderingComposer
     column: $table.rating,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get remoteTagsJson => $composableBuilder(
+    column: $table.remoteTagsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get localTagsJson => $composableBuilder(
+    column: $table.localTagsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$BookshelfEntityTableAnnotationComposer
@@ -1997,6 +2129,16 @@ class $$BookshelfEntityTableAnnotationComposer
 
   GeneratedColumn<double> get rating =>
       $composableBuilder(column: $table.rating, builder: (column) => column);
+
+  GeneratedColumn<String> get remoteTagsJson => $composableBuilder(
+    column: $table.remoteTagsJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get localTagsJson => $composableBuilder(
+    column: $table.localTagsJson,
+    builder: (column) => column,
+  );
 }
 
 class $$BookshelfEntityTableTableManager
@@ -2046,6 +2188,8 @@ class $$BookshelfEntityTableTableManager
                 Value<DateTime?> updateTime = const Value.absent(),
                 Value<bool> hasUpdate = const Value.absent(),
                 Value<double> rating = const Value.absent(),
+                Value<String> remoteTagsJson = const Value.absent(),
+                Value<String> localTagsJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BookshelfEntityCompanion(
                 aid: aid,
@@ -2058,6 +2202,8 @@ class $$BookshelfEntityTableTableManager
                 updateTime: updateTime,
                 hasUpdate: hasUpdate,
                 rating: rating,
+                remoteTagsJson: remoteTagsJson,
+                localTagsJson: localTagsJson,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2072,6 +2218,8 @@ class $$BookshelfEntityTableTableManager
                 Value<DateTime?> updateTime = const Value.absent(),
                 Value<bool> hasUpdate = const Value.absent(),
                 Value<double> rating = const Value.absent(),
+                Value<String> remoteTagsJson = const Value.absent(),
+                Value<String> localTagsJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => BookshelfEntityCompanion.insert(
                 aid: aid,
@@ -2084,6 +2232,8 @@ class $$BookshelfEntityTableTableManager
                 updateTime: updateTime,
                 hasUpdate: hasUpdate,
                 rating: rating,
+                remoteTagsJson: remoteTagsJson,
+                localTagsJson: localTagsJson,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

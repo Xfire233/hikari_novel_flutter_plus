@@ -13,6 +13,7 @@ import '../../common/constants.dart';
 import '../../common/extension.dart';
 import '../../models/bookshelf.dart';
 import '../../models/page_state.dart';
+import '../../models/smart_shelf.dart';
 import '../../models/source_config.dart';
 import '../../network/request.dart';
 import '../../widgets/custom_tile.dart';
@@ -277,7 +278,7 @@ class BookshelfPage extends StatelessWidget {
             title: Row(
               children: [
                 Expanded(child: Text(folder.name)),
-                if (folder.hasUpdate)
+                if (folder.hasUpdate || folder.hasNew)
                   Container(
                     margin: const EdgeInsets.only(left: 8),
                     padding: const EdgeInsets.symmetric(
@@ -289,7 +290,7 @@ class BookshelfPage extends StatelessWidget {
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      "updated".tr,
+                      folder.hasNew ? "new_content".tr : "updated".tr,
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onPrimary,
                         fontSize: 11,
@@ -354,7 +355,12 @@ class BookshelfPage extends StatelessWidget {
 
   Widget _buildFolderGrid(BuildContext context, List<BookshelfFolder> folders) {
     return Padding(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.fromLTRB(
+        kPageHorizontalPadding,
+        10,
+        kPageHorizontalPadding,
+        10,
+      ),
       child: ResponsiveGridList(
         minItemWidth: 148,
         horizontalGridSpacing: 8,
@@ -631,6 +637,15 @@ class BookshelfPage extends StatelessWidget {
                   _showCreateTagSmartFolderDialog();
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.rss_feed_outlined),
+                title: Text("create_advanced_smart_bookshelf".tr),
+                subtitle: Text("advanced_smart_bookshelf_desc".tr),
+                onTap: () {
+                  Get.back();
+                  _showCreateAdvancedSmartFolderDialog();
+                },
+              ),
             ],
           ),
         ),
@@ -689,6 +704,131 @@ class BookshelfPage extends StatelessWidget {
     );
     if (tag == null) return;
     await controller.createTagSmartFolder(tag);
+  }
+
+  Future<void> _showCreateAdvancedSmartFolderDialog() async {
+    final nameController = TextEditingController();
+    final tagsController = TextEditingController();
+    final authorController = TextEditingController();
+    final titleController = TextEditingController();
+    var matchAll = true;
+    var subscription = false;
+    final sources = <NovelSource>{...NovelSource.values};
+    await Get.dialog<void>(
+      StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text("create_advanced_smart_bookshelf".tr),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(labelText: "bookshelf_name".tr),
+                ),
+                TextField(
+                  controller: tagsController,
+                  decoration: InputDecoration(labelText: "tag_name".tr),
+                ),
+                TextField(
+                  controller: authorController,
+                  decoration: InputDecoration(labelText: "author".tr),
+                ),
+                TextField(
+                  controller: titleController,
+                  decoration: InputDecoration(labelText: "title".tr),
+                ),
+                SwitchListTile(
+                  value: matchAll,
+                  onChanged: (value) => setState(() => matchAll = value),
+                  title: Text("smart_match_all".tr),
+                  dense: true,
+                ),
+                SwitchListTile(
+                  value: subscription,
+                  onChanged: (value) => setState(() => subscription = value),
+                  title: Text("smart_subscription_mode".tr),
+                  dense: true,
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 8,
+                    children: NovelSource.values
+                        .map(
+                          (source) => FilterChip(
+                            label: Text(source.titleKey.tr),
+                            selected: sources.contains(source),
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  sources.add(source);
+                                } else {
+                                  sources.remove(source);
+                                }
+                              });
+                            },
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: Get.back, child: Text("cancel".tr)),
+            TextButton(
+              onPressed: () async {
+                final tags = tagsController.text
+                    .split(RegExp(r'[,，\s]+'))
+                    .where((item) => item.trim().isNotEmpty)
+                    .toList();
+                final conditions = <SmartShelfCondition>[
+                  for (final tag in tags)
+                    SmartShelfCondition(
+                      type: SmartShelfConditionType.tag,
+                      value: tag,
+                    ),
+                  if (authorController.text.trim().isNotEmpty)
+                    SmartShelfCondition(
+                      type: SmartShelfConditionType.author,
+                      value: authorController.text.trim(),
+                    ),
+                  if (titleController.text.trim().isNotEmpty)
+                    SmartShelfCondition(
+                      type: SmartShelfConditionType.title,
+                      value: titleController.text.trim(),
+                    ),
+                ];
+                final config = SmartShelfConfig(
+                  kind: subscription
+                      ? SmartShelfKind.subscription
+                      : SmartShelfKind.local,
+                  mode: SmartShelfMatchMode.all,
+                  groups: [
+                    SmartShelfConditionGroup(
+                      mode: matchAll
+                          ? SmartShelfMatchMode.all
+                          : SmartShelfMatchMode.any,
+                      conditions: conditions,
+                    ),
+                  ],
+                  sources: sources.toList(),
+                  subscriptionTags: tags,
+                );
+                final name = nameController.text.trim().isEmpty
+                    ? "smart_bookshelf".tr
+                    : nameController.text.trim();
+                await controller.createSmartShelf(name: name, config: config);
+                Get.back();
+              },
+              child: Text("confirm".tr),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showCreateFolderFromSelectionDialog() async {
@@ -932,7 +1072,7 @@ class BookshelfPage extends StatelessWidget {
     final children = "child_bookshelf_count".trParams({
       "count": "${folder.childCount}",
     });
-    return "$books 路 $children";
+    return "$books · $children";
   }
 }
 
@@ -987,7 +1127,7 @@ class _FolderGridCard extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     _FolderCoverView(folder: folder, fallback: leading),
-                    if (folder.hasUpdate)
+                    if (folder.hasUpdate || folder.hasNew)
                       Positioned(
                         top: 8,
                         left: 8,
@@ -1002,7 +1142,7 @@ class _FolderGridCard extends StatelessWidget {
                               vertical: 3,
                             ),
                             child: Text(
-                              "updated".tr,
+                              folder.hasNew ? "new_content".tr : "updated".tr,
                               style: TextStyle(
                                 color: theme.colorScheme.onPrimary,
                                 fontSize: 10,

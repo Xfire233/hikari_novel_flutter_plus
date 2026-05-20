@@ -71,12 +71,16 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
   }
 
   List<String> _visibleTags(List<String> tags) {
-    if (controller.isYamibo) return const [];
     return tags
         .map((tag) => tag.trim())
         .where((tag) => tag.isNotEmpty)
         .toSet()
         .toList();
+  }
+
+  List<String> _allVisibleTags() {
+    final detailTags = controller.novelDetail.value?.tags ?? const <String>[];
+    return _visibleTags([...detailTags, ...controller.localTags]);
   }
 
   VoidCallback? _authorSearchAction(String author) {
@@ -205,14 +209,14 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 10)),
-          if (_visibleTags(controller.novelDetail.value!.tags).isNotEmpty)
+          if (_allVisibleTags().isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _visibleTags(controller.novelDetail.value!.tags)
+                  children: _allVisibleTags()
                       .map(
                         (e) => ActionChip(
                           label: Text(e),
@@ -226,11 +230,10 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
                 ),
               ),
             ),
+          SliverToBoxAdapter(child: _buildLocalTagEditor(context)),
           SliverToBoxAdapter(
             child: SizedBox(
-              height: _visibleTags(controller.novelDetail.value!.tags).isEmpty
-                  ? 10
-                  : 20,
+              height: _allVisibleTags().isEmpty ? 10 : 20,
             ),
           ),
           SliverToBoxAdapter(
@@ -335,6 +338,65 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildLocalTagEditor(BuildContext context) {
+    return Obx(() {
+      final tags = controller.localTags.toList();
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            for (final tag in tags)
+              InputChip(
+                label: Text(tag),
+                onDeleted: () {
+                  final next = tags.where((item) => item != tag).toList();
+                  controller.setLocalTags(next);
+                },
+              ),
+            ActionChip(
+              avatar: const Icon(Icons.add),
+              label: Text('local_tag_add'.tr),
+              onPressed: () => _showAddLocalTagDialog(context, tags),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  void _showAddLocalTagDialog(BuildContext context, List<String> tags) {
+    final textController = TextEditingController();
+    Get.dialog(
+      AlertDialog(
+        title: Text('local_tag_add'.tr),
+        content: TextField(
+          controller: textController,
+          autofocus: true,
+          decoration: InputDecoration(hintText: 'local_tag_hint'.tr),
+          onSubmitted: (_) {
+            final value = textController.text.trim();
+            if (value.isNotEmpty) controller.setLocalTags([...tags, value]);
+            Get.back();
+          },
+        ),
+        actions: [
+          TextButton(onPressed: Get.back, child: Text('cancel'.tr)),
+          TextButton(
+            onPressed: () {
+              final value = textController.text.trim();
+              if (value.isNotEmpty) controller.setLocalTags([...tags, value]);
+              Get.back();
+            },
+            child: Text('confirm'.tr),
+          ),
+        ],
+      ),
     );
   }
 
@@ -679,10 +741,10 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
 
                         var cacheString =
                             controller.cachedChapter.contains(chapter.cid)
-                            ? " 鈥?${"cached".tr}"
+                            ? " · ${"cached".tr}"
                             : "";
                         var lastReadString = readHistory?.isLatest == true
-                            ? "${"last_read".tr} 鈥?"
+                            ? "${"last_read".tr} · "
                             : "";
 
                         return ListTile(

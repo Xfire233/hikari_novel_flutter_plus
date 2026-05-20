@@ -59,6 +59,12 @@ class DBService extends GetxService {
   Future<void> setBookshelfRating(String aid, double rating) =>
       _db.setBookshelfRating(aid, rating);
 
+  Future<void> setBookshelfRemoteTags(String aid, String tagsJson) =>
+      _db.setBookshelfRemoteTags(aid, tagsJson);
+
+  Future<void> setBookshelfLocalTags(String aid, String tagsJson) =>
+      _db.setBookshelfLocalTags(aid, tagsJson);
+
   Stream<List<BookshelfEntityData>> getBookshelfByClassId(String classId) =>
       _db.getBookshelfByClassId(classId);
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/common/constants.dart';
 import 'package:hikari_novel_flutter/common/extension.dart';
+import 'package:hikari_novel_flutter/models/book_tags.dart';
 import 'package:hikari_novel_flutter/models/chapter_cache_task.dart';
 import 'package:hikari_novel_flutter/models/common/wenku8_node.dart';
 import 'package:hikari_novel_flutter/models/novel_detail.dart';
@@ -23,6 +24,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../common/database/database.dart';
 import '../../models/cat_chapter.dart';
+import '../../models/cat_volume.dart';
 import '../../models/dual_page_mode.dart';
 import '../../models/page_state.dart';
 import '../../models/resource.dart';
@@ -54,6 +56,7 @@ class NovelDetailController extends GetxController
 
   RxBool isInBookshelf = false.obs;
   RxDouble localRating = 0.0.obs;
+  RxList<String> localTags = RxList();
 
   RxBool isChapterOrderReversed = false.obs;
 
@@ -320,6 +323,28 @@ class NovelDetailController extends GetxController
             Success() => YamiboParser.getThreadDetail(authorPage.data),
             Error() => firstPageData,
           };
+          final ownerChapters = <CatChapter>[];
+          if (data.authorId.isNotEmpty) {
+            final maxPage = data.maxPage.clamp(1, 80);
+            for (var page = 1; page <= maxPage; page++) {
+              final pageResult = page == 1 && authorPage is Success
+                  ? authorPage
+                  : await YamiboApi.getThreadPage(
+                      tid: yamiboTid,
+                      page: page,
+                      authorId: data.authorId,
+                    );
+              if (pageResult is! Success) break;
+              ownerChapters.addAll(
+                YamiboParser.getOwnerPostChapters(pageResult.data),
+              );
+            }
+          }
+          if (ownerChapters.isNotEmpty) {
+            data.detail.catalogue
+              ..clear()
+              ..add(CatVolume(title: '楼主楼层', chapters: ownerChapters));
+          }
           yamiboAuthorId = data.authorId;
           novelDetail.value = data.detail;
           await DBService.instance.upsertBrowsingHistory(
@@ -424,6 +449,14 @@ class NovelDetailController extends GetxController
     }
     isInBookshelf.value = item != null;
     localRating.value = item?.rating ?? 0;
+    localTags.assignAll(BookTags.decode(item?.localTagsJson));
+    final detail = novelDetail.value;
+    if (item != null && detail != null) {
+      await DBService.instance.setBookshelfRemoteTags(
+        aid,
+        BookTags.encode(detail.tags),
+      );
+    }
   }
 
   Future<void> setLocalRating(double rating) async {
@@ -437,6 +470,23 @@ class NovelDetailController extends GetxController
     final value = ((rating.clamp(0, 5) * 2).round() / 2).toDouble();
     localRating.value = value;
     await DBService.instance.setBookshelfRating(aid, value);
+    bookshelfController.loadFolders();
+  }
+
+  Future<void> setLocalTags(Iterable<String> tags) async {
+    if (!isInBookshelf.value) {
+      showSnackBar(
+        message: 'local_tags_requires_bookshelf'.tr,
+        context: Get.context!,
+      );
+      return;
+    }
+    final normalized = BookTags.normalize(tags);
+    localTags.assignAll(normalized);
+    await DBService.instance.setBookshelfLocalTags(
+      aid,
+      BookTags.encode(normalized),
+    );
     bookshelfController.loadFolders();
   }
 
@@ -476,6 +526,8 @@ class NovelDetailController extends GetxController
             updateTime: null,
             hasUpdate: false,
             rating: localRating.value,
+            remoteTagsJson: BookTags.encode(detail.tags),
+            localTagsJson: BookTags.emptyJson,
           ),
         );
         SourceConfigService.instance.restoreLocalFavorite(NovelSource.esj, aid);
@@ -500,6 +552,8 @@ class NovelDetailController extends GetxController
             updateTime: null,
             hasUpdate: false,
             rating: localRating.value,
+            remoteTagsJson: BookTags.encode(detail.tags),
+            localTagsJson: BookTags.emptyJson,
           ),
         );
         SourceConfigService.instance.restoreLocalFavorite(
@@ -530,6 +584,8 @@ class NovelDetailController extends GetxController
             updateTime: null,
             hasUpdate: false,
             rating: localRating.value,
+            remoteTagsJson: BookTags.encode(detail.tags),
+            localTagsJson: BookTags.emptyJson,
           ),
         );
         SourceConfigService.instance.restoreLocalFavorite(

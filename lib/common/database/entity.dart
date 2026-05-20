@@ -31,6 +31,10 @@ class BookshelfEntity extends Table {
 
   RealColumn get rating => real().withDefault(const Constant(0))();
 
+  TextColumn get remoteTagsJson => text().withDefault(const Constant('[]'))();
+
+  TextColumn get localTagsJson => text().withDefault(const Constant('[]'))();
+
   @override
   Set<Column> get primaryKey => {aid};
 }

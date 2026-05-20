@@ -125,6 +125,13 @@ class YamiboSearchPageData {
 class YamiboParser {
   static bool isUserThreadPermissionPage(String html) {
     final text = _htmlToText(html);
+    if ((text.contains('提示信息') || text.contains('提示訊息')) &&
+        (text.contains('登录') ||
+            text.contains('登入') ||
+            text.contains('您需要先登录') ||
+            text.contains('您需要先登入'))) {
+      return true;
+    }
     return text.contains('提示信息') &&
         (text.contains('登录') ||
             text.contains('登入') ||
@@ -134,6 +141,14 @@ class YamiboParser {
 
   static bool isSearchTooQuicklyPage(String html) {
     final text = _htmlToText(html);
+    if (text.contains('10 秒') ||
+        text.contains('10秒') ||
+        text.contains('搜索间隔') ||
+        text.contains('搜尋間隔') ||
+        text.contains('两次搜索') ||
+        text.contains('兩次搜尋')) {
+      return true;
+    }
     return text.contains('10 秒') ||
         text.contains('10秒') ||
         text.contains('搜索间隔') ||
@@ -259,7 +274,41 @@ class YamiboParser {
     return ((replies + 1) / perPage).ceil().clamp(1, 99999).toInt();
   }
 
-  static Content getThreadContent(String jsonText, {String? authorId}) {
+  static List<CatChapter> getOwnerPostChapters(String jsonText) {
+    final variables = _variables(jsonText);
+    final thread = variables['thread'] as Map<String, dynamic>? ?? {};
+    final tid = '${thread['tid'] ?? ''}';
+    final ownerId = '${thread['authorid'] ?? ''}';
+    final page = int.tryParse('${variables['page'] ?? 1}') ?? 1;
+    final chapters = <CatChapter>[];
+    var ownerIndex = 0;
+    for (final post in _postList(
+      variables,
+    ).cast<Map<String, dynamic>?>().whereType<Map<String, dynamic>>()) {
+      if (ownerId.isNotEmpty && '${post['authorid'] ?? ''}' != ownerId) {
+        continue;
+      }
+      final message = '${post['message'] ?? ''}';
+      if (_htmlToText(message).isEmpty && _extractImages(message).isEmpty) {
+        continue;
+      }
+      ownerIndex += 1;
+      final number = int.tryParse('${post['number'] ?? post['position'] ?? ''}');
+      chapters.add(
+        CatChapter(
+          title: number == null ? '第 $page 页 · 楼主 $ownerIndex' : '第 $number 楼',
+          cid: SourceId.yamiboCid(tid, page, ownerIndex),
+        ),
+      );
+    }
+    return chapters;
+  }
+
+  static Content getThreadContent(
+    String jsonText, {
+    String? authorId,
+    int? postIndex,
+  }) {
     final variables = _variables(jsonText);
     final thread = variables['thread'] as Map<String, dynamic>? ?? {};
     final ownerId = authorId?.isNotEmpty == true
@@ -274,11 +323,18 @@ class YamiboParser {
 
     final texts = <String>[];
     final images = <String>[];
+    var ownerIndex = 0;
     for (final post in authorPosts) {
       final message = '${post['message'] ?? ''}';
+      ownerIndex += 1;
+      if (postIndex != null && ownerIndex != postIndex) continue;
       final text = _htmlToText(message);
       if (text.isNotEmpty) texts.add(text);
       images.addAll(_extractImages(message));
+    }
+
+    if (postIndex != null && texts.isEmpty && images.isEmpty) {
+      return getThreadContent(jsonText, authorId: authorId);
     }
 
     return Content(text: texts.join('\n\n'), images: images);
@@ -313,6 +369,7 @@ class YamiboParser {
             updateTime:
                 _parseUnixSeconds(item['lastpost']) ??
                 _parseUnixSeconds(item['dateline']),
+            remoteTags: const ['Yamibo'],
           );
         })
         .where((item) => SourceId.yamiboTid(item.aid).isNotEmpty)

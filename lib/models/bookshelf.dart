@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:hikari_novel_flutter/models/book_tags.dart';
 
 class Bookshelf {
   final List<BookshelfNovelInfo> list;
@@ -20,6 +21,8 @@ class BookshelfNovelInfo {
   final String author;
   final String sourceLabel;
   final double rating;
+  final List<String> remoteTags;
+  final List<String> localTags;
 
   final RxBool isSelected;
 
@@ -36,8 +39,12 @@ class BookshelfNovelInfo {
     this.author = '',
     this.sourceLabel = '',
     this.rating = 0,
+    this.remoteTags = const [],
+    this.localTags = const [],
     bool initSelected = false,
   }) : isSelected = initSelected.obs;
+
+  List<String> get tags => BookTags.merge(remoteTags, localTags);
 }
 
 enum BookshelfSortType { update, title, added, recentRead }
