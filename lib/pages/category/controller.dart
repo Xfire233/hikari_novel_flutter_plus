@@ -34,6 +34,12 @@ class CategoryController extends BaseSelectListPageController<NovelCover> {
     index: index,
   );
 
+  String currentRequestUrl() => Api.getNovelByCategoryUrl(
+    category: category.value,
+    sort: sortValue,
+    index: pageIndex,
+  );
+
   @override
   List<NovelCover> getParser(String html) => Parser.parseToList(html);
 }

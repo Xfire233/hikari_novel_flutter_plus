@@ -39,8 +39,8 @@ class AboutPage extends StatelessWidget {
             ),
           ),
           NormalTile(
-            title: "modified_edition".tr,
-            subtitle: "modified_edition_desc".tr,
+            title: "plus_edition".tr,
+            subtitle: "plus_edition_desc".tr,
             leading: const Icon(Icons.info_outline),
           ),
           NormalTile(
@@ -83,14 +83,10 @@ class AboutPage extends StatelessWidget {
             leading: const Icon(Icons.code),
             trailing: const Icon(Icons.open_in_new),
             onTap: () => launchUrl(
-              Uri.parse("https://github.com/15dd/hikari_novel_flutter"),
+              Uri.parse(
+                "https://github.com/Xfire233/hikari_novel_flutter_plus",
+              ),
             ),
-          ),
-          NormalTile(
-            title: "Telegram",
-            leading: const Icon(Icons.group),
-            trailing: const Icon(Icons.open_in_new),
-            onTap: () => launchUrl(Uri.parse("https://t.me/+CUSABNkX5U83NGNl")),
           ),
           Obx(
             () => Get.find<DevModeService>().enabled.value

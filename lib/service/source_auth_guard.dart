@@ -39,28 +39,62 @@ class SourceAuthGuard {
     final plain = text.replaceAll(RegExp(r'\s+'), ' ');
     switch (source) {
       case NovelSource.wenku8:
-        return plain.contains('login.php') ||
-            plain.contains('用户登录') ||
-            plain.contains('会员登录') ||
-            plain.contains('请先登录') ||
-            plain.contains('鐢ㄦ埛鐧诲綍') ||
-            plain.contains('鏈冨摗鐧婚寗') ||
-            plain.contains('璇峰厛鐧诲綍');
+        return _looksWenku8LoggedOut(text, plain);
       case NovelSource.esj:
-        return (plain.contains('登入') && plain.contains('會員')) ||
-            (plain.contains('登录') && plain.contains('会员')) ||
-            plain.contains('請先登入') ||
-            plain.contains('请先登录') ||
-            (plain.contains('鐧诲叆') && plain.contains('鏈冨摗'));
+        return _looksEsjLoggedOut(text, plain);
       case NovelSource.yamibo:
-        return plain.contains('viewperm_login_nopermission') ||
-            plain.contains('您需要先登录') ||
-            plain.contains('您需要先登入') ||
-            plain.contains('请先登录') ||
-            plain.contains('請先登入') ||
-            plain.contains('登录后才可以浏览') ||
-            plain.contains('鎮ㄩ渶瑕佸厛鐧诲綍') ||
-            plain.contains('鎮ㄩ渶瑕佸厛鐧诲叆');
+        return _looksYamiboLoggedOut(text, plain);
     }
+  }
+
+  static bool _looksEsjLoggedOut(String html, String plain) {
+    final lower = html.toLowerCase();
+    final hasLoginForm =
+        lower.contains('action="/login"') ||
+        lower.contains("action='/login'") ||
+        (lower.contains('/login') &&
+            lower.contains('name="email"') &&
+            lower.contains('name="password"'));
+    if (hasLoginForm) return true;
+
+    return plain.contains('請先登入') ||
+        plain.contains('请先登录') ||
+        plain.contains('請先登入會員') ||
+        plain.contains('请先登录会员');
+  }
+
+  static bool _looksYamiboLoggedOut(String html, String plain) {
+    final lower = html.toLowerCase();
+    if (lower.contains('viewperm_login_nopermission')) return true;
+    if (lower.contains('login_nopermission')) return true;
+
+    return plain.contains('您需要先登录') ||
+        plain.contains('您需要先登入') ||
+        plain.contains('请先登录') ||
+        plain.contains('請先登入') ||
+        plain.contains('登录后才可以浏览') ||
+        plain.contains('登入後才可以瀏覽');
+  }
+
+  static bool _looksWenku8LoggedOut(String html, String plain) {
+    final lower = html.toLowerCase();
+    final hasLoginForm =
+        RegExp(
+          r'''<form[^>]+action=["']?[^"'>]*login[.]php''',
+          caseSensitive: false,
+        ).hasMatch(html) ||
+        (lower.contains('login.php') &&
+            lower.contains('name="username"') &&
+            lower.contains('name="password"'));
+    if (hasLoginForm) return true;
+
+    return plain.contains('请先登录') ||
+        plain.contains('請先登入') ||
+        plain.contains('您还没有登录') ||
+        plain.contains('您還沒有登入') ||
+        plain.contains('本功能要求会员登录') ||
+        plain.contains('本功能要求會員登入') ||
+        plain.contains('登录后才能使用') ||
+        plain.contains('登入後才能使用');
   }
 }

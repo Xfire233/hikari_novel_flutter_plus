@@ -8,9 +8,11 @@ import 'package:hikari_novel_flutter/network/esj_parser.dart';
 import 'package:hikari_novel_flutter/network/yamibo_api.dart';
 import 'package:hikari_novel_flutter/network/yamibo_parser.dart';
 import 'package:hikari_novel_flutter/pages/bookshelf/controller.dart';
+import 'package:hikari_novel_flutter/pages/home/controller.dart';
 import 'package:hikari_novel_flutter/pages/yamibo_forum/view.dart';
 import 'package:hikari_novel_flutter/router/app_sub_router.dart';
 import 'package:hikari_novel_flutter/router/route_path.dart';
+import 'package:hikari_novel_flutter/service/source_auth_guard.dart';
 import 'package:hikari_novel_flutter/service/source_config_service.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
 
@@ -57,15 +59,23 @@ class MyController extends GetxController {
     if (EsjApi.hasCookie) {
       final result = await EsjApi.getViewHistory();
       if (result case Success(:final data)) {
-        final name = EsjParser.accountName(data);
-        if (name.isNotEmpty) updates[NovelSource.esj] = name;
+        if (!SourceAuthGuard.checkHtml(NovelSource.esj, data)) {
+          accountNames.remove(NovelSource.esj);
+        } else {
+          final name = EsjParser.accountName(data);
+          if (name.isNotEmpty) updates[NovelSource.esj] = name;
+        }
       }
     }
     if (YamiboApi.hasCookie) {
       final result = await YamiboApi.getForumPage();
       if (result case Success(:final data)) {
-        final name = YamiboParser.accountNameFromMobileJson(data);
-        if (name.isNotEmpty) updates[NovelSource.yamibo] = name;
+        if (!SourceAuthGuard.checkHtml(NovelSource.yamibo, data)) {
+          accountNames.remove(NovelSource.yamibo);
+        } else {
+          final name = YamiboParser.accountNameFromMobileJson(data);
+          if (name.isNotEmpty) updates[NovelSource.yamibo] = name;
+        }
       }
     }
     if (updates.isNotEmpty) accountNames.addAll(updates);
@@ -97,17 +107,18 @@ class MyController extends GetxController {
   }
 
   Future<void> _openYamiboLogin(BuildContext context) async {
-    final loggedIn = await Navigator.of(
-      context,
-      rootNavigator: true,
-    ).push<bool>(MaterialPageRoute(builder: (_) => const YamiboWebLoginPage()));
+    final result = await Navigator.of(context, rootNavigator: true)
+        .push<YamiboWebLoginResult>(
+          MaterialPageRoute(builder: (_) => const YamiboWebLoginPage()),
+        );
     if (!context.mounted) return;
-    if (loggedIn != true && !YamiboApi.hasCookie) return;
+    if (result?.loggedIn != true) return;
 
-    SourceConfigService.instance.setSourceEnabled(NovelSource.yamibo, true);
-    if (SourceConfigService.instance.shouldPullOnlineToLocal(
-      NovelSource.yamibo,
-    )) {
+    SourceConfigService.instance.enableSourceAfterLogin(NovelSource.yamibo);
+    if (result?.syncFavorites == true &&
+        SourceConfigService.instance.shouldPullOnlineToLocal(
+          NovelSource.yamibo,
+        )) {
       final synced = await BookshelfController.syncYamiboFavoritesToBookshelf();
       if (Get.isRegistered<BookshelfController>()) {
         await Get.find<BookshelfController>().loadFolders();
@@ -119,6 +130,9 @@ class MyController extends GetxController {
       );
     } else {
       showSnackBar(message: 'yamibo_login_synced'.tr, context: context);
+    }
+    if (Get.isRegistered<HomeController>()) {
+      Get.find<HomeController>().reloadYamiboForum();
     }
   }
 }

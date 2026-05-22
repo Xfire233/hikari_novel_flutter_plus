@@ -16,6 +16,9 @@ import '../../models/page_state.dart';
 import '../../models/smart_shelf.dart';
 import '../../models/source_config.dart';
 import '../../network/request.dart';
+import '../../network/yamibo_api.dart';
+import '../../router/route_path.dart';
+import '../../service/source_config_service.dart';
 import '../../widgets/custom_tile.dart';
 import '../../widgets/source_backdrop.dart';
 import '../../widgets/state_page.dart';
@@ -157,7 +160,7 @@ class BookshelfPage extends StatelessWidget {
             icon: const Icon(Icons.search),
             tooltip: "search".tr,
           ),
-          IconButton(
+          _buildAppBarAction(
             onPressed: _syncBookshelf,
             icon: const Icon(Icons.sync),
             tooltip: "sync_bookshelf".tr,
@@ -180,6 +183,13 @@ class BookshelfPage extends StatelessWidget {
                           : "list_view".tr,
                     ),
                   ),
+                ),
+              ),
+              PopupMenuItem(
+                value: _FolderAction.sync,
+                child: ListTile(
+                  leading: const Icon(Icons.sync_outlined),
+                  title: Text("sync_bookshelf".tr),
                 ),
               ),
               PopupMenuItem(
@@ -254,7 +264,7 @@ class BookshelfPage extends StatelessWidget {
                 : "list_view".tr,
           ),
         ),
-        IconButton(
+        _buildAppBarAction(
           onPressed: _syncBookshelf,
           icon: const Icon(Icons.sync),
           tooltip: "sync_bookshelf".tr,
@@ -269,6 +279,24 @@ class BookshelfPage extends StatelessWidget {
     );
   }
 
+  Widget _buildAppBarAction({
+    required VoidCallback onPressed,
+    required Widget icon,
+    required String tooltip,
+  }) {
+    return SizedBox.square(
+      dimension: kToolbarHeight,
+      child: Center(
+        child: IconButton(
+          onPressed: onPressed,
+          icon: icon,
+          tooltip: tooltip,
+          alignment: Alignment.center,
+        ),
+      ),
+    );
+  }
+
   Widget _buildFolderList(BuildContext context) {
     return Obx(() {
       final folders = controller.rootFolders;
@@ -277,98 +305,172 @@ class BookshelfPage extends StatelessWidget {
         return _buildFolderGrid(context, folders);
       }
       return ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.fromLTRB(
+          kPageHorizontalPadding,
+          8,
+          kPageHorizontalPadding,
+          24,
+        ),
         itemCount: folders.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           final folder = folders[index];
-          return ListTile(
-            leading: _folderLeading(folder),
-            title: Row(
-              children: [
-                Expanded(child: Text(folder.name)),
-                if (folder.hasUpdate || folder.hasNew)
-                  Container(
-                    margin: const EdgeInsets.only(left: 8),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      folder.hasNew ? "new_content".tr : "updated".tr,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onPrimary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            subtitle: Text(_folderSubtitle(folder)),
-            trailing: PopupMenuButton<_FolderAction>(
-              onSelected: (value) => _handleFolderAction(value, folder),
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: _FolderAction.cover,
-                  child: ListTile(
-                    leading: const Icon(Icons.image_outlined),
-                    title: Text("bookshelf_cover".tr),
-                  ),
-                ),
-                PopupMenuItem(
-                  value: _FolderAction.sort,
-                  child: ListTile(
-                    leading: const Icon(Icons.sort_outlined),
-                    title: Text(
-                      _sortTypeText(controller.sortTypeForClassId(folder.id)),
-                    ),
-                  ),
-                ),
-                if (!folder.builtIn)
-                  if (folder.smartFolder)
-                    PopupMenuItem(
-                      value: _FolderAction.editSmart,
-                      child: ListTile(
-                        leading: const Icon(Icons.tune_outlined),
-                        title: Text("编辑筛选条件"),
-                      ),
-                    ),
-                if (!folder.builtIn)
-                  PopupMenuItem(
-                    value: _FolderAction.rename,
-                    child: ListTile(
-                      leading: const Icon(Icons.drive_file_rename_outline),
-                      title: Text("rename_bookshelf".tr),
-                    ),
-                  ),
-                if (!folder.builtIn && !folder.smartFolder)
-                  PopupMenuItem(
-                    value: _FolderAction.createChild,
-                    child: ListTile(
-                      leading: const Icon(Icons.create_new_folder_outlined),
-                      title: Text("new_child_bookshelf".tr),
-                    ),
-                  ),
-                if (!folder.builtIn)
-                  PopupMenuItem(
-                    value: _FolderAction.delete,
-                    child: ListTile(
-                      leading: const Icon(Icons.delete_outline),
-                      title: Text("delete_bookshelf".tr),
-                    ),
-                  ),
-              ],
-            ),
-            onTap: () => controller.openFolder(folder),
-          );
+          return _buildFolderListCard(context, folder);
         },
       );
     });
+  }
+
+  Widget _buildFolderListCard(BuildContext context, BookshelfFolder folder) {
+    final theme = Theme.of(context);
+    return Obx(() {
+      final progress = controller.syncProgressFor(folder.id);
+      return _SyncProgressOverlay(
+        progress: progress,
+        listMode: true,
+        child: Card.outlined(
+          margin: EdgeInsets.zero,
+          elevation: 1,
+          color: theme.colorScheme.surface.withValues(alpha: 0.84),
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(kCardBorderRadius),
+          ),
+          child: InkWell(
+            onTap: progress == null
+                ? () => controller.openFolder(folder)
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 40,
+                    child: Center(child: _folderLeading(folder)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                folder.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            if (folder.hasUpdate || folder.hasNew)
+                              _folderStatusBadge(context, folder),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          _folderSubtitle(folder),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _folderActionMenu(folder),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _folderStatusBadge(BuildContext context, BookshelfFolder folder) {
+    return Container(
+      margin: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        folder.hasNew ? "new_content".tr : "updated".tr,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  PopupMenuButton<_FolderAction> _folderActionMenu(BookshelfFolder folder) {
+    return PopupMenuButton<_FolderAction>(
+      onSelected: (value) => _handleFolderAction(value, folder),
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: _FolderAction.sync,
+          child: ListTile(
+            leading: const Icon(Icons.sync_outlined),
+            title: Text("sync_bookshelf".tr),
+          ),
+        ),
+        PopupMenuItem(
+          value: _FolderAction.cover,
+          child: ListTile(
+            leading: const Icon(Icons.image_outlined),
+            title: Text("bookshelf_cover".tr),
+          ),
+        ),
+        PopupMenuItem(
+          value: _FolderAction.sort,
+          child: ListTile(
+            leading: const Icon(Icons.sort_outlined),
+            title: Text(
+              _sortTypeText(controller.sortTypeForClassId(folder.id)),
+            ),
+          ),
+        ),
+        if (!folder.builtIn && folder.smartFolder)
+          PopupMenuItem(
+            value: _FolderAction.editSmart,
+            child: ListTile(
+              leading: const Icon(Icons.tune_outlined),
+              title: Text("编辑筛选条件"),
+            ),
+          ),
+        if (!folder.builtIn)
+          PopupMenuItem(
+            value: _FolderAction.rename,
+            child: ListTile(
+              leading: const Icon(Icons.drive_file_rename_outline),
+              title: Text("rename_bookshelf".tr),
+            ),
+          ),
+        if (!folder.builtIn && !folder.smartFolder)
+          PopupMenuItem(
+            value: _FolderAction.createChild,
+            child: ListTile(
+              leading: const Icon(Icons.create_new_folder_outlined),
+              title: Text("new_child_bookshelf".tr),
+            ),
+          ),
+        if (!folder.builtIn)
+          PopupMenuItem(
+            value: _FolderAction.delete,
+            child: ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: Text("delete_bookshelf".tr),
+            ),
+          ),
+      ],
+    );
   }
 
   Widget _buildFolderGrid(BuildContext context, List<BookshelfFolder> folders) {
@@ -429,9 +531,65 @@ class BookshelfPage extends StatelessWidget {
   }
 
   Future<void> _syncBookshelf() async {
-    showSnackBar(message: "refresh_bookshelf_tip".tr, context: Get.context!);
-    final string = await controller.refreshBookshelf();
-    showSnackBar(message: string, context: Get.context!);
+    _showBookshelfSnackBar("refresh_bookshelf_tip".tr);
+    final string = await controller.refreshCurrentBookshelf();
+    _showBookshelfSnackBar(string);
+  }
+
+  Future<void> _syncFolder(BookshelfFolder folder) async {
+    _showBookshelfSnackBar("refresh_bookshelf_tip".tr);
+    final string = await controller.refreshFolder(folder);
+    _showBookshelfSnackBar(string);
+    final assistUrl = controller.syncAssistUrls[folder.id];
+    if (assistUrl?.isNotEmpty == true) {
+      await _showBrowserAssistedSyncDialog(folder, assistUrl!);
+    }
+  }
+
+  void _showBookshelfSnackBar(String message) {
+    final context = Get.context;
+    if (context == null) return;
+    showSnackBar(message: message, context: context);
+  }
+
+  Future<void> _showBrowserAssistedSyncDialog(
+    BookshelfFolder folder,
+    String url,
+  ) async {
+    final context = Get.context;
+    if (context == null) return;
+    final open = await Get.dialog<bool>(
+      AlertDialog(
+        title: Text("browser_assisted_sync".tr),
+        content: Text("browser_assisted_sync_tip".tr),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: Text("cancel".tr),
+          ),
+          FilledButton.icon(
+            onPressed: () => Get.back(result: true),
+            icon: const Icon(Icons.open_in_browser_outlined),
+            label: Text("browser_assisted_sync_open".tr),
+          ),
+        ],
+      ),
+    );
+    if (open != true) return;
+    final captured = await Get.toNamed(
+      RoutePath.login,
+      arguments: {
+        'captureHtmlOnly': true,
+        'verificationOnly': true,
+        'initialUrl': url.replaceFirst('wenku8.cc', 'wenku8.net'),
+        'captureAliases': [url, url.replaceFirst('wenku8.cc', 'wenku8.net')],
+      },
+    );
+    if (captured == true) {
+      _showBookshelfSnackBar("browser_assisted_retrying".tr);
+      final retryMessage = await controller.refreshFolder(folder);
+      _showBookshelfSnackBar(retryMessage);
+    }
   }
 
   void _handleFolderAction(_FolderAction action, BookshelfFolder folder) {
@@ -440,6 +598,8 @@ class BookshelfPage extends StatelessWidget {
         controller.toggleCurrentViewMode();
       case _FolderAction.sort:
         _showFolderSortDialog(folder);
+      case _FolderAction.sync:
+        _syncFolder(folder);
       case _FolderAction.cover:
         _showFolderCoverSheet(folder);
       case _FolderAction.batchManage:
@@ -708,6 +868,22 @@ class BookshelfPage extends StatelessWidget {
     if (folder != null) controller.openFolder(folder);
   }
 
+  List<(String, String)> _sourceSectionOptions(NovelSource source) {
+    return switch (source) {
+      NovelSource.wenku8 => const [],
+      NovelSource.esj => [
+        ('esj:1', 'esj_type_japan'.tr),
+        ('esj:2', 'esj_type_original'.tr),
+        ('esj:3', 'esj_type_korea'.tr),
+      ],
+      NovelSource.yamibo => [
+        ('yamibo:${YamiboApi.literatureFid}', 'yamibo_literature'.tr),
+        ('yamibo:${YamiboApi.lightNovelFid}', 'yamibo_light_novel'.tr),
+        ('yamibo:${YamiboApi.txtNovelFid}', 'yamibo_txt_novel'.tr),
+      ],
+    };
+  }
+
   Future<void> _showSmartShelfDialog({BookshelfFolder? folder}) async {
     final editing = folder != null;
     final config = editing
@@ -734,20 +910,26 @@ class BookshelfPage extends StatelessWidget {
               ?.value ??
           '',
     );
-    final titleController = TextEditingController(
-      text:
-          group.conditions
-              .firstWhereOrNull(
-                (item) => item.type == SmartShelfConditionType.title,
-              )
-              ?.value ??
-          '',
-    );
     var matchAll = group.mode != SmartShelfMatchMode.any;
     var subscription = config.isSubscription;
+    var subscriptionSyncMode = config.subscriptionSyncMode;
+    final enabledSources = SourceConfigService.instance.enabledSources;
     final sources = <NovelSource>{
-      ...(config.sources.isEmpty ? NovelSource.values : config.sources),
+      ...(editing
+          ? (config.sources.isEmpty ? enabledSources : config.sources)
+          : enabledSources),
     };
+    final selectedSections = <NovelSource, String>{};
+    for (final condition in group.conditions.where(
+      (item) => item.type == SmartShelfConditionType.section,
+    )) {
+      for (final source in NovelSource.values) {
+        final prefix = '${source.id}:';
+        if (condition.value.startsWith(prefix)) {
+          selectedSections[source] = condition.value;
+        }
+      }
+    }
     await Get.dialog<void>(
       StatefulBuilder(
         builder: (context, setState) => AlertDialog(
@@ -758,7 +940,7 @@ class BookshelfPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "标签支持用中文逗号、英文逗号或空格分隔。开启“全部匹配”时需要同时满足所有条件；关闭后任意条件命中即可。订阅模式会在书架同步时按标签从已选来源拉取新条目。",
+                  "标签支持用逗号、顿号、加号或空格分隔。开启“全部匹配”时需要同时满足所有条件；订阅模式会在同步时按已选来源和分区拉取新条目。",
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 12),
@@ -774,10 +956,6 @@ class BookshelfPage extends StatelessWidget {
                   controller: authorController,
                   decoration: InputDecoration(labelText: "author".tr),
                 ),
-                TextField(
-                  controller: titleController,
-                  decoration: InputDecoration(labelText: "title".tr),
-                ),
                 SwitchListTile(
                   value: matchAll,
                   onChanged: (value) => setState(() => matchAll = value),
@@ -790,6 +968,27 @@ class BookshelfPage extends StatelessWidget {
                   title: Text("smart_subscription_mode".tr),
                   dense: true,
                 ),
+                if (subscription)
+                  DropdownButtonFormField<SmartShelfSubscriptionSyncMode>(
+                    initialValue: subscriptionSyncMode,
+                    decoration: InputDecoration(
+                      labelText: "smart_subscription_sync_mode".tr,
+                    ),
+                    items: [
+                      DropdownMenuItem(
+                        value: SmartShelfSubscriptionSyncMode.replace,
+                        child: Text("smart_subscription_sync_replace".tr),
+                      ),
+                      DropdownMenuItem(
+                        value: SmartShelfSubscriptionSyncMode.incremental,
+                        child: Text("smart_subscription_sync_incremental".tr),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() => subscriptionSyncMode = value);
+                    },
+                  ),
                 Padding(
                   padding: const EdgeInsets.only(top: 8, bottom: 6),
                   child: Text(
@@ -799,7 +998,7 @@ class BookshelfPage extends StatelessWidget {
                 ),
                 Wrap(
                   spacing: 8,
-                  children: NovelSource.values
+                  children: enabledSources
                       .map(
                         (source) => FilterChip(
                           label: Text(source.titleKey.tr),
@@ -810,6 +1009,7 @@ class BookshelfPage extends StatelessWidget {
                                 sources.add(source);
                               } else {
                                 sources.remove(source);
+                                selectedSections.remove(source);
                               }
                             });
                           },
@@ -817,6 +1017,45 @@ class BookshelfPage extends StatelessWidget {
                       )
                       .toList(),
                 ),
+                const SizedBox(height: 8),
+                for (final source in enabledSources)
+                  if (sources.contains(source) &&
+                      _sourceSectionOptions(source).isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: DropdownButtonFormField<String>(
+                        initialValue:
+                            _sourceSectionOptions(
+                              source,
+                            ).any((item) => item.$1 == selectedSections[source])
+                            ? selectedSections[source]
+                            : '',
+                        decoration: InputDecoration(
+                          labelText:
+                              '${source.titleKey.tr} ${"source_category".tr}',
+                        ),
+                        items: [
+                          DropdownMenuItem(
+                            value: '',
+                            child: Text('esj_type_all'.tr),
+                          ),
+                          for (final option in _sourceSectionOptions(source))
+                            DropdownMenuItem(
+                              value: option.$1,
+                              child: Text(option.$2),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            if (value == null || value.isEmpty) {
+                              selectedSections.remove(source);
+                            } else {
+                              selectedSections[source] = value;
+                            }
+                          });
+                        },
+                      ),
+                    ),
               ],
             ),
           ),
@@ -825,7 +1064,7 @@ class BookshelfPage extends StatelessWidget {
             TextButton(
               onPressed: () async {
                 final tags = tagsController.text
-                    .split(RegExp(r'[,，\s]+'))
+                    .split(RegExp(r'[,，、+＋\s]+'))
                     .where((item) => item.trim().isNotEmpty)
                     .toList();
                 final conditions = <SmartShelfCondition>[
@@ -839,16 +1078,22 @@ class BookshelfPage extends StatelessWidget {
                       type: SmartShelfConditionType.author,
                       value: authorController.text.trim(),
                     ),
-                  if (titleController.text.trim().isNotEmpty)
-                    SmartShelfCondition(
-                      type: SmartShelfConditionType.title,
-                      value: titleController.text.trim(),
-                    ),
+                  for (final entry in selectedSections.entries)
+                    if (sources.contains(entry.key) && entry.value.isNotEmpty)
+                      SmartShelfCondition(
+                        type: SmartShelfConditionType.section,
+                        value: entry.value,
+                      ),
                 ];
+                if (sources.isEmpty) {
+                  Get.snackbar("smart_bookshelf".tr, "请至少选择一个已启用来源");
+                  return;
+                }
                 final nextConfig = SmartShelfConfig(
                   kind: subscription
                       ? SmartShelfKind.subscription
                       : SmartShelfKind.local,
+                  subscriptionSyncMode: subscriptionSyncMode,
                   mode: SmartShelfMatchMode.all,
                   groups: [
                     SmartShelfConditionGroup(
@@ -864,6 +1109,7 @@ class BookshelfPage extends StatelessWidget {
                 final name = nameController.text.trim().isEmpty
                     ? "smart_bookshelf".tr
                     : nameController.text.trim();
+                BookshelfFolder? createdFolder;
                 if (editing) {
                   await controller.updateSmartShelf(
                     folder: folder,
@@ -871,12 +1117,19 @@ class BookshelfPage extends StatelessWidget {
                     config: nextConfig,
                   );
                 } else {
-                  await controller.createSmartShelf(
+                  createdFolder = await controller.createSmartShelf(
                     name: name,
                     config: nextConfig,
                   );
                 }
                 Get.back();
+                showSnackBar(
+                  message: "update_successfully".tr,
+                  context: Get.context!,
+                );
+                if (createdFolder != null) {
+                  await _syncFolder(createdFolder);
+                }
               },
               child: Text("confirm".tr),
             ),
@@ -1051,76 +1304,24 @@ class BookshelfPage extends StatelessWidget {
         Obx(() {
           final children = controller.currentChildFolders;
           if (children.isEmpty) return const SizedBox.shrink();
-          return Material(
-            color: Theme.of(context).colorScheme.surface,
-            child: Column(
-              children: children
-                  .map(
-                    (child) => ListTile(
-                      leading: _folderLeading(child),
-                      title: Text(child.name),
-                      subtitle: Text(_folderSubtitle(child)),
-                      trailing: PopupMenuButton<_FolderAction>(
-                        onSelected: (value) =>
-                            _handleFolderAction(value, child),
-                        itemBuilder: (_) => [
-                          PopupMenuItem(
-                            value: _FolderAction.cover,
-                            child: ListTile(
-                              leading: const Icon(Icons.image_outlined),
-                              title: Text("bookshelf_cover".tr),
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: _FolderAction.sort,
-                            child: ListTile(
-                              leading: const Icon(Icons.sort_outlined),
-                              title: Text(
-                                _sortTypeText(
-                                  controller.sortTypeForClassId(child.id),
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (!child.builtIn && child.smartFolder)
-                            PopupMenuItem(
-                              value: _FolderAction.editSmart,
-                              child: ListTile(
-                                leading: const Icon(Icons.tune_outlined),
-                                title: Text("编辑筛选条件"),
-                              ),
-                            ),
-                          PopupMenuItem(
-                            value: _FolderAction.rename,
-                            child: ListTile(
-                              leading: const Icon(
-                                Icons.drive_file_rename_outline,
-                              ),
-                              title: Text("rename_bookshelf".tr),
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: _FolderAction.createChild,
-                            child: ListTile(
-                              leading: const Icon(
-                                Icons.create_new_folder_outlined,
-                              ),
-                              title: Text("new_child_bookshelf".tr),
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: _FolderAction.delete,
-                            child: ListTile(
-                              leading: const Icon(Icons.delete_outline),
-                              title: Text("delete_bookshelf".tr),
-                            ),
-                          ),
-                        ],
-                      ),
-                      onTap: () => controller.openFolder(child),
-                    ),
-                  )
-                  .toList(),
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(
+              kPageHorizontalPadding,
+              8,
+              kPageHorizontalPadding,
+              0,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.32,
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: children.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, index) =>
+                    _buildFolderListCard(context, children[index]),
+              ),
             ),
           );
         }),
@@ -1141,6 +1342,7 @@ class BookshelfPage extends StatelessWidget {
 
 enum _FolderAction {
   toggleView,
+  sync,
   sort,
   cover,
   batchManage,
@@ -1153,6 +1355,49 @@ enum _FolderAction {
 enum _SelectionAction { moveToNewFolder, moveToExistingFolder, deselect }
 
 enum _DeleteFolderAction { deleteBooks, migrate }
+
+class _SyncProgressOverlay extends StatelessWidget {
+  const _SyncProgressOverlay({
+    required this.progress,
+    this.child,
+    this.listMode = false,
+  });
+
+  final BookshelfSyncProgress? progress;
+  final Widget? child;
+  final bool listMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = progress?.value;
+    if (progress == null) return child ?? const SizedBox.shrink();
+    final overlay = ColoredBox(
+      color: Colors.black.withValues(alpha: listMode ? 0.18 : 0.32),
+      child: Center(
+        child: SizedBox(
+          width: listMode ? 30 : 42,
+          height: listMode ? 30 : 42,
+          child: CircularProgressIndicator(
+            value: value,
+            strokeWidth: listMode ? 3 : 4,
+            color: Theme.of(context).colorScheme.onPrimary,
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.onPrimary.withValues(alpha: 0.22),
+          ),
+        ),
+      ),
+    );
+    if (child == null) return Positioned.fill(child: overlay);
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        Opacity(opacity: 0.62, child: child!),
+        Positioned.fill(child: overlay),
+      ],
+    );
+  }
+}
 
 class _FolderGridCard extends StatelessWidget {
   const _FolderGridCard({
@@ -1172,143 +1417,156 @@ class _FolderGridCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return AspectRatio(
-      aspectRatio: 0.82,
-      child: Card(
-        elevation: 0,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(kCardBorderRadius),
-          side: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _FolderCoverView(folder: folder, fallback: leading),
-                    if (folder.hasUpdate || folder.hasNew)
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 3,
+    final controller = Get.find<BookshelfController>();
+    return Obx(() {
+      final progress = controller.syncProgressFor(folder.id);
+      return AspectRatio(
+        aspectRatio: 0.82,
+        child: Card(
+          elevation: 0,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(kCardBorderRadius),
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          child: InkWell(
+            onTap: progress == null ? onTap : null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _FolderCoverView(folder: folder, fallback: leading),
+                      if (folder.hasUpdate || folder.hasNew)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary,
+                              borderRadius: BorderRadius.circular(999),
                             ),
-                            child: Text(
-                              folder.hasNew ? "new_content".tr : "updated".tr,
-                              style: TextStyle(
-                                color: theme.colorScheme.onPrimary,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 3,
+                              ),
+                              child: Text(
+                                folder.hasNew ? "new_content".tr : "updated".tr,
+                                style: TextStyle(
+                                  color: theme.colorScheme.onPrimary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: PopupMenuButton<_FolderAction>(
-                        onSelected: onAction,
-                        itemBuilder: (_) => [
-                          PopupMenuItem(
-                            value: _FolderAction.cover,
-                            child: ListTile(
-                              leading: const Icon(Icons.image_outlined),
-                              title: Text("bookshelf_cover".tr),
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: PopupMenuButton<_FolderAction>(
+                          onSelected: onAction,
+                          itemBuilder: (_) => [
+                            PopupMenuItem(
+                              value: _FolderAction.sync,
+                              child: ListTile(
+                                leading: const Icon(Icons.sync_outlined),
+                                title: Text("sync_bookshelf".tr),
+                              ),
                             ),
-                          ),
-                          PopupMenuItem(
-                            value: _FolderAction.sort,
-                            child: ListTile(
-                              leading: const Icon(Icons.sort_outlined),
-                              title: Text("bookshelf_sort_type".tr),
+                            PopupMenuItem(
+                              value: _FolderAction.cover,
+                              child: ListTile(
+                                leading: const Icon(Icons.image_outlined),
+                                title: Text("bookshelf_cover".tr),
+                              ),
                             ),
-                          ),
-                          if (!folder.builtIn)
-                            if (folder.smartFolder)
+                            PopupMenuItem(
+                              value: _FolderAction.sort,
+                              child: ListTile(
+                                leading: const Icon(Icons.sort_outlined),
+                                title: Text("bookshelf_sort_type".tr),
+                              ),
+                            ),
+                            if (!folder.builtIn)
+                              if (folder.smartFolder)
+                                PopupMenuItem(
+                                  value: _FolderAction.editSmart,
+                                  child: ListTile(
+                                    leading: const Icon(Icons.tune_outlined),
+                                    title: Text("编辑筛选条件"),
+                                  ),
+                                ),
+                            if (!folder.builtIn)
                               PopupMenuItem(
-                                value: _FolderAction.editSmart,
+                                value: _FolderAction.rename,
                                 child: ListTile(
-                                  leading: const Icon(Icons.tune_outlined),
-                                  title: Text("编辑筛选条件"),
+                                  leading: const Icon(
+                                    Icons.drive_file_rename_outline,
+                                  ),
+                                  title: Text("rename_bookshelf".tr),
                                 ),
                               ),
-                          if (!folder.builtIn)
-                            PopupMenuItem(
-                              value: _FolderAction.rename,
-                              child: ListTile(
-                                leading: const Icon(
-                                  Icons.drive_file_rename_outline,
+                            if (!folder.builtIn && !folder.smartFolder)
+                              PopupMenuItem(
+                                value: _FolderAction.createChild,
+                                child: ListTile(
+                                  leading: const Icon(
+                                    Icons.create_new_folder_outlined,
+                                  ),
+                                  title: Text("new_child_bookshelf".tr),
                                 ),
-                                title: Text("rename_bookshelf".tr),
                               ),
-                            ),
-                          if (!folder.builtIn && !folder.smartFolder)
-                            PopupMenuItem(
-                              value: _FolderAction.createChild,
-                              child: ListTile(
-                                leading: const Icon(
-                                  Icons.create_new_folder_outlined,
+                            if (!folder.builtIn)
+                              PopupMenuItem(
+                                value: _FolderAction.delete,
+                                child: ListTile(
+                                  leading: const Icon(Icons.delete_outline),
+                                  title: Text("delete_bookshelf".tr),
                                 ),
-                                title: Text("new_child_bookshelf".tr),
                               ),
-                            ),
-                          if (!folder.builtIn)
-                            PopupMenuItem(
-                              value: _FolderAction.delete,
-                              child: ListTile(
-                                leading: const Icon(Icons.delete_outline),
-                                title: Text("delete_bookshelf".tr),
-                              ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      if (progress != null)
+                        _SyncProgressOverlay(progress: progress),
+                    ],
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      folder.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        folder.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.outline,
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
-    );
+      );
+    });
   }
 }
 

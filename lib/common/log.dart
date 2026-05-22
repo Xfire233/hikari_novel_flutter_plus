@@ -1,20 +1,20 @@
+import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 
 class Log {
   static final Logger _logger = Logger(
     printer: PrefixPrinter(
-      PrettyPrinter(
-        methodCount: 3,
-        dateTimeFormat: DateTimeFormat.dateAndTime
-      )
+      PrettyPrinter(methodCount: 3, dateTimeFormat: DateTimeFormat.dateAndTime),
     ),
   );
 
   static void t(dynamic message) {
+    if (!kDebugMode) return;
     _logger.t(message);
   }
 
   static void d(dynamic message) {
+    if (!kDebugMode) return;
     _logger.d(message);
   }
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-const String kAppName = "Hikari Novel Modified";
+const String kAppName = "Hikari Novel Plus";
 
 const int kStatusBarPadding = 30;
 

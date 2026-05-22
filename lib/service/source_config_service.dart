@@ -49,6 +49,17 @@ class SourceConfigService extends GetxService {
   void setSourceEnabled(NovelSource source, bool enabled) =>
       updateSource(source, configOf(source).copyWith(enabled: enabled));
 
+  void enableSourceAfterLogin(NovelSource source) {
+    final config = configOf(source);
+    updateSource(
+      source,
+      config.copyWith(
+        enabled: true,
+        pullOnlineToLocal: config.enabled ? config.pullOnlineToLocal : true,
+      ),
+    );
+  }
+
   void setPullOnlineToLocal(NovelSource source, bool enabled) => updateSource(
     source,
     configOf(source).copyWith(pullOnlineToLocal: enabled),

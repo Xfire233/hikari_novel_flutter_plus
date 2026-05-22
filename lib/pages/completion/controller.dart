@@ -16,6 +16,8 @@ class CompletionController extends BaseListPageController<NovelCover> {
     return Api.getCompletionNovel(index: index);
   }
 
+  String currentRequestUrl() => Api.getCompletionNovelUrl(index: pageIndex);
+
   @override
   List<NovelCover> getParser(String html) {
     return Parser.parseToList(html);

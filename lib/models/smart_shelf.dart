@@ -6,9 +6,12 @@ enum SmartShelfKind { local, subscription }
 
 enum SmartShelfMatchMode { all, any }
 
+enum SmartShelfSubscriptionSyncMode { replace, incremental }
+
 enum SmartShelfConditionType {
   tag,
   source,
+  section,
   author,
   title,
   hasUpdate,
@@ -73,6 +76,7 @@ class SmartShelfConfig {
   const SmartShelfConfig({
     this.kind = SmartShelfKind.local,
     this.mode = SmartShelfMatchMode.all,
+    this.subscriptionSyncMode = SmartShelfSubscriptionSyncMode.replace,
     this.groups = const [],
     this.sources = const [],
     this.subscriptionTags = const [],
@@ -80,6 +84,7 @@ class SmartShelfConfig {
 
   final SmartShelfKind kind;
   final SmartShelfMatchMode mode;
+  final SmartShelfSubscriptionSyncMode subscriptionSyncMode;
   final List<SmartShelfConditionGroup> groups;
   final List<NovelSource> sources;
   final List<String> subscriptionTags;
@@ -104,6 +109,7 @@ class SmartShelfConfig {
   factory SmartShelfConfig.fromJson(Map<dynamic, dynamic> json) {
     final rawKind = '${json['kind'] ?? ''}';
     final rawMode = '${json['mode'] ?? ''}';
+    final rawSubscriptionSyncMode = '${json['subscriptionSyncMode'] ?? ''}';
     final sourceIds = json['sources'] is Iterable
         ? (json['sources'] as Iterable).map((item) => '$item').toSet()
         : const <String>{};
@@ -115,6 +121,10 @@ class SmartShelfConfig {
       mode: SmartShelfMatchMode.values.firstWhere(
         (item) => item.name == rawMode,
         orElse: () => SmartShelfMatchMode.all,
+      ),
+      subscriptionSyncMode: SmartShelfSubscriptionSyncMode.values.firstWhere(
+        (item) => item.name == rawSubscriptionSyncMode,
+        orElse: () => SmartShelfSubscriptionSyncMode.replace,
       ),
       groups: (json['groups'] is Iterable)
           ? (json['groups'] as Iterable)
@@ -137,12 +147,16 @@ class SmartShelfConfig {
   Map<String, dynamic> toJson() => {
     'kind': kind.name,
     'mode': mode.name,
+    'subscriptionSyncMode': subscriptionSyncMode.name,
     'groups': groups.map((item) => item.toJson()).toList(),
     'sources': sources.map((item) => item.id).toList(),
     'subscriptionTags': subscriptionTags,
   };
 
   bool get isSubscription => kind == SmartShelfKind.subscription;
+
+  bool get isSubscriptionIncremental =>
+      subscriptionSyncMode == SmartShelfSubscriptionSyncMode.incremental;
 
   bool matches(BookshelfNovelInfo book) {
     if (sources.isNotEmpty &&
@@ -173,6 +187,8 @@ class SmartShelfConfig {
         return BookTags.containsAny(book.tags, [value]);
       case SmartShelfConditionType.source:
         return _sourceFromBook(book.aid, book.sourceLabel).id == value;
+      case SmartShelfConditionType.section:
+        return BookTags.containsAny(book.tags, [value]);
       case SmartShelfConditionType.author:
         return book.author.toLowerCase().contains(value.toLowerCase());
       case SmartShelfConditionType.title:

@@ -46,133 +46,145 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_title),
-        titleSpacing: 16,
-        actions: [
-          IconButton(
-            onPressed: _webViewController?.reload,
-            icon: const Icon(Icons.refresh),
-          ),
-          IconButton(
-            onPressed: _syncCookie,
-            icon: const Icon(Icons.login),
-            tooltip: 'esjzone_sync_login'.tr,
-          ),
-          IconButton(
-            onPressed: _openUrlDialog,
-            icon: const Icon(Icons.link),
-            tooltip: 'ESJZone URL',
-          ),
-          PopupMenuButton<_EsjAction>(
-            onSelected: _handleAction,
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: _EsjAction.reader,
-                enabled: _currentBookId != null,
-                child: Text('open_in_reader'.tr),
-              ),
-              PopupMenuItem(
-                value: _EsjAction.favorite,
-                enabled: _currentBookId != null,
-                child: Text('favorite'.tr),
-              ),
-              PopupMenuItem(
-                value: _EsjAction.syncFavorite,
-                child: Text('sync_esj_favorites'.tr),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              if (_progress > 0 && _progress < 1)
-                LinearProgressIndicator(value: _progress),
-              Expanded(
-                child: SafeArea(
-                  top: false,
-                  child: InAppWebView(
-                    webViewEnvironment: webViewEnvironment,
-                    initialUrlRequest: URLRequest(url: WebUri(_currentUrl)),
-                    initialSettings: InAppWebViewSettings(
-                      javaScriptEnabled: true,
-                      mediaPlaybackRequiresUserGesture: false,
-                      transparentBackground: false,
-                      useShouldOverrideUrlLoading: false,
-                      supportZoom: true,
-                      sharedCookiesEnabled: true,
-                      thirdPartyCookiesEnabled: true,
-                      userAgent: Request.userAgent.values.first,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final loggedIn = await _syncCookie(silent: true);
+        if (!context.mounted) return;
+        if (!loggedIn) {
+          showSnackBar(message: 'source_login_required'.tr, context: context);
+        }
+        Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_title),
+          titleSpacing: 16,
+          actions: [
+            IconButton(
+              onPressed: _webViewController?.reload,
+              icon: const Icon(Icons.refresh),
+            ),
+            IconButton(
+              onPressed: () => _syncCookie(syncFavorites: true),
+              icon: const Icon(Icons.login),
+              tooltip: 'esjzone_sync_login'.tr,
+            ),
+            IconButton(
+              onPressed: _openUrlDialog,
+              icon: const Icon(Icons.link),
+              tooltip: 'ESJZone URL',
+            ),
+            PopupMenuButton<_EsjAction>(
+              onSelected: _handleAction,
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: _EsjAction.reader,
+                  enabled: _currentBookId != null,
+                  child: Text('open_in_reader'.tr),
+                ),
+                PopupMenuItem(
+                  value: _EsjAction.favorite,
+                  enabled: _currentBookId != null,
+                  child: Text('favorite'.tr),
+                ),
+                PopupMenuItem(
+                  value: _EsjAction.syncFavorite,
+                  child: Text('sync_esj_favorites'.tr),
+                ),
+              ],
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                if (_progress > 0 && _progress < 1)
+                  LinearProgressIndicator(value: _progress),
+                Expanded(
+                  child: SafeArea(
+                    top: false,
+                    child: InAppWebView(
+                      webViewEnvironment: webViewEnvironment,
+                      initialUrlRequest: URLRequest(url: WebUri(_currentUrl)),
+                      initialSettings: InAppWebViewSettings(
+                        javaScriptEnabled: true,
+                        mediaPlaybackRequiresUserGesture: false,
+                        transparentBackground: false,
+                        useShouldOverrideUrlLoading: false,
+                        supportZoom: true,
+                        sharedCookiesEnabled: true,
+                        thirdPartyCookiesEnabled: true,
+                        userAgent: Request.userAgent.values.first,
+                      ),
+                      onWebViewCreated: (controller) =>
+                          _webViewController = controller,
+                      onTitleChanged: (_, title) {
+                        if (!mounted) return;
+                        setState(
+                          () => _title = title?.trim().isNotEmpty == true
+                              ? title!.trim()
+                              : 'ESJZone',
+                        );
+                      },
+                      onLoadStart: (_, url) {
+                        if (!mounted) return;
+                        setState(() {
+                          _errorMessage = null;
+                          _currentUrl = url?.toString() ?? _currentUrl;
+                        });
+                      },
+                      onLoadStop: (_, url) async {
+                        if (!mounted) return;
+                        setState(
+                          () => _currentUrl = url?.toString() ?? _currentUrl,
+                        );
+                        await _syncCookie(silent: true);
+                      },
+                      onProgressChanged: (_, progress) {
+                        if (!mounted) return;
+                        setState(() => _progress = progress / 100);
+                      },
+                      onReceivedError: (_, request, error) {
+                        if (!mounted || request.isForMainFrame != true) return;
+                        setState(
+                          () => _errorMessage =
+                              '${error.type}: ${error.description}',
+                        );
+                      },
+                      onReceivedHttpError: (_, request, response) {
+                        if (!mounted || request.isForMainFrame != true) return;
+                        setState(
+                          () => _errorMessage =
+                              '${response.statusCode}: ${response.reasonPhrase}',
+                        );
+                      },
                     ),
-                    onWebViewCreated: (controller) =>
-                        _webViewController = controller,
-                    onTitleChanged: (_, title) {
-                      if (!mounted) return;
-                      setState(
-                        () => _title = title?.trim().isNotEmpty == true
-                            ? title!.trim()
-                            : 'ESJZone',
-                      );
-                    },
-                    onLoadStart: (_, url) {
-                      if (!mounted) return;
-                      setState(() {
-                        _errorMessage = null;
-                        _currentUrl = url?.toString() ?? _currentUrl;
-                      });
-                    },
-                    onLoadStop: (_, url) async {
-                      if (!mounted) return;
-                      setState(
-                        () => _currentUrl = url?.toString() ?? _currentUrl,
-                      );
-                      await _syncCookie(silent: true);
-                    },
-                    onProgressChanged: (_, progress) {
-                      if (!mounted) return;
-                      setState(() => _progress = progress / 100);
-                    },
-                    onReceivedError: (_, request, error) {
-                      if (!mounted || request.isForMainFrame != true) return;
-                      setState(
-                        () => _errorMessage =
-                            '${error.type}: ${error.description}',
-                      );
-                    },
-                    onReceivedHttpError: (_, request, response) {
-                      if (!mounted || request.isForMainFrame != true) return;
-                      setState(
-                        () => _errorMessage =
-                            '${response.statusCode}: ${response.reasonPhrase}',
-                      );
-                    },
                   ),
                 ),
-              ),
-            ],
-          ),
-          if (_errorMessage != null)
-            ColoredBox(
-              color: Theme.of(context).colorScheme.surface,
-              child: ErrorMessage(
-                msg: _errorMessage!,
-                action: _webViewController?.reload,
-              ),
+              ],
             ),
-          Offstage(offstage: !_busy, child: const LoadingPage()),
-        ],
+            if (_errorMessage != null)
+              ColoredBox(
+                color: Theme.of(context).colorScheme.surface,
+                child: ErrorMessage(
+                  msg: _errorMessage!,
+                  action: _webViewController?.reload,
+                ),
+              ),
+            Offstage(offstage: !_busy, child: const LoadingPage()),
+          ],
+        ),
+        floatingActionButton: _currentBookId == null
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: _openCurrentBookInReader,
+                icon: const Icon(Icons.chrome_reader_mode_outlined),
+                label: Text('open_in_reader'.tr),
+              ),
       ),
-      floatingActionButton: _currentBookId == null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _openCurrentBookInReader,
-              icon: const Icon(Icons.chrome_reader_mode_outlined),
-              label: Text('open_in_reader'.tr),
-            ),
     );
   }
 
@@ -215,7 +227,10 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
     );
   }
 
-  Future<bool> _syncCookie({bool silent = false}) async {
+  Future<bool> _syncCookie({
+    bool silent = false,
+    bool syncFavorites = false,
+  }) async {
     final cookies = await _cookieManager.getCookies(
       url: WebUri(EsjApi.baseUrl),
     );
@@ -224,20 +239,31 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
         .map((c) => '${c.name}=${c.value}')
         .join('; ');
     if (cookie.isEmpty) {
+      if (!silent) {
+        LocalStorageService.instance.setEsjCookie(null);
+      }
       if (!silent && mounted) {
         showSnackBar(message: 'source_login_required'.tr, context: context);
       }
       return false;
     }
-    LocalStorageService.instance.setEsjCookie(cookie);
     final loggedIn = EsjApi.isAuthenticatedCookie(cookie);
     if (loggedIn) {
+      LocalStorageService.instance.setEsjCookie(cookie);
       SourceConfigService.instance.setSourceEnabled(NovelSource.esj, true);
+    } else {
+      if (!silent || LocalStorageService.instance.getEsjCookie() != null) {
+        LocalStorageService.instance.setEsjCookie(null);
+      }
     }
     if (!silent && mounted) {
       if (!loggedIn) {
         showSnackBar(message: 'source_login_required'.tr, context: context);
         return false;
+      }
+      if (!syncFavorites) {
+        showSnackBar(message: 'esjzone_login_synced'.tr, context: context);
+        return true;
       }
       setState(() => _busy = true);
       final synced = await BookshelfController.syncEsjFavoritesToBookshelf();

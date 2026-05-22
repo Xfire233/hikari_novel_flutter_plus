@@ -43,7 +43,11 @@ class YamiboApi {
     final uri = Uri.parse(
       '$baseUrl/api/mobile/index.php',
     ).replace(queryParameters: params);
-    return Request.getUtf8(uri.toString(), headers: _headers());
+    return Request.getUtf8(
+      uri.toString(),
+      headers: _headers(),
+      useCookieJar: false,
+    );
   }
 
   static Future<Resource> getThreadPage({
@@ -61,7 +65,11 @@ class YamiboApi {
     final uri = Uri.parse(
       '$baseUrl/api/mobile/index.php',
     ).replace(queryParameters: params);
-    return Request.getUtf8(uri.toString(), headers: _headers());
+    return Request.getUtf8(
+      uri.toString(),
+      headers: _headers(),
+      useCookieJar: false,
+    );
   }
 
   static Future<Resource> getFavoritePage({int page = 1}) {
@@ -72,7 +80,11 @@ class YamiboApi {
         'page': '$page',
       },
     );
-    return Request.getUtf8(uri.toString(), headers: _headers());
+    return Request.getUtf8(
+      uri.toString(),
+      headers: _headers(),
+      useCookieJar: false,
+    );
   }
 
   static Future<Resource> getUserThreadPage({
@@ -90,7 +102,11 @@ class YamiboApi {
         'page': '$page',
       },
     );
-    return Request.getUtf8(uri.toString(), headers: _headers());
+    return Request.getUtf8(
+      uri.toString(),
+      headers: _headers(),
+      useCookieJar: false,
+    );
   }
 
   static Future<Resource> searchThreads({
@@ -119,7 +135,7 @@ class YamiboApi {
     if (page > 1) return const Success('');
 
     try {
-      final form = await Request.dio.get<List<int>>(
+      final form = await Request.manualCookieDio.get<List<int>>(
         '$baseUrl/search.php?mod=forum',
         options: Options(headers: _headers(), responseType: ResponseType.bytes),
       );
@@ -142,7 +158,7 @@ class YamiboApi {
         '$baseUrl/search.php',
       ).replace(queryParameters: searchForm);
 
-      final response = await Request.dio.get<List<int>>(
+      final response = await Request.manualCookieDio.get<List<int>>(
         uri.toString(),
         options: Options(
           headers: _headers(),
@@ -194,7 +210,11 @@ class YamiboApi {
         if (page > 1) 'page': '$page',
       },
     );
-    final result = await Request.getUtf8(uri.toString(), headers: _headers());
+    final result = await Request.getUtf8(
+      uri.toString(),
+      headers: _headers(),
+      useCookieJar: false,
+    );
     return switch (result) {
       Success() => Success(
         YamiboSearchPageResponse(

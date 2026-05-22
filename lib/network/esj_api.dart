@@ -21,6 +21,7 @@ class EsjApi {
     return Request.getUtf8(
       '$baseUrl/tags-$type$sort/$encodedKeyword/$page.html',
       headers: _headers(),
+      useCookieJar: false,
     );
   }
 
@@ -31,27 +32,38 @@ class EsjApi {
   }) => Request.getUtf8(
     '$baseUrl/list-$type$sort/$page.html',
     headers: _headers(),
+    useCookieJar: false,
   );
 
   static Future<Resource> getNovelDetail({required String id}) =>
-      Request.getUtf8(detailUrl(id), headers: _headers());
+      Request.getUtf8(detailUrl(id), headers: _headers(), useCookieJar: false);
 
   static Future<Resource> getChapter({
     required String bookId,
     required String chapterId,
-  }) => Request.getUtf8(chapterUrl(bookId, chapterId), headers: _headers());
+  }) => Request.getUtf8(
+    chapterUrl(bookId, chapterId),
+    headers: _headers(),
+    useCookieJar: false,
+  );
 
-  static Future<Resource> getFavoritePage({int page = 1}) =>
-      Request.getUtf8('$baseUrl/my/favorite/udate/$page', headers: _headers());
+  static Future<Resource> getFavoritePage({int page = 1}) => Request.getUtf8(
+    '$baseUrl/my/favorite/udate/$page',
+    headers: _headers(),
+    useCookieJar: false,
+  );
 
-  static Future<Resource> getViewHistory() =>
-      Request.getUtf8('$baseUrl/my/view', headers: _headers());
+  static Future<Resource> getViewHistory() => Request.getUtf8(
+    '$baseUrl/my/view',
+    headers: _headers(),
+    useCookieJar: false,
+  );
 
   static Future<Resource> toggleFavorite({required String bookId}) async {
     final token = await _getAuthToken(path: '/detail/$bookId');
     if (token == null || token.isEmpty) return Error('ESJ auth token missing');
     try {
-      final response = await Request.dio.post(
+      final response = await Request.manualCookieDio.post(
         '$baseUrl/inc/mem_favorite.php',
         options: Options(
           headers: {..._headers(), 'Authorization': token},
@@ -71,7 +83,7 @@ class EsjApi {
 
   static Future<String?> _getAuthToken({required String path}) async {
     try {
-      final response = await Request.dio.post(
+      final response = await Request.manualCookieDio.post(
         '$baseUrl$path',
         data: FormData.fromMap({'plxf': 'getAuthToken'}),
         options: Options(

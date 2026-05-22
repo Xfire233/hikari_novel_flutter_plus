@@ -111,7 +111,7 @@ class ChapterDownloader {
         final headers = {...Request.userAgent, 'Referer': EsjApi.baseUrl};
         final cookie = LocalStorageService.instance.getEsjCookie();
         if (cookie != null && cookie.isNotEmpty) headers['Cookie'] = cookie;
-        final response = await _dio.get(
+        final response = await Request.manualCookieDio.get(
           EsjApi.chapterUrl(
             SourceId.esjBookId(aid),
             SourceId.esjChapterId(cid),
@@ -271,7 +271,7 @@ class ChapterDownloader {
     final cookie = LocalStorageService.instance.getYamiboCookie();
     if (cookie != null && cookie.isNotEmpty) headers['Cookie'] = cookie;
 
-    final response = await _dio.get(
+    final response = await Request.manualCookieDio.get(
       uri.toString(),
       cancelToken: cancelToken,
       options: Options(

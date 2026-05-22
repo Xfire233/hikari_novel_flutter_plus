@@ -41,16 +41,34 @@ class Api {
     required String ranking,
     required int index,
   }) {
-    final String url =
-        "${wenku8Node.node}/modules/article/toplist.php?sort=$ranking&page=$index";
+    final String url = getNovelByRankingUrl(ranking: ranking, index: index);
     return Request.get(url, charsetsType: charsetsType);
   }
+
+  static String getNovelByRankingUrl({
+    required String ranking,
+    required int index,
+  }) =>
+      "${wenku8Node.node}/modules/article/toplist.php?sort=$ranking&page=$index";
 
   /// 根据分类获取小说列表
   /// - [category] 小说的分类，即tag
   /// - [sort] 按什么排序
   /// - [index] 第几页
   static Future<Resource> getNovelByCategory({
+    required String category,
+    required String sort,
+    required int index,
+  }) {
+    final url = getNovelByCategoryUrl(
+      category: category,
+      sort: sort,
+      index: index,
+    );
+    return Request.get(url, charsetsType: charsetsType);
+  }
+
+  static String getNovelByCategoryUrl({
     required String category,
     required String sort,
     required int index,
@@ -77,9 +95,7 @@ class Api {
               .trim();
         }
     }
-    String url =
-        "${wenku8Node.node}/modules/article/tags.php?t=$category&v=$sort&page=$index";
-    return Request.get(url, charsetsType: charsetsType);
+    return "${wenku8Node.node}/modules/article/tags.php?t=$category&v=$sort&page=$index";
   }
 
   /// 获取小说信息
@@ -189,9 +205,10 @@ class Api {
 
   /// 获取推荐页
   static Future<Resource> getRecommend() {
-    final String url = "${wenku8Node.node}/index.php";
-    return Request.get(url, charsetsType: charsetsType);
+    return Request.get(getRecommendUrl(), charsetsType: charsetsType);
   }
+
+  static String getRecommendUrl() => "${wenku8Node.node}/index.php";
 
   /// 为小说投票
   /// - [aid] 被投票的小说的id
@@ -260,10 +277,12 @@ class Api {
   /// 获取已完结小说的列表
   /// - [index] 第几页
   static Future<Resource> getCompletionNovel({required int index}) {
-    final String url =
-        "${wenku8Node.node}/modules/article/articlelist.php?fullflag=1&page=$index";
+    final String url = getCompletionNovelUrl(index: index);
     return Request.get(url, charsetsType: charsetsType);
   }
+
+  static String getCompletionNovelUrl({required int index}) =>
+      "${wenku8Node.node}/modules/article/articlelist.php?fullflag=1&page=$index";
 
   /// 发表书评
   /// - [aid] 书号

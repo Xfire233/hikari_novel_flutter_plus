@@ -9,11 +9,12 @@ import 'package:enough_convert/enough_convert.dart';
 import 'package:hikari_novel_flutter/models/common/wenku8_node.dart';
 import 'package:hikari_novel_flutter/models/custom_exception.dart';
 import 'package:hikari_novel_flutter/models/resource.dart';
+import 'package:hikari_novel_flutter/network/wenku8_webview_fetcher.dart';
 
 import '../common/log.dart';
 import '../models/common/charsets_type.dart';
+import '../service/browser_assisted_fetch_service.dart';
 import '../service/local_storage_service.dart';
-import 'api.dart';
 
 /// 网络请求
 class Request {
@@ -34,6 +35,15 @@ class Request {
         )
         ..interceptors.add(CloudflareInterceptor())
         ..interceptors.add(CookieManager(_dioCookieJar));
+
+  static final Dio manualCookieDio = Dio(
+    BaseOptions(
+      headers: userAgent,
+      responseType: ResponseType.bytes,
+      followRedirects: false,
+      validateStatus: (status) => status != null,
+    ),
+  )..interceptors.add(CloudflareInterceptor());
 
   static void initCookie() {
     final localCookie = LocalStorageService.instance.getCookie();
@@ -77,9 +87,10 @@ class Request {
   static Future<Resource> getUtf8(
     String url, {
     Map<String, String>? headers,
+    bool useCookieJar = true,
   }) async {
     try {
-      final response = await dio.get(
+      final response = await (useCookieJar ? dio : manualCookieDio).get(
         url,
         options: Options(
           headers: headers,
@@ -87,11 +98,97 @@ class Request {
           followRedirects: true,
         ),
       );
-      return Success(utf8.decode(response.data as List<int>));
+      final html = utf8.decode(response.data as List<int>);
+      BrowserAssistedFetchService.saveHtml(
+        requestedUrl: url,
+        currentUrl: response.realUri.toString(),
+        html: html,
+      );
+      return Success(html);
     } catch (e) {
+      final fallbackHtml = await _tryWenku8WebViewFallback(url, e);
+      if (fallbackHtml != null) {
+        return Success(fallbackHtml);
+      }
+      final cachedHtml = _tryCachedHtmlFallback(url, e);
+      if (cachedHtml != null) return Success(cachedHtml);
       Log.e(e.toString());
       return Error(e.toString());
     }
+  }
+
+  static Future<String?> _tryWenku8WebViewFallback(
+    String url,
+    Object error,
+  ) async {
+    if (!_isWenku8Url(url) || !_isCloudflareError(error)) {
+      return null;
+    }
+    Log.d('Wenku8 request blocked by Cloudflare, trying WebView fallback');
+    for (final fallbackUrl in _wenku8WebViewFallbackUrls(url)) {
+      final cachedHtml = BrowserAssistedFetchService.getCachedHtml(fallbackUrl);
+      if (cachedHtml != null) {
+        Log.d('Using browser assisted HTML cache for $fallbackUrl');
+        return cachedHtml;
+      }
+      if (!_shouldUseHeadlessWenku8Fallback(fallbackUrl)) {
+        continue;
+      }
+      final html = await Wenku8WebViewFetcher.get(fallbackUrl);
+      if (html != null) return html;
+    }
+    return null;
+  }
+
+  static String? _tryCachedHtmlFallback(String url, Object error) {
+    final cachedHtml = BrowserAssistedFetchService.getCachedHtml(url);
+    if (cachedHtml == null) return null;
+    Log.d('Using cached HTML fallback for $url after $error');
+    return cachedHtml;
+  }
+
+  static bool _isWenku8Url(String url) =>
+      url.contains('wenku8.cc') || url.contains('wenku8.net');
+
+  static bool _shouldUseHeadlessWenku8Fallback(String url) {
+    final uri = Uri.tryParse(url);
+    final path = uri?.path;
+    if (path == null) return true;
+    return !path.endsWith('/modules/article/tags.php') &&
+        !path.endsWith('/modules/article/toplist.php') &&
+        !path.endsWith('/modules/article/articlelist.php');
+  }
+
+  static List<String> _wenku8WebViewFallbackUrls(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return [url];
+
+    final result = <String>[];
+    final aid = RegExp(r'(?:[?&])id=([^&]+)').firstMatch(url)?.group(1);
+    if (uri.path.endsWith('/modules/article/articleinfo.php') &&
+        aid != null &&
+        aid.isNotEmpty) {
+      final staticUri = Uri(
+        scheme: uri.scheme,
+        host: uri.host,
+        port: uri.hasPort ? uri.port : null,
+        path: '/book/$aid.htm',
+      );
+      result.add(staticUri.toString().replaceFirst('wenku8.cc', 'wenku8.net'));
+      result.add(staticUri.toString());
+    }
+
+    if (url.contains('wenku8.cc')) {
+      result.add(url.replaceFirst('wenku8.cc', 'wenku8.net'));
+    }
+    result.add(url);
+    return result.toSet().toList(growable: false);
+  }
+
+  static bool _isCloudflareError(Object error) {
+    final message = error.toString();
+    return message.contains(cloudflareChallengeExceptionMessage) ||
+        message.contains(cloudflare403ExceptionMessage);
   }
 
   ///获取wenku8数据
@@ -126,8 +223,19 @@ class Request {
           decodedHtml = Big5Decoder().convert(raw);
       }
 
+      BrowserAssistedFetchService.saveHtml(
+        requestedUrl: url,
+        currentUrl: response.realUri.toString(),
+        html: decodedHtml,
+      );
       return Success(decodedHtml);
     } catch (e) {
+      final fallbackHtml = await _tryWenku8WebViewFallback(url, e);
+      if (fallbackHtml != null) {
+        return Success(fallbackHtml);
+      }
+      final cachedHtml = _tryCachedHtmlFallback(url, e);
+      if (cachedHtml != null) return Success(cachedHtml);
       Log.e(e.toString());
       return Error(e.toString());
     }
@@ -135,16 +243,21 @@ class Request {
 
   /// 检查Response包中是否要求重定向
   /// - [response] 要检查的Response包
-  static Future<dynamic> _checkRedirects(Response response) async {
+  static Future<dynamic> _checkRedirects(
+    Response response, {
+    int depth = 0,
+  }) async {
     if (response.statusCode != null &&
         response.statusCode! >= 300 &&
         response.statusCode! < 400) {
+      if (depth >= 5) return response.data;
       final location = response.headers.value('location');
       if (location != null) {
-        final redirectedResponse = await dio.get(
-          "${Api.wenku8Node.node}/$location",
-        );
-        return redirectedResponse.data;
+        final redirectUrl = response.requestOptions.uri
+            .resolve(location)
+            .toString();
+        final redirectedResponse = await dio.get(redirectUrl);
+        return _checkRedirects(redirectedResponse, depth: depth + 1);
       }
     }
     return response.data;

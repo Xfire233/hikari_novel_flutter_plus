@@ -62,6 +62,7 @@ class NovelDetailController extends GetxController
 
   RxBool isInBookshelf = false.obs;
   RxDouble localRating = 0.0.obs;
+  RxList<String> remoteTags = RxList();
   RxList<String> localTags = RxList();
 
   RxBool isChapterOrderReversed = false.obs;
@@ -335,13 +336,33 @@ class NovelDetailController extends GetxController
             pageState.value = PageState.error;
             return;
           }
+          if (YamiboParser.isUnavailableDuringDailyBackup(firstPage.data)) {
+            errorMsg = 'yamibo_backup_window'.tr;
+            if (await _getNovelDetailByLocal()) return;
+            pageState.value = PageState.error;
+            return;
+          }
+          if (!YamiboParser.isMobileApiJson(firstPage.data)) {
+            errorMsg = 'yamibo_api_html_response'.tr;
+            if (await _getNovelDetailByLocal()) return;
+            pageState.value = PageState.error;
+            return;
+          }
           final threadError = YamiboParser.threadErrorMessage(firstPage.data);
           if (threadError != null) {
             errorMsg = threadError;
             pageState.value = PageState.error;
             return;
           }
-          final data = YamiboParser.getThreadDetail(firstPage.data);
+          late final YamiboThreadData data;
+          try {
+            data = YamiboParser.getThreadDetail(firstPage.data);
+          } catch (e) {
+            errorMsg = 'yamibo_detail_parse_failed'.trParams({'error': '$e'});
+            if (await _getNovelDetailByLocal()) return;
+            pageState.value = PageState.error;
+            return;
+          }
           final cachedOwnerVolume = await _getCachedYamiboOwnerVolume(
             data.updateKey,
           );
@@ -475,7 +496,12 @@ class NovelDetailController extends GetxController
         updateTime: data.updateTime,
         hasUpdate: item.hasUpdate,
         rating: item.rating,
-        remoteTagsJson: BookTags.encode(data.detail.tags),
+        remoteTagsJson: BookTags.encode(
+          BookTags.merge(
+            BookTags.decode(item.remoteTagsJson),
+            data.detail.tags,
+          ),
+        ),
         localTagsJson: item.localTagsJson,
       ),
     );
@@ -573,12 +599,15 @@ class NovelDetailController extends GetxController
     }
     isInBookshelf.value = item != null;
     localRating.value = item?.rating ?? 0;
+    remoteTags.assignAll(BookTags.decode(item?.remoteTagsJson));
     localTags.assignAll(BookTags.decode(item?.localTagsJson));
     final detail = novelDetail.value;
     if (item != null && detail != null) {
+      final merged = BookTags.merge(remoteTags, detail.tags);
+      remoteTags.assignAll(merged);
       await DBService.instance.setBookshelfRemoteTags(
         aid,
-        BookTags.encode(detail.tags),
+        BookTags.encode(merged),
       );
     }
   }

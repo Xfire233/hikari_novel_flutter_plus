@@ -29,10 +29,22 @@ class RecommendController extends GetxController {
     final result = await Api.getRecommend();
     switch (result) {
       case Success():
-        data.clear();
-        data.addAll(Parser.getRecommend(result.data));
-        pageState.value = PageState.success;
-        return IndicatorResult.success;
+        try {
+          final blocks = Parser.getRecommend(result.data);
+          if (blocks.isEmpty) {
+            errorMsg = "Wenku8 首页解析失败，请重试或检查网络";
+            pageState.value = PageState.error;
+            return IndicatorResult.fail;
+          }
+          data.clear();
+          data.addAll(blocks);
+          pageState.value = PageState.success;
+          return IndicatorResult.success;
+        } catch (e) {
+          errorMsg = "Wenku8 首页解析失败：$e";
+          pageState.value = PageState.error;
+          return IndicatorResult.fail;
+        }
       case Error():
         errorMsg = result.error;
         pageState.value = PageState.error;

@@ -238,7 +238,7 @@ class AppTranslations extends Translations {
       "user_bookshelf": "用户书架",
       "back_to_previous_web_page": "返回至上一个web页面",
       "refresh_web_page": "刷新web页面",
-      "welcome_to_use_app": "欢迎使用 Hikari Novel Modified",
+      "welcome_to_use_app": "欢迎使用 Hikari Novel Plus",
       "welcome_tip": "第一次使用本软件时需要先登录",
       "go_to_login": "前往登录",
       "source_setup_tip": "选择要启用的来源；各来源账号互相独立，登录可以稍后在对应来源页面完成",
@@ -269,19 +269,19 @@ class AppTranslations extends Translations {
       "backup_exported": "备份已导出",
       "backup_imported": "备份已导入",
       "version": "版本",
-      "modified_edition": "叉烧魔改版",
-      "modified_edition_desc":
-          "基于 Hikari Novel 的个人魔改测试版，重点适配 Wenku8 / ESJZone / Yamibo 多来源阅读与书架同步。",
+      "plus_edition": "Hikari Novel Plus",
+      "plus_edition_desc":
+          "基于 Hikari Novel 的个人增强版，重点适配 Wenku8 / ESJZone / Yamibo 多来源阅读与书架同步。",
       "usage_guide": "使用说明",
       "usage_guide_tip": "多来源、书架同步和回写策略",
       "usage_guide_body":
-          "1. 首次启动可选择启用 Wenku8、ESJZone、Yamibo。各来源登录互不强制。\n2. ESJZone / Yamibo 需要先在应用内网页入口登录，再同步收藏。\n3. 默认只从网页收藏拉取到本地。本地书架分类由应用管理，不会改网站收藏夹。\n4. 需要回写时，在 设置 > 来源设置 中开启对应来源的“把本地变动同步到在线收藏”。删除网页收藏还有单独开关。\n5. ESJZone 阅读进度会导入网页端最后阅读章节，但无法恢复网页端的页内精确位置。",
+          "1. 首次启动可选择启用 Wenku8、ESJZone、Yamibo。各来源登录互不强制。\n2. ESJZone / Yamibo 需要先在应用内网页入口登录；登录后下一次书架同步会拉取在线收藏。\n3. 默认只从网页收藏拉取到本地。本地书架分类由应用管理，不会改网站收藏夹。\n4. 需要回写时，在 设置 > 来源设置 中开启对应来源的“把本地变动同步到在线收藏”。删除网页收藏还有单独开关。\n5. ESJZone 阅读进度会导入网页端最后阅读章节，但无法恢复网页端的页内精确位置。",
       "major_changes": "主要更改",
-      "major_changes_tip": "beta1.1.5-pre.3 Yamibo详情与楼层目录修复",
+      "major_changes_tip": "1.1.5 智能书架与三来源体验修复",
       "major_changes_body":
-          "beta1.1.5-pre.3：\n- Yamibo 详情页不再阻塞生成楼主楼层目录，楼层目录改为可选后台任务，并显示当前处理状态。\n- Yamibo 楼主楼层目录按主题更新 key 增量复用缓存，主题未变化时不重复扫描全帖。\n- Yamibo 标题自动 tag 改为匹配 [] / 【】 内文本，减少错误自动标签。\n- Yamibo 无权限主题会原样显示站点返回的错误信息。\n- Yamibo 详情页同步标题、封面和 tag 时保留书架同步阶段的楼主更新 key，避免打开详情后误清真实更新状态。\n\n"
+          "1.1.5：\n- Yamibo 智能订阅改为标题、论坛信息、首楼简介和楼主正文深度匹配，命中标签会写入并保留到本地书籍信息。\n- 智能书架新增替换 / 增量同步模式，新建后自动尝试首次同步，并显示书架级同步进度和失败提示。\n- Yamibo / ESJ 同步前会做真实登录校验，登录失效时提示重新登录；WebView 关闭不再误触发同步或清空书架内容。\n- Wenku8 增加 Cloudflare / 浏览器辅助 fallback，并修复错误页红屏。\n- 来源首页、书架、列表和下拉菜单统一为圆角胶囊 / 卡片样式，并补齐主要页面切换动画。\n- Android 包名和应用显示名统一改为 Hikari Novel Plus。\n\n"
           "beta1.1.5-pre.2：\n- 三个来源首页统一为来源切换、搜索和内容 tab 结构。\n- Yamibo 主题列表改为圆角卡片式条目。\n- 我的页移除重复来源入口，账号卡统一使用来源 icon，并尝试显示 ESJ / Yamibo 用户名。\n- 智能书架合并为单一入口，支持创建后编辑筛选条件。\n- Yamibo 详情和阅读页在 Cookie 缺失或登录失效时提示重新登录。\n\n"
-          "beta1.1.4-beta.1：\n- 全局检查 AppBar 标题边距，修正来源页、搜索页、书架、详情页等标题贴边问题。\n- 最近阅读智能书架移动到默认来源书架之后，减少顶层入口割裂感。\n- 书架主页新增网格模式；默认书架卡片使用来源或文件夹图标，用户可为书架选择书籍封面或上传本地图片。\n- Wenku8 / ESJZone 默认进入书架后使用网格视图，Yamibo 默认列表视图；所有书架默认按添加顺序排序。\n- Yamibo 同步收藏时保留接口返回顺序作为本地添加顺序，用于接近“最新收藏优先”。\n- Android 新装默认关闭动态取色；来源背景提高用户主题色参与度，动态取色开关补充说明。\n- 清理临时矢量化工具目录，修复编码污染导致的乱码字符串和 README mojibake。\n\nbeta1.1.4-pre.2：\n- 来源背景水印主标记移动到右下角并提高可见度，继续跟随主题低饱和取色。\n- 书籍详情页接入 Wenku8 / ESJZone / Yamibo 来源背景。\n- 搜索、首页、我的、设置、欢迎页和书架来源目录统一使用来源矢量图标。\n- 搜索页来源切换去除选中打勾，仅保留选中高亮。\n- 书架打开/返回、书架搜索、书架内容状态和子页面路由增加淡入滑动过渡。\n\nbeta1.1.4-pre.1：\n- 移除旧 Hikari Novel 检查更新链路和未使用 markdown 依赖，减少包体积和旧项目干扰。\n- 首页在所有来源被禁用时改为引导进入来源设置，不再错误回退 Wenku8。\n- Wenku8 在线收藏回写会按来源设置里的远端目标文件夹执行移动。\n- ESJZone / Yamibo 精简无实际作用的远端文件夹和远端删除设置项。\n- 应用显示名统一为 Hikari Novel Modified，保留原包名用于覆盖安装测试。\n\nbeta1.1.3：\n- 搜索页高级筛选改为可折叠面板，折叠时保留当前筛选摘要，减少结果区域被挤占。\n- 设置页新增本地JSON单文件备份/导入，可选择Cookie、应用设置、阅读设置、书架和阅读数据。\n- 备份结构按format/schemaVersion/sections/payload分层，预留后续书单分享扩展。\n\nbeta1.1.2：\n- Yamibo 关键词搜索限制在文学区及子区，并增加分区、标题/全文、排序、顺序和时间范围筛选。\n- 搜索结果支持切换列表模式，长标题可完整显示。\n- 每个书架和子书架可分别记忆按添加顺序、更新、字母、最近阅读排序。\n- 字母排序时显示右侧字母索引栏，可点按或滑动快速跳转。\n\nbeta1.1.1：\n- 阅读器正文顶部自动避开状态栏、刘海和摄像头区域，减少全面屏遮挡。\n- 切换滚动/翻页、墨水屏等阅读布局时，按当前章节百分比迁移页内位置。\n- Yamibo 首页内嵌浏览只保留一行来源栏，网页登录和同步收藏移动到右上角菜单。\n\nbeta1.1：\n- 搜索页改为来源优先，只显示已启用来源。\n- 从当前来源首页点击搜索会默认进入该来源搜索逻辑。\n- Wenku8、ESJZone、Yamibo 搜索选项相互独立，并新增搜索指南。\n- Yamibo 文学区改为原生列表浏览，支持分区展开、主题收藏和作者主题列表。\n- 浏览页电子墨水屏模式改为无滚动分页，并适配音量键翻页。",
+          "beta1.1.4-beta.1：\n- 全局检查 AppBar 标题边距，修正来源页、搜索页、书架、详情页等标题贴边问题。\n- 最近阅读智能书架移动到默认来源书架之后，减少顶层入口割裂感。\n- 书架主页新增网格模式；默认书架卡片使用来源或文件夹图标，用户可为书架选择书籍封面或上传本地图片。\n- Wenku8 / ESJZone 默认进入书架后使用网格视图，Yamibo 默认列表视图；所有书架默认按添加顺序排序。\n- Yamibo 同步收藏时保留接口返回顺序作为本地添加顺序，用于接近“最新收藏优先”。\n- Android 新装默认关闭动态取色；来源背景提高用户主题色参与度，动态取色开关补充说明。\n- 清理临时矢量化工具目录，修复编码污染导致的乱码字符串和 README mojibake。\n\nbeta1.1.4-pre.2：\n- 来源背景水印主标记移动到右下角并提高可见度，继续跟随主题低饱和取色。\n- 书籍详情页接入 Wenku8 / ESJZone / Yamibo 来源背景。\n- 搜索、首页、我的、设置、欢迎页和书架来源目录统一使用来源矢量图标。\n- 搜索页来源切换去除选中打勾，仅保留选中高亮。\n- 书架打开/返回、书架搜索、书架内容状态和子页面路由增加淡入滑动过渡。\n\nbeta1.1.4-pre.1：\n- 移除旧 Hikari Novel 检查更新链路和未使用 markdown 依赖，减少包体积和旧项目干扰。\n- 首页在所有来源被禁用时改为引导进入来源设置，不再错误回退 Wenku8。\n- Wenku8 在线收藏回写会按来源设置里的远端目标文件夹执行移动。\n- ESJZone / Yamibo 精简无实际作用的远端文件夹和远端删除设置项。\n- 应用显示名统一为 Hikari Novel Plus，保留原包名用于覆盖安装测试。\n\nbeta1.1.3：\n- 搜索页高级筛选改为可折叠面板，折叠时保留当前筛选摘要，减少结果区域被挤占。\n- 设置页新增本地JSON单文件备份/导入，可选择Cookie、应用设置、阅读设置、书架和阅读数据。\n- 备份结构按format/schemaVersion/sections/payload分层，预留后续书单分享扩展。\n\nbeta1.1.2：\n- Yamibo 关键词搜索限制在文学区及子区，并增加分区、标题/全文、排序、顺序和时间范围筛选。\n- 搜索结果支持切换列表模式，长标题可完整显示。\n- 每个书架和子书架可分别记忆按添加顺序、更新、字母、最近阅读排序。\n- 字母排序时显示右侧字母索引栏，可点按或滑动快速跳转。\n\nbeta1.1.1：\n- 阅读器正文顶部自动避开状态栏、刘海和摄像头区域，减少全面屏遮挡。\n- 切换滚动/翻页、墨水屏等阅读布局时，按当前章节百分比迁移页内位置。\n- Yamibo 首页内嵌浏览只保留一行来源栏，网页登录和同步收藏移动到右上角菜单。\n\nbeta1.1：\n- 搜索页改为来源优先，只显示已启用来源。\n- 从当前来源首页点击搜索会默认进入该来源搜索逻辑。\n- Wenku8、ESJZone、Yamibo 搜索选项相互独立，并新增搜索指南。\n- Yamibo 文学区改为原生列表浏览，支持分区展开、主题收藏和作者主题列表。\n- 浏览页电子墨水屏模式改为无滚动分页，并适配音量键翻页。",
       "pending": "挂起中",
       "downloading": "下载中",
       "paused": "已暂停",
@@ -298,6 +298,18 @@ class AppTranslations extends Translations {
       "mark_as_unread": "标为未读",
       "cloudflare_challenge_exception_tip":
           "当前请求已被Cloudflare的人机验证拦截，这通常是因为你的网络IP不纯净所导致的，请尝试切换其它代理节点，或者关闭代理",
+      "wenku8_browser_verify": "浏览器验证",
+      "wenku8_sync_verification": "同步Wenku8验证",
+      "wenku8_verification_synced": "Wenku8验证 Cookie 已同步",
+      "wenku8_verification_sync_failed": "没有找到可同步的Wenku8验证 Cookie",
+      "browser_assisted_sync": "浏览器辅助同步",
+      "browser_assisted_sync_tip":
+          "当前来源页面被 Cloudflare 或网络拦截。可以打开内置浏览器，完成验证或等待页面正常显示后，点击右上角保存页面，再自动重试同步。",
+      "browser_assisted_sync_open": "打开浏览器",
+      "browser_assisted_capture_page": "保存当前页面",
+      "browser_assisted_capture_saved": "页面已保存，正在重试同步",
+      "browser_assisted_capture_failed": "当前页面仍不可用，请完成验证后再保存",
+      "browser_assisted_retrying": "已保存页面，正在重试同步",
       "last_read": "上次阅读",
       "keyword": "关键词",
       "wenku8": "Wenku8",
@@ -412,6 +424,9 @@ class AppTranslations extends Translations {
       "advanced_smart_bookshelf_desc": "按标签、来源、作者、标题筛选，也可作为订阅同步",
       "smart_match_all": "条件全部匹配",
       "smart_subscription_mode": "同步时在线订阅标签",
+      "smart_subscription_sync_mode": "订阅同步模式",
+      "smart_subscription_sync_replace": "替换为最新匹配结果",
+      "smart_subscription_sync_incremental": "增量保留历史命中",
       "source_settings": "来源设置",
       "source_enabled": "启用来源",
       "source_pull_online_to_local": "从在线收藏拉取到本地",
@@ -482,6 +497,11 @@ class AppTranslations extends Translations {
       "yamibo_owner_catalogue": "Yamibo楼主楼层目录",
       "yamibo_owner_catalogue_desc":
           "关闭时详情页只生成按页目录；开启后会在后台生成楼主楼层目录，可能增加网络请求并短暂影响详情页",
+      "yamibo_api_html_response":
+          "Yamibo API 返回了网页内容，可能是登录失效、网络拦截或站点临时异常。请打开网页确认后重试。",
+      "yamibo_detail_parse_failed": "Yamibo 主题解析失败：@error",
+      "yamibo_backup_window":
+          "Yamibo 论坛每天约 05:30-06:00 进行备份维护，此时可能无法访问或无数据返回。请稍后重试。",
       "previous_page": "上一页",
       "next_page": "下一页",
       "page_indicator": "第 @page 页",
@@ -722,7 +742,7 @@ class AppTranslations extends Translations {
       "user_bookshelf": "使用者書架",
       "back_to_previous_web_page": "返回上一個網頁",
       "refresh_web_page": "重新整理網頁",
-      "welcome_to_use_app": "歡迎使用 Hikari Novel Modified",
+      "welcome_to_use_app": "歡迎使用 Hikari Novel Plus",
       "welcome_tip": "首次使用本軟體請先登入",
       "go_to_login": "前往登入",
       "source_setup_tip": "選擇要啟用的來源；各來源帳號互相獨立，登入可以稍後在對應來源頁面完成",
@@ -753,19 +773,19 @@ class AppTranslations extends Translations {
       "backup_exported": "備份已匯出",
       "backup_imported": "備份已匯入",
       "version": "版本",
-      "modified_edition": "叉燒魔改版",
-      "modified_edition_desc":
-          "基於 Hikari Novel 的個人魔改測試版，重點適配 Wenku8 / ESJZone / Yamibo 多來源閱讀與書架同步。",
+      "plus_edition": "Hikari Novel Plus",
+      "plus_edition_desc":
+          "基於 Hikari Novel 的個人增強版，重點適配 Wenku8 / ESJZone / Yamibo 多來源閱讀與書架同步。",
       "usage_guide": "使用說明",
       "usage_guide_tip": "多來源、書架同步和回寫策略",
       "usage_guide_body":
-          "1. 首次啟動可選擇啟用 Wenku8、ESJZone、Yamibo。各來源登入互不強制。\n2. ESJZone / Yamibo 需要先在應用內網頁入口登入，再同步收藏。\n3. 預設只從網頁收藏拉取到本地。本地書架分類由應用管理，不會改網站收藏夾。\n4. 需要回寫時，在 設定 > 來源設定 中開啟對應來源的「把本地變動同步到線上收藏」。刪除網頁收藏還有單獨開關。\n5. ESJZone 閱讀進度會匯入網頁端最後閱讀章節，但無法恢復網頁端的頁內精確位置。",
+          "1. 首次啟動可選擇啟用 Wenku8、ESJZone、Yamibo。各來源登入互不強制。\n2. ESJZone / Yamibo 需要先在應用內網頁入口登入；登入後下一次書架同步會拉取線上收藏。\n3. 預設只從網頁收藏拉取到本地。本地書架分類由應用管理，不會改網站收藏夾。\n4. 需要回寫時，在 設定 > 來源設定 中開啟對應來源的「把本地變動同步到線上收藏」。刪除網頁收藏還有單獨開關。\n5. ESJZone 閱讀進度會匯入網頁端最後閱讀章節，但無法恢復網頁端的頁內精確位置。",
       "major_changes": "主要更改",
-      "major_changes_tip": "beta1.1.5-pre.3 Yamibo詳情與樓層目錄修復",
+      "major_changes_tip": "1.1.5 智慧書架與三來源體驗修復",
       "major_changes_body":
-          "beta1.1.5-pre.3：\n- Yamibo 詳情頁不再阻塞生成樓主樓層目錄，樓層目錄改為可選背景任務，並顯示目前處理狀態。\n- Yamibo 樓主樓層目錄按主題更新 key 增量復用快取，主題未變化時不重複掃描全帖。\n- Yamibo 標題自動 tag 改為匹配 [] / 【】 內文本，減少錯誤自動標籤。\n- Yamibo 無權限主題會原樣顯示站點返回的錯誤資訊。\n- Yamibo 詳情頁同步標題、封面和 tag 時保留書架同步階段的樓主更新 key，避免打開詳情後誤清真實更新狀態。\n\n"
+          "1.1.5：\n- Yamibo 智慧訂閱改為標題、論壇資訊、首樓簡介和樓主正文深度匹配，命中標籤會寫入並保留到本地書籍資訊。\n- 智慧書架新增替換 / 增量同步模式，新建後自動嘗試首次同步，並顯示書架級同步進度和失敗提示。\n- Yamibo / ESJ 同步前會做真實登入校驗，登入失效時提示重新登入；WebView 關閉不再誤觸發同步或清空書架內容。\n- Wenku8 增加 Cloudflare / 瀏覽器輔助 fallback，並修復錯誤頁紅屏。\n- 來源首頁、書架、列表和下拉選單統一為圓角膠囊 / 卡片樣式，並補齊主要頁面切換動畫。\n- Android 包名和應用顯示名統一改為 Hikari Novel Plus。\n\n"
           "beta1.1.5-pre.2：\n- 三個來源首頁統一為來源切換、搜尋和內容 tab 結構。\n- Yamibo 主題列表改為圓角卡片式條目。\n- 我的頁移除重複來源入口，帳號卡統一使用來源 icon，並嘗試顯示 ESJ / Yamibo 使用者名稱。\n- 智慧書架合併為單一入口，支援建立後編輯篩選條件。\n- Yamibo 詳情和閱讀頁在 Cookie 缺失或登入失效時提示重新登入。\n\n"
-          "beta1.1.4-beta.1：\n- 全局檢查 AppBar 標題邊距，修正來源頁、搜尋頁、書架、詳情頁等標題貼邊問題。\n- 最近閱讀智慧書架移動到預設來源書架之後，減少頂層入口割裂感。\n- 書架首頁新增網格模式；預設書架卡片使用來源或資料夾圖示，使用者可為書架選擇書籍封面或上傳本地圖片。\n- Wenku8 / ESJZone 預設進入書架後使用網格檢視，Yamibo 預設列表檢視；所有書架預設依加入順序排序。\n- Yamibo 同步收藏時保留介面返回順序作為本地加入順序，用於接近「最新收藏優先」。\n- Android 新裝預設關閉動態取色；來源背景提高使用者主題色參與度，動態取色開關補充說明。\n- 清理臨時矢量化工具目錄，修復編碼污染導致的亂碼字串和 README mojibake。\n\nbeta1.1.4-pre.2：\n- 來源背景水印主標記移動到右下角並提高可見度，繼續跟隨主題低飽和取色。\n- 書籍詳情頁接入 Wenku8 / ESJZone / Yamibo 來源背景。\n- 搜尋、首頁、我的、設定、歡迎頁和書架來源目錄統一使用來源矢量圖標。\n- 搜尋頁來源切換去除選中打勾，僅保留選中高亮。\n- 書架打開/返回、書架搜尋、書架內容狀態和子頁面路由增加淡入滑動過渡。\n\nbeta1.1.4-pre.1：\n- 移除舊 Hikari Novel 檢查更新鏈路和未使用 markdown 依賴，減少包體積和舊項目干擾。\n- 首頁在所有來源被停用時改為引導進入來源設定，不再錯誤回退 Wenku8。\n- Wenku8 線上收藏回寫會按來源設定裡的遠端目標文件夾執行移動。\n- ESJZone / Yamibo 精簡無實際作用的遠端文件夾和遠端刪除設定項。\n- 應用顯示名統一為 Hikari Novel Modified，保留原包名用於覆蓋安裝測試。\n\nbeta1.1.3：\n- 搜尋頁進階篩選改為可折疊面板，折疊時保留目前篩選摘要，減少結果區域被擠佔。\n- 設定頁新增本地JSON單文件備份/匯入，可選擇Cookie、應用設定、閱讀設定、書架和閱讀資料。\n- 備份結構按format/schemaVersion/sections/payload分層，預留後續書單分享擴展。\n\nbeta1.1.2：\n- Yamibo 關鍵字搜尋限制在文學區及子區，並增加分區、標題／全文、排序、順序和時間範圍篩選。\n- 搜尋結果支援切換列表模式，長標題可完整顯示。\n- 每個書架和子書架可分別記憶按加入順序、更新、字母、最近閱讀排序。\n- 字母排序時顯示右側字母索引欄，可點按或滑動快速跳轉。\n\nbeta1.1.1：\n- 閱讀器正文頂部自動避開狀態欄、瀏海和攝像頭區域，減少全面屏遮擋。\n- 切換捲動/翻頁、墨水屏等閱讀布局時，按目前章節百分比遷移頁內位置。\n- Yamibo 首頁內嵌瀏覽只保留一行來源欄，網頁登入和同步收藏移動到右上角選單。\n\nbeta1.1：\n- 搜尋頁改為來源優先，只顯示已啟用來源。\n- 從目前來源首頁點擊搜尋會預設進入該來源搜尋邏輯。\n- Wenku8、ESJZone、Yamibo 搜尋選項相互獨立，並新增搜尋指南。\n- Yamibo 文學區改為原生列表瀏覽，支援分區展開、主題收藏和作者主題列表。\n- 瀏覽頁電子墨水屏模式改為無捲動分頁，並適配音量鍵翻頁。",
+          "beta1.1.4-beta.1：\n- 全局檢查 AppBar 標題邊距，修正來源頁、搜尋頁、書架、詳情頁等標題貼邊問題。\n- 最近閱讀智慧書架移動到預設來源書架之後，減少頂層入口割裂感。\n- 書架首頁新增網格模式；預設書架卡片使用來源或資料夾圖示，使用者可為書架選擇書籍封面或上傳本地圖片。\n- Wenku8 / ESJZone 預設進入書架後使用網格檢視，Yamibo 預設列表檢視；所有書架預設依加入順序排序。\n- Yamibo 同步收藏時保留介面返回順序作為本地加入順序，用於接近「最新收藏優先」。\n- Android 新裝預設關閉動態取色；來源背景提高使用者主題色參與度，動態取色開關補充說明。\n- 清理臨時矢量化工具目錄，修復編碼污染導致的亂碼字串和 README mojibake。\n\nbeta1.1.4-pre.2：\n- 來源背景水印主標記移動到右下角並提高可見度，繼續跟隨主題低飽和取色。\n- 書籍詳情頁接入 Wenku8 / ESJZone / Yamibo 來源背景。\n- 搜尋、首頁、我的、設定、歡迎頁和書架來源目錄統一使用來源矢量圖標。\n- 搜尋頁來源切換去除選中打勾，僅保留選中高亮。\n- 書架打開/返回、書架搜尋、書架內容狀態和子頁面路由增加淡入滑動過渡。\n\nbeta1.1.4-pre.1：\n- 移除舊 Hikari Novel 檢查更新鏈路和未使用 markdown 依賴，減少包體積和舊項目干擾。\n- 首頁在所有來源被停用時改為引導進入來源設定，不再錯誤回退 Wenku8。\n- Wenku8 線上收藏回寫會按來源設定裡的遠端目標文件夾執行移動。\n- ESJZone / Yamibo 精簡無實際作用的遠端文件夾和遠端刪除設定項。\n- 應用顯示名統一為 Hikari Novel Plus，保留原包名用於覆蓋安裝測試。\n\nbeta1.1.3：\n- 搜尋頁進階篩選改為可折疊面板，折疊時保留目前篩選摘要，減少結果區域被擠佔。\n- 設定頁新增本地JSON單文件備份/匯入，可選擇Cookie、應用設定、閱讀設定、書架和閱讀資料。\n- 備份結構按format/schemaVersion/sections/payload分層，預留後續書單分享擴展。\n\nbeta1.1.2：\n- Yamibo 關鍵字搜尋限制在文學區及子區，並增加分區、標題／全文、排序、順序和時間範圍篩選。\n- 搜尋結果支援切換列表模式，長標題可完整顯示。\n- 每個書架和子書架可分別記憶按加入順序、更新、字母、最近閱讀排序。\n- 字母排序時顯示右側字母索引欄，可點按或滑動快速跳轉。\n\nbeta1.1.1：\n- 閱讀器正文頂部自動避開狀態欄、瀏海和攝像頭區域，減少全面屏遮擋。\n- 切換捲動/翻頁、墨水屏等閱讀布局時，按目前章節百分比遷移頁內位置。\n- Yamibo 首頁內嵌瀏覽只保留一行來源欄，網頁登入和同步收藏移動到右上角選單。\n\nbeta1.1：\n- 搜尋頁改為來源優先，只顯示已啟用來源。\n- 從目前來源首頁點擊搜尋會預設進入該來源搜尋邏輯。\n- Wenku8、ESJZone、Yamibo 搜尋選項相互獨立，並新增搜尋指南。\n- Yamibo 文學區改為原生列表瀏覽，支援分區展開、主題收藏和作者主題列表。\n- 瀏覽頁電子墨水屏模式改為無捲動分頁，並適配音量鍵翻頁。",
       "pending": "等待中",
       "downloading": "下載中",
       "paused": "已暫停",
@@ -782,6 +802,18 @@ class AppTranslations extends Translations {
       "mark_as_unread": "標為未讀",
       "cloudflare_challenge_exception_tip":
           "當前請求已被Cloudflare的人機驗證攔截，這通常是因為你的網路IP不純淨所導致的，請嘗試切換其它代理節點，或者關閉代理",
+      "wenku8_browser_verify": "瀏覽器驗證",
+      "wenku8_sync_verification": "同步Wenku8驗證",
+      "wenku8_verification_synced": "Wenku8驗證 Cookie 已同步",
+      "wenku8_verification_sync_failed": "沒有找到可同步的Wenku8驗證 Cookie",
+      "browser_assisted_sync": "瀏覽器輔助同步",
+      "browser_assisted_sync_tip":
+          "目前來源頁面被 Cloudflare 或網路攔截。可以打開內置瀏覽器，完成驗證或等待頁面正常顯示後，點擊右上角保存頁面，再自動重試同步。",
+      "browser_assisted_sync_open": "打開瀏覽器",
+      "browser_assisted_capture_page": "保存目前頁面",
+      "browser_assisted_capture_saved": "頁面已保存，正在重試同步",
+      "browser_assisted_capture_failed": "目前頁面仍不可用，請完成驗證後再保存",
+      "browser_assisted_retrying": "已保存頁面，正在重試同步",
       "last_read": "上次閱讀",
       "keyword": "關鍵詞",
       "wenku8": "Wenku8",
@@ -896,6 +928,9 @@ class AppTranslations extends Translations {
       "advanced_smart_bookshelf_desc": "按標籤、來源、作者、標題篩選，也可作為訂閱同步",
       "smart_match_all": "條件全部匹配",
       "smart_subscription_mode": "同步時線上訂閱標籤",
+      "smart_subscription_sync_mode": "訂閱同步模式",
+      "smart_subscription_sync_replace": "替換為最新匹配結果",
+      "smart_subscription_sync_incremental": "增量保留歷史命中",
       "source_settings": "來源設定",
       "source_enabled": "啟用來源",
       "source_pull_online_to_local": "從線上收藏拉取到本地",
@@ -966,6 +1001,11 @@ class AppTranslations extends Translations {
       "yamibo_owner_catalogue": "Yamibo樓主樓層目錄",
       "yamibo_owner_catalogue_desc":
           "關閉時詳情頁只生成按頁目錄；開啟後會在背景生成樓主樓層目錄，可能增加網路請求並短暫影響詳情頁",
+      "yamibo_api_html_response":
+          "Yamibo API 返回了網頁內容，可能是登入失效、網路攔截或站點臨時異常。請打開網頁確認後重試。",
+      "yamibo_detail_parse_failed": "Yamibo 主題解析失敗：@error",
+      "yamibo_backup_window":
+          "Yamibo 論壇每天約 05:30-06:00 進行備份維護，此時可能無法訪問或無資料返回。請稍後重試。",
       "previous_page": "上一頁",
       "next_page": "下一頁",
       "page_indicator": "第 @page 頁",

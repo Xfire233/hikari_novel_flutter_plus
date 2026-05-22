@@ -232,7 +232,7 @@ class _CoverImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = imageUrl?.trim() ?? '';
-    if (url.isEmpty || _isPlaceholderOnlyUrl(url)) {
+    if (!_isUsableNetworkUrl(url) || _isPlaceholderOnlyUrl(url)) {
       return _CoverPlaceholder(title: title, source: source);
     }
     return CachedNetworkImage(
@@ -253,6 +253,12 @@ class _CoverImage extends StatelessWidget {
     return lower.contains('/static/image/common/logo') ||
         lower.contains('discuz') ||
         lower.contains('community');
+  }
+
+  bool _isUsableNetworkUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) return false;
+    return uri.scheme == 'http' || uri.scheme == 'https';
   }
 }
 

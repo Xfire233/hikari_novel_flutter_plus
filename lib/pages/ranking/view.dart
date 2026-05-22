@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:hikari_novel_flutter/common/constants.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/pages/ranking/controller.dart';
+import 'package:hikari_novel_flutter/widgets/capsule_dropdown.dart';
+import 'package:hikari_novel_flutter/widgets/wenku8_browser_assist.dart';
 
 import '../../widgets/keep_alive_wrapper.dart';
 import '../../widgets/browsing_novel_grid.dart';
@@ -18,29 +19,24 @@ class RankingView extends StatelessWidget {
     return KeepAliveWrapper(
       child: Column(
         children: [
-          SizedBox(height: 4),
-          Row(
-            children: [
-              const SizedBox(width: kPageHorizontalPadding),
-              ActionChip(
-                label: Row(
-                  children: [
-                    Obx(() => Text(controller.ranking.value)),
-                    Icon(Icons.arrow_drop_down_outlined),
-                  ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 176,
+                  child: Obx(
+                    () => CapsuleDropdown<Object?>(
+                      label: controller.ranking.value,
+                      items: _getRankingList(),
+                      onSelected: (_) {},
+                      emphasized: true,
+                    ),
+                  ),
                 ),
-                onPressed: () {
-                  showMenu(
-                    context: context,
-                    position: RelativeRect.fill,
-                    items: _getRankingList(),
-                  );
-                },
-                padding: EdgeInsets.zero,
-              ),
-            ],
+              ],
+            ),
           ),
-          SizedBox(height: 4),
           Expanded(
             child: Stack(
               children: [
@@ -82,6 +78,13 @@ class RankingView extends StatelessWidget {
                     child: ErrorMessage(
                       msg: controller.errorMsg,
                       action: () => controller.getPage(false),
+                      extraAction: isSpecificMessage(controller.errorMsg)
+                          ? () => openWenku8BrowserAssist(
+                              url: controller.currentRequestUrl(),
+                              onCaptured: () => controller.getPage(false),
+                            )
+                          : null,
+                      extraButtonText: 'wenku8_browser_verify',
                     ),
                   ),
                 ),
@@ -93,7 +96,7 @@ class RankingView extends StatelessWidget {
     );
   }
 
-  List<PopupMenuItem> _getRankingList() {
+  List<PopupMenuEntry<Object?>> _getRankingList() {
     return [
       PopupMenuItem(
         child: Text("last_update".tr),

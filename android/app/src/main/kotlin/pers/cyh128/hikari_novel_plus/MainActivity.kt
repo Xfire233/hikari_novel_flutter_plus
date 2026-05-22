@@ -1,4 +1,4 @@
-package pers.cyh128.hikari_novel
+package pers.cyh128.hikari_novel_plus
 
 import android.content.Intent
 import android.content.pm.PackageManager

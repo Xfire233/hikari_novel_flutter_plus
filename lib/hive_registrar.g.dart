@@ -7,12 +7,12 @@ import 'package:hikari_novel_flutter/models/user_info.dart';
 
 extension HiveRegistrar on HiveInterface {
   void registerAdapters() {
-    registerAdapter(user_info_adapter());
+    registerAdapter(UserInfoAdapter());
   }
 }
 
 extension IsolatedHiveRegistrar on IsolatedHiveInterface {
   void registerAdapters() {
-    registerAdapter(user_info_adapter());
+    registerAdapter(UserInfoAdapter());
   }
 }

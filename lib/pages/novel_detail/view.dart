@@ -80,7 +80,54 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
 
   List<String> _allVisibleTags() {
     final detailTags = controller.novelDetail.value?.tags ?? const <String>[];
-    return _visibleTags([...detailTags, ...controller.localTags]);
+    return _visibleTags([
+      ...detailTags,
+      ...controller.remoteTags,
+      ...controller.localTags,
+    ]);
+  }
+
+  bool _usableCoverUrl(String url) {
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) return false;
+    return uri.scheme == 'http' || uri.scheme == 'https';
+  }
+
+  Widget _buildDetailCoverImage(
+    BuildContext context, {
+    required String url,
+    required double width,
+    double? height,
+    required String title,
+    required BoxFit fit,
+    bool subtle = false,
+  }) {
+    if (url.isEmpty) {
+      return SizedBox(
+        width: width,
+        height: height,
+        child: _DetailCoverPlaceholder(
+          title: title,
+          source: _source,
+          subtle: subtle,
+        ),
+      );
+    }
+    return CachedNetworkImage(
+      width: width,
+      height: height,
+      imageUrl: url,
+      httpHeaders: Request.userAgent,
+      fit: fit,
+      progressIndicatorBuilder: (context, url, downloadProgress) => Center(
+        child: CircularProgressIndicator(value: downloadProgress.progress),
+      ),
+      errorWidget: (context, url, error) => _DetailCoverPlaceholder(
+        title: title,
+        source: _source,
+        subtle: subtle,
+      ),
+    );
   }
 
   VoidCallback? _authorSearchAction(String author) {
@@ -142,7 +189,13 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
   Widget _buildErrorPage() => Scaffold(
     appBar: AppBar(),
     body: _buildBackdrop(
-      ErrorMessage(msg: controller.errorMsg, action: controller.getNovelDetail),
+      ErrorMessage(
+        msg: controller.errorMsg,
+        action: controller.getNovelDetail,
+        extraAction: controller.isYamibo ? controller.openWithBrowser : null,
+        extraButtonText: controller.isYamibo ? 'yamibo_open_web' : null,
+        extraIconData: Icons.open_in_browser,
+      ),
     ),
   );
 
@@ -450,6 +503,7 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
 
   Widget _buildInfo(BuildContext context) {
     final detail = controller.novelDetail.value!;
+    final coverUrl = _usableCoverUrl(detail.imgUrl) ? detail.imgUrl.trim() : '';
     return Stack(
       children: [
         Positioned.fill(
@@ -458,23 +512,13 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
             child: Blur(
               blur: 3,
               blurColor: Theme.of(context).colorScheme.surface,
-              child: CachedNetworkImage(
+              child: _buildDetailCoverImage(
+                context,
+                url: coverUrl,
                 width: double.infinity,
-                imageUrl: detail.imgUrl,
-                httpHeaders: Request.userAgent,
+                title: detail.title,
                 fit: BoxFit.fitWidth,
-                progressIndicatorBuilder: (context, url, downloadProgress) =>
-                    Center(
-                      child: CircularProgressIndicator(
-                        value: downloadProgress.progress,
-                      ),
-                    ),
-                errorWidget: (context, url, error) => Column(
-                  children: [
-                    const Icon(Icons.error_outline),
-                    Text(error.toString()),
-                  ],
-                ),
+                subtle: true,
               ),
             ),
           ),
@@ -509,28 +553,19 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
                   elevation: 0,
                   clipBehavior: Clip.hardEdge,
                   child: GestureDetector(
-                    onTap: () => Get.toNamed(
-                      RoutePath.photo,
-                      arguments: {"gallery_mode": false, "url": detail.imgUrl},
-                    ),
-                    child: CachedNetworkImage(
+                    onTap: coverUrl.isEmpty
+                        ? null
+                        : () => Get.toNamed(
+                            RoutePath.photo,
+                            arguments: {"gallery_mode": false, "url": coverUrl},
+                          ),
+                    child: _buildDetailCoverImage(
+                      context,
+                      url: coverUrl,
                       width: 120,
                       height: 180,
-                      imageUrl: detail.imgUrl,
-                      httpHeaders: Request.userAgent,
+                      title: detail.title,
                       fit: BoxFit.cover,
-                      progressIndicatorBuilder:
-                          (context, url, downloadProgress) => Center(
-                            child: CircularProgressIndicator(
-                              value: downloadProgress.progress,
-                            ),
-                          ),
-                      errorWidget: (context, url, error) => Column(
-                        children: [
-                          const Icon(Icons.error_outline),
-                          Text(error.toString()),
-                        ],
-                      ),
                     ),
                   ),
                 ),
@@ -985,6 +1020,63 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DetailCoverPlaceholder extends StatelessWidget {
+  const _DetailCoverPlaceholder({
+    required this.title,
+    required this.source,
+    this.subtle = false,
+  });
+
+  final String title;
+  final NovelSource source;
+  final bool subtle;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final palette = SourceBackdropPalette.of(context, source);
+    return ColoredBox(
+      color: Color.lerp(
+        scheme.surfaceContainerHighest,
+        palette.backgroundStart,
+        subtle ? 0.35 : 0.55,
+      )!,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned(
+            right: -18,
+            bottom: -14,
+            child: SourceMark(
+              source: source,
+              size: subtle ? 160 : 96,
+              color: palette.mark,
+              opacity: subtle ? 0.10 : 0.16,
+            ),
+          ),
+          if (!subtle)
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Center(
+                child: Text(
+                  title,
+                  maxLines: 8,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    height: 1.18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

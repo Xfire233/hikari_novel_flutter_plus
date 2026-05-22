@@ -40,6 +40,18 @@ class LoginPage extends StatelessWidget {
                     icon: Icon(Icons.refresh),
                     tooltip: "refresh_web_page".tr,
                   ),
+                  if (controller.captureHtmlOnly)
+                    IconButton(
+                      onPressed: controller.captureCurrentHtmlAndReturn,
+                      icon: const Icon(Icons.download_done_outlined),
+                      tooltip: "browser_assisted_capture_page".tr,
+                    )
+                  else
+                    IconButton(
+                      onPressed: controller.syncBrowserVerification,
+                      icon: const Icon(Icons.verified_user),
+                      tooltip: "wenku8_sync_verification".tr,
+                    ),
                 ]
               : [],
         ),

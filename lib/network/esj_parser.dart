@@ -1,5 +1,6 @@
 import 'package:html/dom.dart';
 import 'package:html/parser.dart';
+import 'package:hikari_novel_flutter/models/book_tags.dart';
 import 'package:hikari_novel_flutter/models/bookshelf.dart';
 import 'package:hikari_novel_flutter/models/cat_chapter.dart';
 import 'package:hikari_novel_flutter/models/cat_volume.dart';
@@ -32,10 +33,10 @@ class EsjParser {
         '.navbar .dropdown-toggle',
         '.navbar-nav .nav-link',
       ])
-        ...document.querySelectorAll(selector).map((item) => item.text),
+        ...document.querySelectorAll(selector).map(_accountCandidateText),
     ];
     for (final raw in candidates) {
-      final text = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+      final text = _cleanAccountName(raw);
       if (text.isEmpty) continue;
       if (text.contains('登入') ||
           text.contains('登录') ||
@@ -47,6 +48,38 @@ class EsjParser {
       if (text.length <= 32) return text;
     }
     return '';
+  }
+
+  static String _accountCandidateText(Element item) {
+    final directText = item.nodes
+        .whereType<Text>()
+        .map((node) => node.text.trim())
+        .where((text) => text.isNotEmpty)
+        .join(' ');
+    return directText.isNotEmpty ? directText : item.text;
+  }
+
+  static String _cleanAccountName(String raw) {
+    final attachedExpScore = RegExp(
+      r'([A-Za-z_][A-Za-z0-9_]*?)(\d{4,})(?:\.\d+)?\s*EXP(?:\b|(?=[^A-Za-z]))',
+      caseSensitive: false,
+    );
+    final expScore = RegExp(
+      r'(^|[^A-Za-z0-9_])\d+(?:\.\d+)?\s*EXP(?:\b|(?=[^A-Za-z]))',
+      caseSensitive: false,
+    );
+    return raw
+        .replaceAllMapped(attachedExpScore, (match) {
+          final prefix = match.group(1) ?? '';
+          final digits = match.group(2) ?? '';
+          final nicknameDigits = digits.length > 4
+              ? digits.substring(0, digits.length - 4)
+              : '';
+          return '$prefix$nicknameDigits';
+        })
+        .replaceAllMapped(expScore, (match) => match.group(1) ?? ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   static List<NovelCover> getSearchResults(String html) {
@@ -76,6 +109,25 @@ class EsjParser {
       final image = _imageFrom(card) ?? EsjApi.logoUrl;
       covers.add(NovelCover(title, image, SourceId.esjAid(bookId)));
     }
+    for (final link in document.querySelectorAll('a[href*="/detail/"]')) {
+      final href = link.attributes['href'] ?? '';
+      final bookId = _bookIdFromHref(href);
+      if (bookId == null || seen.contains(bookId)) continue;
+      final card = _cardRoot(link);
+      final titleElement =
+          card?.querySelector('.card-title') ??
+          card?.querySelector('.product-title') ??
+          link;
+      final title = titleElement.text.trim();
+      if (title.isEmpty || !seen.add(bookId)) continue;
+      covers.add(
+        NovelCover(
+          title,
+          _imageFrom(card) ?? EsjApi.logoUrl,
+          SourceId.esjAid(bookId),
+        ),
+      );
+    }
     return covers;
   }
 
@@ -102,11 +154,13 @@ class EsjParser {
         _imageFrom(root) ??
         _imageFrom(document.body) ??
         EsjApi.logoUrl;
-    final tags = document
-        .querySelectorAll('.widget-tags a')
-        .map((e) => e.text.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    final tags = BookTags.normalize([
+      ...document
+          .querySelectorAll('.widget-tags a')
+          .map((e) => e.text.trim())
+          .where((e) => e.isNotEmpty),
+      ...BookTags.statusTags(status, update),
+    ]);
     final intro = _introText(document);
     final detail = NovelDetail(
       title,

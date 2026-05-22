@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:html/dom.dart';
 import 'package:html/parser.dart';
+import 'package:hikari_novel_flutter/models/book_tags.dart';
 import 'package:hikari_novel_flutter/models/bookshelf.dart';
 import 'package:hikari_novel_flutter/models/cat_chapter.dart';
 import 'package:hikari_novel_flutter/models/cat_volume.dart';
@@ -123,19 +124,45 @@ class YamiboSearchPageData {
 }
 
 class YamiboParser {
-  static List<String> titleTags(String title) {
+  static List<String> titleTags(String title) => safeTitleTags(title);
+
+  static List<String> safeTitleTags(String title) {
     final tags = <String>[];
     final seen = <String>{};
-    for (final match in RegExp(r'[\[【]([^\]】]{1,24})[\]】]').allMatches(title)) {
+    final normalized = title.trim();
+    final half = (normalized.length / 2).ceil();
+    final scanEnd = half < 32 ? 32 : half;
+    final prefix = normalized.substring(0, scanEnd.clamp(0, normalized.length));
+    for (final match in RegExp(
+      '[\\[\\u3010]([^\\]\\u3011]{1,24})[\\]\\u3011]',
+    ).allMatches(prefix)) {
       final raw = match.group(1) ?? '';
-      for (final part in raw.split(RegExp(r'[/／,，、\s]+'))) {
+      for (final part in raw.split(RegExp('[/,+\\uFF0B\\uFF0C\\u3001\\s]+'))) {
         final tag = part.trim();
-        if (tag.isEmpty) continue;
+        if (tag.isEmpty || _isTitleUpdateTag(tag)) continue;
         final key = tag.toLowerCase();
         if (seen.add(key)) tags.add(tag);
       }
     }
     return tags;
+  }
+
+  static List<String> yamiboTags(Iterable<dynamic> tags) =>
+      BookTags.normalize(['Yamibo', '百合', ...tags]);
+
+  static bool _isTitleUpdateTag(String tag) {
+    final text = tag.trim();
+    if (text.isEmpty) return true;
+    if (RegExp(r'^\d+$').hasMatch(text)) return true;
+    if (RegExp(r'^\d{1,4}([/-]\d{1,2}){1,2}$').hasMatch(text)) return true;
+    if (RegExp(r'^\d{1,3}(\.\d+)?[kK万萬]?$').hasMatch(text)) return true;
+    return text.contains('更新') ||
+        text.contains('更至') ||
+        text.contains('更到') ||
+        text.contains('章') ||
+        text.contains('話') ||
+        text.contains('话') ||
+        text.contains('回');
   }
 
   static String? threadErrorMessage(String jsonText) {
@@ -151,6 +178,41 @@ class YamiboParser {
       return text;
     } catch (_) {
       return null;
+    }
+  }
+
+  static bool isMobileApiJson(String text) {
+    final trimmed = text.trimLeft();
+    return trimmed.startsWith('{') || trimmed.startsWith('[');
+  }
+
+  static bool isDailyBackupWindow([DateTime? now]) {
+    final local = now ?? DateTime.now();
+    final minuteOfDay = local.hour * 60 + local.minute;
+    return minuteOfDay >= 5 * 60 + 30 && minuteOfDay < 6 * 60;
+  }
+
+  static bool isUnavailableDuringDailyBackup(String text, {DateTime? now}) {
+    if (!isDailyBackupWindow(now)) return false;
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return true;
+    if (!isMobileApiJson(trimmed)) return true;
+    try {
+      final json = jsonDecode(trimmed);
+      if (json is! Map) return true;
+      final variables = json['Variables'];
+      if (variables is! Map) return true;
+      return variables.isEmpty ||
+          !variables.keys.any(
+            (key) =>
+                key == 'forum' ||
+                key == 'forum_threadlist' ||
+                key == 'thread' ||
+                key == 'postlist' ||
+                key == 'list',
+          );
+    } catch (_) {
+      return true;
     }
   }
 
@@ -218,7 +280,12 @@ class YamiboParser {
     final postList = _postList(variables);
     final authorId = '${thread['authorid'] ?? ''}';
     final subject = '${thread['subject'] ?? 'Yamibo'}'.trim();
-    final tags = ['Yamibo', '论坛主题', ...titleTags(subject)];
+    final typeName = _threadTypeName(variables, '${thread['typeid'] ?? ''}');
+    final tags = yamiboTags([
+      '论坛主题',
+      if (typeName.isNotEmpty) typeName,
+      ...safeTitleTags(subject),
+    ]);
     final author = '${thread['author'] ?? ''}'.trim();
     final replies = int.tryParse('${thread['replies'] ?? 0}') ?? 0;
     final views = '${thread['views'] ?? 0}';
@@ -426,7 +493,7 @@ class YamiboParser {
             updateTime:
                 _parseUnixSeconds(item['lastpost']) ??
                 _parseUnixSeconds(item['dateline']),
-            remoteTags: ['Yamibo', ...titleTags(title)],
+            remoteTags: yamiboTags(safeTitleTags(title)),
           );
         })
         .where((item) => SourceId.yamiboTid(item.aid).isNotEmpty)
@@ -592,6 +659,7 @@ class YamiboParser {
   static bool _rowHasForumId(Element? row, Set<String> allowedForumIds) {
     if (row == null) return false;
     final links = row.querySelectorAll('a[href*="fid="], a[href*="forum-"]');
+    if (links.isEmpty) return true;
     for (final link in links) {
       final href = link.attributes['href'] ?? '';
       final fid =
@@ -664,6 +732,15 @@ class YamiboParser {
       isTop: displayOrder > 0,
       isDigest: digest > 0,
     );
+  }
+
+  static String _threadTypeName(Map<String, dynamic> variables, String typeId) {
+    if (typeId.isEmpty) return '';
+    final threadTypes = variables['threadtypes'];
+    if (threadTypes is! Map) return '';
+    final types = threadTypes['types'];
+    if (types is! Map) return '';
+    return _htmlToText('${types[typeId] ?? ''}').trim();
   }
 
   static Map<String, dynamic> _variables(String jsonText) {

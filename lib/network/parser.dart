@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:hikari_novel_flutter/models/book_tags.dart';
 import 'package:hikari_novel_flutter/models/common/wenku8_node.dart';
 import 'package:hikari_novel_flutter/models/novel_detail.dart';
 import 'package:hikari_novel_flutter/models/recommend_block.dart';
@@ -151,7 +152,10 @@ class Parser {
     } catch (_) {
       trending = "increase_rate".tr + tempHeat.substring(18, 19);
     }
-    final tags = tag.replaceRange(0, 7, "").split(" ");
+    final tags = BookTags.normalize([
+      ...tag.replaceRange(0, 7, "").split(" "),
+      ...BookTags.statusTags(status, finUpdate),
+    ]);
     final heat = "heat".tr + tempHeat.substring(5, 7);
 
     return NovelDetail(
@@ -188,11 +192,15 @@ class Parser {
     Document document = parse(html);
     Element? a = document.getElementById("centers");
     List<RecommendBlock> recommendBlockList = [];
+    final centerBlocks =
+        a?.getElementsByClassName("block") ?? const <Element>[];
     for (int i = 1; i <= 3; i++) {
       List<NovelCover> blockList = [];
-      Element? block = a?.getElementsByClassName("block")[i];
-      if (block == null) continue;
-      String blockTitle = block.getElementsByClassName("blocktitle")[0].text;
+      if (i >= centerBlocks.length) continue;
+      Element block = centerBlocks[i];
+      final titleElements = block.getElementsByClassName("blocktitle");
+      if (titleElements.isEmpty) continue;
+      String blockTitle = titleElements[0].text;
       if (i == 1) {
         blockTitle = blockTitle.split("(")[0];
       }
@@ -200,13 +208,18 @@ class Parser {
         "div[style='float: left;text-align:center;width: 95px; height:155px;overflow:hidden;']",
       );
       for (var j in tempBlock1Content) {
-        String title = j.getElementsByTagName("a")[1].text;
-        String img = j.getElementsByTagName("img")[0].attributes["src"] ?? "";
+        final links = j.getElementsByTagName("a");
+        final images = j.getElementsByTagName("img");
+        if (links.length < 2 || images.isEmpty) continue;
+        String title = links[1].text;
+        String img = images[0].attributes["src"] ?? "";
         if (!img.startsWith("https")) {
           img = img.replaceFirst("http", "https");
         }
-        String url = j.getElementsByTagName("a")[0].attributes["href"] ?? "";
-        String aid = url.contains("book/")
+        String url = links[0].attributes["href"] ?? "";
+        final bookIndex = url.indexOf("book/");
+        final htmIndex = url.indexOf(".htm");
+        String aid = bookIndex != -1 && htmIndex > bookIndex + 5
             ? url.substring(url.indexOf("book/") + 5, url.indexOf(".htm"))
             : "";
         blockList.add(NovelCover(title, img, aid));
@@ -214,8 +227,10 @@ class Parser {
       recommendBlockList.add(RecommendBlock(blockTitle, blockList));
     }
     RegExp regex = RegExp(r"^(http|https)://[^\s/$.?#].[^\s]*$");
+    final mainBlocks = document.querySelectorAll("div.main");
     for (int i = 2; i <= 3; i++) {
-      Element? b = document.querySelectorAll("div.main")[i];
+      if (i >= mainBlocks.length) continue;
+      Element b = mainBlocks[i];
       List<NovelCover> blockList = [];
       String blockTitle = b.querySelector("div.blocktitle")?.text ?? "";
       if (i == 3) {
@@ -226,15 +241,20 @@ class Parser {
       );
       for (var j in tempBlock1Content) {
         try {
-          String title = j.getElementsByTagName("a")[1].text;
-          String img = j.getElementsByTagName("img")[0].attributes["src"] ?? "";
+          final links = j.getElementsByTagName("a");
+          final images = j.getElementsByTagName("img");
+          if (links.length < 2 || images.isEmpty) continue;
+          String title = links[1].text;
+          String img = images[0].attributes["src"] ?? "";
           if (!regex.hasMatch(img)) img = "";
           if (!img.startsWith("https")) {
             img = img.replaceFirst("http", "https");
           }
-          String url = j.getElementsByTagName("a")[0].attributes["href"] ?? "";
-          String aid = url.contains("book/")
-              ? url.substring(url.indexOf("book/") + 5, url.indexOf(".htm"))
+          String url = links[0].attributes["href"] ?? "";
+          final bookIndex = url.indexOf("book/");
+          final htmIndex = url.indexOf(".htm");
+          String aid = bookIndex != -1 && htmIndex > bookIndex + 5
+              ? url.substring(bookIndex + 5, htmIndex)
               : "";
           blockList.add(NovelCover(title, img, aid));
         } catch (e) {

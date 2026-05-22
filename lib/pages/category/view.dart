@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:hikari_novel_flutter/common/constants.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/pages/category/controller.dart';
+import 'package:hikari_novel_flutter/widgets/capsule_dropdown.dart';
+import 'package:hikari_novel_flutter/widgets/wenku8_browser_assist.dart';
 
 import '../../widgets/keep_alive_wrapper.dart';
 import '../../widgets/browsing_novel_grid.dart';
@@ -18,46 +19,34 @@ class CategoryView extends StatelessWidget {
     return KeepAliveWrapper(
       child: Column(
         children: [
-          SizedBox(height: 4),
-          Row(
-            children: [
-              const SizedBox(width: kPageHorizontalPadding),
-              ActionChip(
-                label: Row(
-                  children: [
-                    Obx(() => Text(controller.category.value)),
-                    Icon(Icons.arrow_drop_down_outlined),
-                  ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Obx(
+                    () => CapsuleDropdown<Object?>(
+                      label: controller.category.value,
+                      items: _getTagList(),
+                      onSelected: (_) {},
+                    ),
+                  ),
                 ),
-                onPressed: () {
-                  showMenu(
-                    context: context,
-                    position: RelativeRect.fill,
-                    items: _getTagList(),
-                  );
-                },
-                padding: EdgeInsets.zero,
-              ),
-              const SizedBox(width: 10),
-              ActionChip(
-                label: Row(
-                  children: [
-                    Obx(() => Text(controller.sortText.value)),
-                    Icon(Icons.arrow_drop_down_outlined),
-                  ],
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 142,
+                  child: Obx(
+                    () => CapsuleDropdown<Object?>(
+                      label: controller.sortText.value,
+                      items: _getSortList(),
+                      onSelected: (_) {},
+                      emphasized: true,
+                    ),
+                  ),
                 ),
-                onPressed: () {
-                  showMenu(
-                    context: context,
-                    position: RelativeRect.fill,
-                    items: _getSortList(),
-                  );
-                },
-                padding: EdgeInsets.zero,
-              ),
-            ],
+              ],
+            ),
           ),
-          SizedBox(height: 4),
           Expanded(
             child: Stack(
               children: [
@@ -99,6 +88,13 @@ class CategoryView extends StatelessWidget {
                     child: ErrorMessage(
                       msg: controller.errorMsg,
                       action: () => controller.getPage(false),
+                      extraAction: isSpecificMessage(controller.errorMsg)
+                          ? () => openWenku8BrowserAssist(
+                              url: controller.currentRequestUrl(),
+                              onCaptured: () => controller.getPage(false),
+                            )
+                          : null,
+                      extraButtonText: 'wenku8_browser_verify',
                     ),
                   ),
                 ),
@@ -110,15 +106,15 @@ class CategoryView extends StatelessWidget {
     );
   }
 
-  List<PopupMenuItem> _getTagList() {
+  List<PopupMenuEntry<Object?>> _getTagList() {
     return [
-      PopupMenuItem(
+      PopupMenuItem<Object?>(
         child: Text("school".tr),
         onTap: () {
           controller.category.value = "school".tr;
         },
       ),
-      PopupMenuItem(
+      PopupMenuItem<Object?>(
         child: Text("youth".tr),
         onTap: () {
           controller.category.value = "youth".tr;
@@ -409,7 +405,7 @@ class CategoryView extends StatelessWidget {
     ];
   }
 
-  List<PopupMenuItem> _getSortList() {
+  List<PopupMenuEntry<Object?>> _getSortList() {
     return [
       PopupMenuItem(
         child: Text("sort_by_update".tr),

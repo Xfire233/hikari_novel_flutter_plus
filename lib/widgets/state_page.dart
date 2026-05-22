@@ -10,12 +10,18 @@ class ErrorMessage extends StatelessWidget {
     required this.action,
     this.buttonText = "retry",
     this.iconData = Icons.refresh,
+    this.extraAction,
+    this.extraButtonText,
+    this.extraIconData = Icons.verified_user,
   });
 
   final String msg;
   final Function()? action;
   final String buttonText;
   final IconData iconData;
+  final Function()? extraAction;
+  final String? extraButtonText;
+  final IconData extraIconData;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +41,7 @@ class ErrorMessage extends StatelessWidget {
           ),
           Padding(
             padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-            child: _buildErrorInfo(),
+            child: _buildErrorInfo(context),
           ),
           action == null
               ? Container()
@@ -44,14 +50,24 @@ class ErrorMessage extends StatelessWidget {
                   icon: Icon(iconData),
                   label: Text(buttonText.tr),
                 ),
+          extraAction == null
+              ? Container()
+              : Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: OutlinedButton.icon(
+                    onPressed: extraAction,
+                    icon: Icon(extraIconData),
+                    label: Text((extraButtonText ?? '').tr),
+                  ),
+                ),
         ],
       ),
     );
   }
 
-  Widget _buildErrorInfo() {
+  Widget _buildErrorInfo(BuildContext context) {
     if (isSpecificMessage(msg)) {
-      return _getCommonErrorInfoView(msg);
+      return _getCommonErrorInfoView(context, msg);
     } else {
       return SingleChildScrollView(child: Text(msg));
     }
@@ -156,8 +172,8 @@ class EmptyPage extends StatelessWidget {
   }
 }
 
-Widget _getCommonErrorInfoView(String msg) {
-  late String tip;
+Widget _getCommonErrorInfoView(BuildContext context, String msg) {
+  String tip = msg;
   if (msg.contains(cloudflareChallengeExceptionMessage)) {
     tip = "cloudflare_challenge_exception_tip".tr;
   } else if (msg.contains(cloudflare403ExceptionMessage)) {
@@ -171,7 +187,7 @@ Widget _getCommonErrorInfoView(String msg) {
         const SizedBox(height: 6),
         WxDivider(
           pattern: WxDivider.dashed,
-          color: Theme.of(Get.context!).colorScheme.onSurface,
+          color: Theme.of(context).colorScheme.onSurface,
           child: Text("Raw Message"),
         ),
         const SizedBox(height: 6),
@@ -184,7 +200,10 @@ Widget _getCommonErrorInfoView(String msg) {
 Future showErrorDialog(String msg, List<Widget> actions) {
   late Widget content;
   if (isSpecificMessage(msg)) {
-    content = _getCommonErrorInfoView(msg);
+    final context = Get.context;
+    content = context == null
+        ? SingleChildScrollView(child: Text(msg))
+        : _getCommonErrorInfoView(context, msg);
   } else {
     content = SingleChildScrollView(child: Text(msg));
   }

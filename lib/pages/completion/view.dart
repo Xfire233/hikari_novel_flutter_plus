@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/pages/completion/controller.dart';
 import 'package:hikari_novel_flutter/widgets/keep_alive_wrapper.dart';
+import 'package:hikari_novel_flutter/widgets/wenku8_browser_assist.dart';
 
 import '../../widgets/browsing_novel_grid.dart';
 import '../../widgets/state_page.dart';
@@ -47,6 +48,13 @@ class CompletionView extends StatelessWidget {
               child: ErrorMessage(
                 msg: controller.errorMsg,
                 action: () => controller.getPage(false),
+                extraAction: isSpecificMessage(controller.errorMsg)
+                    ? () => openWenku8BrowserAssist(
+                        url: controller.currentRequestUrl(),
+                        onCaptured: () => controller.getPage(false),
+                      )
+                    : null,
+                extraButtonText: 'wenku8_browser_verify',
               ),
             ),
           ),

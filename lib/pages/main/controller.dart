@@ -8,6 +8,7 @@ import '../home/view.dart';
 class MainController extends GetxController {
   List<Widget> pages = <Widget>[];
   RxInt selectedIndex = 0.obs;
+  RxInt previousIndex = 0.obs;
 
   RxBool showContent = false.obs;
 
@@ -19,4 +20,17 @@ class MainController extends GetxController {
 
     pages = [HomePage(), BookshelfPage(), MyPage()];
   }
+
+  void changeTab(int index) {
+    if (index < 0 || index >= pages.length || selectedIndex.value == index) {
+      return;
+    }
+    previousIndex.value = selectedIndex.value;
+    selectedIndex.value = index;
+  }
+
+  AxisDirection get tabTransitionDirection =>
+      selectedIndex.value >= previousIndex.value
+      ? AxisDirection.left
+      : AxisDirection.right;
 }

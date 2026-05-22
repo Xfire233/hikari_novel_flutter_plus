@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/pages/bookshelf/controller.dart';
 import 'package:responsive_grid_list/responsive_grid_list.dart';
 
+import '../../../common/constants.dart';
 import '../../../models/bookshelf.dart';
 import '../../../models/page_state.dart';
 import '../../../router/app_sub_router.dart';
@@ -96,9 +97,14 @@ class BookshelfContentView extends StatelessWidget {
       return _buildAlphabetIndexedListView(context, list);
     }
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.fromLTRB(
+        kPageHorizontalPadding,
+        8,
+        kPageHorizontalPadding,
+        24,
+      ),
       itemCount: list.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         return _buildListRow(context, list[index]);
       },
@@ -140,8 +146,15 @@ class BookshelfContentView extends StatelessWidget {
         );
       }
       children
-        ..add(_buildListRow(context, item))
-        ..add(const Divider(height: 1));
+        ..add(
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: kPageHorizontalPadding,
+            ),
+            child: _buildListRow(context, item),
+          ),
+        )
+        ..add(const SizedBox(height: 8));
     }
 
     return Stack(
@@ -173,107 +186,116 @@ class BookshelfContentView extends StatelessWidget {
 
   Widget _buildListRow(BuildContext context, BookshelfNovelInfo item) {
     return Obx(
-      () => InkWell(
-        onTap: () => _onTap(item.aid),
-        onLongPress: () => _onLongPress(item.aid),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              controller.isSelectionMode
-                  ? Checkbox(
-                      value: item.isSelected.value,
-                      onChanged: (_) =>
-                          controller.toggleCoverSelection(item.aid),
-                    )
-                  : const Padding(
-                      padding: EdgeInsets.only(top: 2),
-                      child: Icon(Icons.article_outlined),
+      () => Card.outlined(
+        margin: EdgeInsets.zero,
+        elevation: 1,
+        clipBehavior: Clip.antiAlias,
+        color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.84),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(kCardBorderRadius),
+        ),
+        child: InkWell(
+          onTap: () => _onTap(item.aid),
+          onLongPress: () => _onLongPress(item.aid),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                controller.isSelectionMode
+                    ? Checkbox(
+                        value: item.isSelected.value,
+                        onChanged: (_) =>
+                            controller.toggleCoverSelection(item.aid),
+                      )
+                    : const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: Icon(Icons.article_outlined),
+                      ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: controller.isTitleSort ? 20 : 0,
                     ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    right: controller.isTitleSort ? 20 : 0,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              item.title,
-                              maxLines:
-                                  (controller.isYamiboBookshelf ||
-                                      controller.isEsjBookshelf)
-                                  ? 8
-                                  : 4,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: item.isSelected.value
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                                color: item.isSelected.value
-                                    ? Theme.of(context).colorScheme.primary
-                                    : null,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item.title,
+                                maxLines:
+                                    (controller.isYamiboBookshelf ||
+                                        controller.isEsjBookshelf)
+                                    ? 8
+                                    : 4,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: item.isSelected.value
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                  color: item.isSelected.value
+                                      ? Theme.of(context).colorScheme.primary
+                                      : null,
+                                ),
                               ),
                             ),
-                          ),
-                          if (item.hasUpdate)
-                            _buildBadge(
-                              context,
-                              label: "updated".tr,
-                              color: Theme.of(context).colorScheme.primary,
-                              foregroundColor: Theme.of(
+                            if (item.hasUpdate)
+                              _buildBadge(
                                 context,
-                              ).colorScheme.onPrimary,
-                            )
-                          else if (item.isReadComplete)
-                            _buildBadge(
-                              context,
-                              label: "read_complete".tr,
-                              color: Theme.of(
+                                label: "updated".tr,
+                                color: Theme.of(context).colorScheme.primary,
+                                foregroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.onPrimary,
+                              )
+                            else if (item.isReadComplete)
+                              _buildBadge(
                                 context,
-                              ).colorScheme.secondaryContainer,
-                              foregroundColor: Theme.of(
-                                context,
-                              ).colorScheme.onSecondaryContainer,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _metadataLine(item),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context).colorScheme.outline,
+                                label: "read_complete".tr,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.secondaryContainer,
+                                foregroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.onSecondaryContainer,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _metadataLine(item),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context).colorScheme.outline,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          LocalRatingBar(
-                            rating: item.rating,
-                            onChanged: (rating) =>
-                                controller.setRating(item.aid, rating),
-                            size: 16,
-                            compact: true,
-                          ),
-                        ],
-                      ),
-                    ],
+                            const SizedBox(width: 8),
+                            LocalRatingBar(
+                              rating: item.rating,
+                              onChanged: (rating) =>
+                                  controller.setRating(item.aid, rating),
+                              size: 16,
+                              compact: true,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

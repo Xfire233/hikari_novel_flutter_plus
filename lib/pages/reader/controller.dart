@@ -339,13 +339,29 @@ class ReaderController extends GetxController {
         pageState.value = PageState.error;
         return;
       }
+      if (YamiboParser.isUnavailableDuringDailyBackup(first.data)) {
+        errorMsg = 'yamibo_backup_window'.tr;
+        pageState.value = PageState.error;
+        return;
+      }
+      if (!YamiboParser.isMobileApiJson(first.data)) {
+        errorMsg = 'yamibo_api_html_response'.tr;
+        pageState.value = PageState.error;
+        return;
+      }
       final threadError = YamiboParser.threadErrorMessage(first.data);
       if (threadError != null) {
         errorMsg = threadError;
         pageState.value = PageState.error;
         return;
       }
-      authorId = YamiboParser.getThreadDetail(first.data).authorId;
+      try {
+        authorId = YamiboParser.getThreadDetail(first.data).authorId;
+      } catch (e) {
+        errorMsg = 'yamibo_detail_parse_failed'.trParams({'error': '$e'});
+        pageState.value = PageState.error;
+        return;
+      }
     }
 
     final result = await YamiboApi.getThreadPage(
@@ -358,6 +374,16 @@ class ReaderController extends GetxController {
         {
           if (!SourceAuthGuard.checkHtml(NovelSource.yamibo, result.data)) {
             errorMsg = 'source_login_required'.tr;
+            pageState.value = PageState.error;
+            return;
+          }
+          if (YamiboParser.isUnavailableDuringDailyBackup(result.data)) {
+            errorMsg = 'yamibo_backup_window'.tr;
+            pageState.value = PageState.error;
+            return;
+          }
+          if (!YamiboParser.isMobileApiJson(result.data)) {
+            errorMsg = 'yamibo_api_html_response'.tr;
             pageState.value = PageState.error;
             return;
           }

@@ -2,7 +2,7 @@ import 'package:hive_ce/hive.dart';
 
 part 'user_info.g.dart';
 
-@HiveType(typeId: 0, adapterName: "user_info_adapter")
+@HiveType(typeId: 0, adapterName: "UserInfoAdapter")
 class UserInfo {
   @HiveField(0)
   final String avatar;

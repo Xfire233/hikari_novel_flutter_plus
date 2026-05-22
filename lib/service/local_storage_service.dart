@@ -77,6 +77,7 @@ class LocalStorageService extends GetxService {
       kBookshelfFolderCovers = "bookshelfFolderCovers",
       kBookshelfFolders = "bookshelfFolders",
       kSmartShelfMemberships = "smartShelfMemberships",
+      kAssistedHtmlCache = "assistedHtmlCache",
       kSourceTagUseCounts = "sourceTagUseCounts",
       kYamiboOwnerCatalogue = "yamiboOwnerCatalogue",
       kYamiboOwnerCatalogueKeys = "yamiboOwnerCatalogueKeys",
@@ -534,6 +535,48 @@ class LocalStorageService extends GetxService {
       shelfId,
       items.map((item) => {...item, 'isNew': 'false'}).toList(),
     );
+  }
+
+  Map<String, Map<String, String>> getAssistedHtmlCache() {
+    final raw = _setting.get(kAssistedHtmlCache, defaultValue: const {});
+    if (raw is! Map) return {};
+    final result = <String, Map<String, String>>{};
+    for (final entry in raw.entries) {
+      final value = entry.value;
+      if (value is Map) {
+        result['${entry.key}'] = value.map(
+          (key, item) => MapEntry('$key', '$item'),
+        );
+      }
+    }
+    return result;
+  }
+
+  String? getAssistedHtml(String url) {
+    final item = getAssistedHtmlCache()[url];
+    if (item == null) return null;
+    final html = item['html']?.trim();
+    if (html == null || html.isEmpty) return null;
+    return html;
+  }
+
+  void setAssistedHtml(String url, String html) {
+    final cleanUrl = url.trim();
+    final cleanHtml = html.trim();
+    if (cleanUrl.isEmpty || cleanHtml.isEmpty) return;
+    final cache = getAssistedHtmlCache();
+    cache[cleanUrl] = {
+      'html': cleanHtml,
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+    final entries = cache.entries.toList()
+      ..sort(
+        (a, b) =>
+            (b.value['updatedAt'] ?? '').compareTo(a.value['updatedAt'] ?? ''),
+      );
+    _setting.put(kAssistedHtmlCache, {
+      for (final entry in entries.take(40)) entry.key: entry.value,
+    });
   }
 
   Map<String, int> getSourceTagUseCounts(String sourceId) {

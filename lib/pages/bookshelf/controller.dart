@@ -8,6 +8,8 @@ import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/common/constants.dart';
 import 'package:hikari_novel_flutter/models/book_tags.dart';
 import 'package:hikari_novel_flutter/models/bookshelf.dart';
+import 'package:hikari_novel_flutter/models/content.dart';
+import 'package:hikari_novel_flutter/models/custom_exception.dart';
 import 'package:hikari_novel_flutter/models/novel_cover.dart';
 import 'package:hikari_novel_flutter/models/novel_detail.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
@@ -66,6 +68,11 @@ class BookshelfController extends GetxController
 
   RxInt sortRevision = 0.obs;
 
+  final RxMap<String, BookshelfSyncProgress> syncProgress =
+      <String, BookshelfSyncProgress>{}.obs;
+  final RxMap<String, String> syncErrors = <String, String>{}.obs;
+  final RxMap<String, String> syncAssistUrls = <String, String>{}.obs;
+
   String get currentClassId => currentFolder.value?.id ?? defaultClassId;
 
   bool get isInFolder => currentFolder.value != null;
@@ -82,6 +89,41 @@ class BookshelfController extends GetxController
 
   List<BookshelfFolder> getChildFolders(String parentId) =>
       folders.where((folder) => folder.parentId == parentId).toList();
+
+  BookshelfSyncProgress? syncProgressFor(String folderId) =>
+      syncProgress[folderId];
+
+  void _setSyncProgress(String folderId, {double? value, String? message}) {
+    syncProgress[folderId] = BookshelfSyncProgress(
+      value: value,
+      message: message,
+    );
+  }
+
+  void _clearSyncProgress(String folderId) {
+    syncProgress.remove(folderId);
+  }
+
+  void _setSyncError(String folderId, String message) {
+    if (message.trim().isEmpty) return;
+    syncErrors[folderId] = message.trim();
+  }
+
+  void _clearSyncError(String folderId) {
+    syncErrors.remove(folderId);
+    syncAssistUrls.remove(folderId);
+  }
+
+  void _setSyncAssistUrl(String folderId, String url) {
+    if (url.trim().isNotEmpty) syncAssistUrls[folderId] = url.trim();
+  }
+
+  String _syncResultMessage(bool ok, String folderId) {
+    if (ok) return "update_successfully".tr;
+    final reason = syncErrors[folderId]?.trim();
+    if (reason == null || reason.isEmpty) return "update_failed".tr;
+    return '${"update_failed".tr}: $reason';
+  }
 
   @override
   void onInit() {
@@ -235,11 +277,13 @@ class BookshelfController extends GetxController
         final name = folder['name']?.isNotEmpty == true
             ? folder['name']!
             : "smart_bookshelf".tr;
-        final matchingAids = _existingBookshelfAids(
-          await _getBookshelfAidsBySmartConfig(config),
-          allBooks,
-        );
         final membership = _membershipByAid(id);
+        final matchingAids = config.isSubscription
+            ? await _subscriptionFolderAids(id, config, allBooks)
+            : _existingBookshelfAids(
+                await _getBookshelfAidsBySmartConfig(config),
+                allBooks,
+              );
         result.add(
           BookshelfFolder(
             id: id,
@@ -424,7 +468,7 @@ class BookshelfController extends GetxController
     if (folder.smartFolder) {
       saved.removeWhere((item) => item['id'] == folder.id);
       LocalStorageService.instance.setBookshelfFolders(saved);
-      loadFolders();
+      await loadFolders();
       return;
     }
     final folderIds = [folder.id, ..._descendantFolderIds(folder.id, saved)];
@@ -708,17 +752,39 @@ class BookshelfController extends GetxController
       final folder = saved.firstWhereOrNull((item) => item['id'] == folderId);
       if (folder == null) return [];
       final config = _smartShelfConfigFromFolder(folder);
+      if (config.isSubscription) {
+        return _subscriptionFolderAids(folderId, config, allBooks);
+      }
       final matched = _existingBookshelfAids(
         await _getBookshelfAidsBySmartConfig(config),
         allBooks,
       );
-      final membership = _existingBookshelfAids(
-        _membershipByAid(folderId).keys,
-        allBooks,
-      );
-      return {...matched, ...membership}.toList();
+      return matched;
     }
     return [];
+  }
+
+  Future<List<String>> _subscriptionFolderAids(
+    String folderId,
+    SmartShelfConfig config,
+    List<BookshelfEntityData> allBooks,
+  ) async {
+    final membership = _existingBookshelfAids(
+      _membershipByAid(folderId).keys,
+      allBooks,
+    );
+    final matched = _existingBookshelfAids(
+      await _getBookshelfAidsBySmartConfig(config),
+      allBooks,
+    );
+    if (membership.isEmpty) {
+      return matched;
+    }
+    if (config.isSubscriptionIncremental) {
+      return membership;
+    }
+    final matchedSet = matched.toSet();
+    return membership.where(matchedSet.contains).toList();
   }
 
   static List<String> _existingBookshelfAids(
@@ -801,7 +867,7 @@ class BookshelfController extends GetxController
                 ?.map((t) => t.toString())
                 .toList() ??
             [];
-        if (tags.any((t) => t == tag)) aids.add(detail.aid);
+        if (BookTags.containsAny(tags, [tag])) aids.add(detail.aid);
       } catch (_) {
         continue;
       }
@@ -866,39 +932,108 @@ class BookshelfController extends GetxController
     )) {
       return;
     }
-    await DBService.instance.deleteDefaultBookshelf();
     await _syncWenku8Shelf(0);
+  }
+
+  Future<String> refreshCurrentBookshelf() async {
+    final folder = currentFolder.value;
+    if (folder == null) return refreshBookshelf();
+    return refreshFolder(folder);
+  }
+
+  Future<String> refreshFolder(BookshelfFolder folder) async {
+    _clearSyncError(folder.id);
+    _setSyncProgress(folder.id, message: "refresh_bookshelf_tip".tr);
+    try {
+      final ok = await _refreshFolder(folder);
+      await loadFolders();
+      return _syncResultMessage(ok, folder.id);
+    } finally {
+      _clearSyncProgress(folder.id);
+    }
+  }
+
+  Future<bool> _refreshFolder(BookshelfFolder folder) async {
+    if (folder.id == defaultClassId) {
+      return _syncWenku8Shelf(0);
+    }
+    if (folder.id == yamiboClassId) {
+      return refreshYamiboFavorites(
+        onProgress: (value, message) =>
+            _setSyncProgress(folder.id, value: value, message: message),
+      );
+    }
+    if (folder.id == esjClassId) {
+      return refreshEsjFavorites(
+        onProgress: (value, message) =>
+            _setSyncProgress(folder.id, value: value, message: message),
+      );
+    }
+    if (folder.id.startsWith(subscriptionShelfPrefix)) {
+      return syncSubscriptionSmartShelves(onlyFolderId: folder.id);
+    }
+    final aids = await _getFolderAids(folder);
+    return _refreshExistingBooksByAid(aids);
   }
 
   Future<String> refreshBookshelf() async {
     final tasks = <Future<bool>>[];
+    _clearSyncError(defaultClassId);
+    _clearSyncError(yamiboClassId);
+    _clearSyncError(esjClassId);
     if (SourceConfigService.instance.shouldPullOnlineToLocal(
       NovelSource.wenku8,
     )) {
+      _setSyncProgress(defaultClassId, message: "refresh_bookshelf_tip".tr);
       tasks.addAll(Iterable.generate(6, (index) => _syncWenku8Shelf(index)));
     }
     if (SourceConfigService.instance.shouldPullOnlineToLocal(
       NovelSource.yamibo,
     )) {
-      tasks.add(refreshYamiboFavorites());
+      _setSyncProgress(yamiboClassId, message: "refresh_bookshelf_tip".tr);
+      tasks.add(
+        refreshYamiboFavorites(
+          onProgress: (value, message) =>
+              _setSyncProgress(yamiboClassId, value: value, message: message),
+        ),
+      );
     }
     if (SourceConfigService.instance.shouldPullOnlineToLocal(NovelSource.esj)) {
-      tasks.add(refreshEsjFavorites());
+      _setSyncProgress(esjClassId, message: "refresh_bookshelf_tip".tr);
+      tasks.add(
+        refreshEsjFavorites(
+          onProgress: (value, message) =>
+              _setSyncProgress(esjClassId, value: value, message: message),
+        ),
+      );
     }
-    final results = await Future.wait(tasks);
-    await syncSubscriptionSmartShelves();
-    loadFolders();
-    return results.every((ok) => ok)
-        ? "update_successfully".tr
-        : "update_failed".tr;
+    try {
+      final results = await Future.wait(tasks);
+      final subscriptionOk = await syncSubscriptionSmartShelves();
+      if (!subscriptionOk &&
+          syncErrors[defaultClassId] == null &&
+          syncErrors.isNotEmpty) {
+        _setSyncError(defaultClassId, syncErrors.values.first);
+      }
+      await loadFolders();
+      return results.every((ok) => ok) && subscriptionOk
+          ? "update_successfully".tr
+          : _syncResultMessage(false, defaultClassId);
+    } finally {
+      _clearSyncProgress(defaultClassId);
+      _clearSyncProgress(yamiboClassId);
+      _clearSyncProgress(esjClassId);
+    }
   }
 
-  Future<void> syncSubscriptionSmartShelves() async {
+  Future<bool> syncSubscriptionSmartShelves({String? onlyFolderId}) async {
     final saved = LocalStorageService.instance.getBookshelfFolders();
+    var allOk = true;
     for (final folder in saved) {
       final id = folder['id'] ?? '';
-      if (!id.startsWith(subscriptionShelfPrefix)) continue;
+      if (onlyFolderId != null && id != onlyFolderId) continue;
       final config = _smartShelfConfigFromFolder(folder);
+      if (!config.isSubscription) continue;
       final tags = config.subscriptionTags.isNotEmpty
           ? config.subscriptionTags
           : _tagsFromSmartConfig(config);
@@ -909,30 +1044,349 @@ class BookshelfController extends GetxController
         ))
           if ((item['aid'] ?? '').isNotEmpty) item['aid']!: item,
       };
-      final seen = <String>{};
-      for (final tag in tags) {
-        for (final source
-            in config.sources.isEmpty ? NovelSource.values : config.sources) {
-          final covers = await _searchSubscriptionTag(source, tag);
-          for (final cover in covers) {
-            seen.add(cover.aid);
-            await _upsertSubscriptionCover(cover, source, tag);
-          }
+      final candidates = <String, _SubscriptionCandidate>{};
+      var folderOk = true;
+      final enabledSources = SourceConfigService.instance.enabledSources;
+      final sourceScope = config.sources.isEmpty
+          ? enabledSources
+          : config.sources
+                .where((source) => enabledSources.contains(source))
+                .toList();
+      _setSyncProgress(id, message: "refresh_bookshelf_tip".tr);
+      for (final source in sourceScope) {
+        final sourceResult = await _searchSubscriptionSource(
+          source,
+          tags,
+          config,
+          folderId: id,
+        );
+        if (sourceResult.failed) {
+          folderOk = false;
+          allOk = false;
+          _setSyncError(
+            id,
+            sourceResult.errorMessage ?? '${source.titleKey.tr} failed',
+          );
+        }
+        for (final candidate in sourceResult.candidates.values) {
+          candidates[candidate.cover.aid] = candidate;
+          await _upsertSubscriptionCover(
+            candidate.cover,
+            source,
+            candidate.tags,
+          );
         }
       }
       final now = DateTime.now().toIso8601String();
-      final next = <Map<String, String>>[];
-      for (final aid in seen) {
+      if (!folderOk && candidates.isEmpty && previous.isNotEmpty) {
+        allOk = false;
+        _clearSyncProgress(id);
+        continue;
+      }
+      final nextByAid = <String, Map<String, String>>{
+        if (config.isSubscriptionIncremental) ...previous,
+      };
+      for (final aid in candidates.keys) {
         final old = previous[aid];
-        next.add({
+        nextByAid[aid] = {
           'aid': aid,
           'firstSeenAt': old?['firstSeenAt'] ?? now,
           'lastSeenAt': now,
           'isNew': old == null ? 'true' : (old['isNew'] ?? 'false'),
-        });
+        };
       }
-      LocalStorageService.instance.setSmartShelfMembership(id, next);
+      LocalStorageService.instance.setSmartShelfMembership(
+        id,
+        nextByAid.values.toList(),
+      );
+      _clearSyncProgress(id);
     }
+    return allOk;
+  }
+
+  Future<_SubscriptionSearchResult> _searchSubscriptionSource(
+    NovelSource source,
+    List<String> tags,
+    SmartShelfConfig config, {
+    required String folderId,
+  }) async {
+    if (source == NovelSource.yamibo) {
+      return _searchYamiboDeepSubscription(tags, config, folderId: folderId);
+    }
+    final candidates = <String, _SubscriptionCandidate>{};
+    try {
+      for (final tag in tags) {
+        final covers = await _searchSubscriptionTagPages(
+          source,
+          tag,
+          config,
+          folderId: folderId,
+        );
+        for (final cover in covers) {
+          final candidate = candidates.putIfAbsent(
+            cover.aid,
+            () => _SubscriptionCandidate(cover),
+          );
+          candidate.tags.add(tag);
+          candidate.tags.addAll(_sourceSectionConditionValues(source, config));
+        }
+      }
+    } on _SubscriptionSearchException catch (e) {
+      return _SubscriptionSearchResult(
+        candidates,
+        failed: true,
+        errorMessage: e.message,
+      );
+    }
+    final requireAllTags = _subscriptionRequiresAllTags(config);
+    candidates.removeWhere((_, candidate) {
+      return requireAllTags
+          ? !BookTags.containsAll(candidate.tags, tags)
+          : !BookTags.containsAny(candidate.tags, tags);
+    });
+    return _SubscriptionSearchResult(candidates);
+  }
+
+  Future<_SubscriptionSearchResult> _searchYamiboDeepSubscription(
+    List<String> tags,
+    SmartShelfConfig config, {
+    required String folderId,
+  }) async {
+    if (!YamiboApi.hasCookie) {
+      SourceAuthGuard.clearLogin(NovelSource.yamibo);
+      SourceAuthGuard.showLoginRequired(NovelSource.yamibo);
+      return _SubscriptionSearchResult(
+        const {},
+        failed: true,
+        errorMessage: 'Yamibo ${"source_login_required".tr}',
+      );
+    }
+    final effectiveTags = yamiboSubscriptionSearchTags(tags);
+    if (effectiveTags.isEmpty) return const _SubscriptionSearchResult({});
+    final searchResults = <String, NovelCover>{};
+    final forumIds = _yamiboForumIdsForConfig(config);
+    const maxPages = 3;
+    const maxCandidates = 120;
+    var failed = false;
+    String? errorMessage;
+
+    for (final tag in effectiveTags) {
+      for (final query in BookTags.queryVariants(tag)) {
+        String? searchId;
+        for (var page = 1; page <= maxPages; page++) {
+          _setSyncProgress(
+            folderId,
+            message: '${"refresh_bookshelf_tip".tr} ${searchResults.length}',
+          );
+          final result = await YamiboApi.searchThreads(
+            keyword: query,
+            page: page,
+            searchId: page == 1 ? null : searchId,
+            forumIds: forumIds,
+          );
+          if (result is! Success || result.data is! YamiboSearchPageResponse) {
+            failed = true;
+            errorMessage = result is Error && result.error != null
+                ? '${result.error}'
+                : 'Yamibo search request failed';
+            break;
+          }
+          final response = result.data as YamiboSearchPageResponse;
+          if (YamiboParser.isUnavailableDuringDailyBackup(response.html)) {
+            failed = true;
+            errorMessage = 'Yamibo ${"yamibo_backup_window".tr}';
+            break;
+          }
+          if (!SourceAuthGuard.checkHtml(NovelSource.yamibo, response.html)) {
+            failed = true;
+            errorMessage = 'Yamibo ${"source_login_required".tr}';
+            break;
+          }
+          if (YamiboParser.isSearchTooQuicklyPage(response.html)) {
+            failed = true;
+            errorMessage = 'Yamibo search too quickly';
+            break;
+          }
+          final parsed = YamiboParser.getSearchPageData(
+            response.html,
+            allowedForumIds: forumIds.toSet(),
+          );
+          searchId = response.searchId ?? parsed.searchId ?? searchId;
+          for (final cover in parsed.items) {
+            searchResults[cover.aid] = cover;
+            if (searchResults.length >= maxCandidates) break;
+          }
+          if (!parsed.hasMore ||
+              searchId == null ||
+              searchResults.length >= maxCandidates) {
+            break;
+          }
+        }
+        if (failed || searchResults.length >= maxCandidates) break;
+      }
+      if (failed || searchResults.length >= maxCandidates) break;
+    }
+
+    var checked = 0;
+    List<_SubscriptionCandidate?> candidates;
+    try {
+      candidates = await _mapConcurrent(searchResults.values.toList(), 3, (
+        cover,
+      ) async {
+        final candidate = await _matchYamiboSubscriptionCandidate(
+          cover,
+          tags,
+          effectiveTags,
+          config,
+        );
+        checked += 1;
+        final total = searchResults.length;
+        _setSyncProgress(
+          folderId,
+          value: total <= 0 ? null : (checked / total).clamp(0.0, 1.0),
+          message: '$checked / $total',
+        );
+        return candidate;
+      });
+    } on _SubscriptionSearchException catch (e) {
+      candidates = const [];
+      failed = true;
+      errorMessage = e.message;
+    }
+    return _SubscriptionSearchResult(
+      {
+        for (final item in candidates.whereType<_SubscriptionCandidate>())
+          item.cover.aid: item,
+      },
+      failed: failed,
+      errorMessage: errorMessage,
+    );
+  }
+
+  Future<_SubscriptionCandidate?> _matchYamiboSubscriptionCandidate(
+    NovelCover cover,
+    List<String> originalTags,
+    List<String> effectiveTags,
+    SmartShelfConfig config,
+  ) async {
+    final tid = SourceId.yamiboTid(cover.aid);
+    if (tid.isEmpty) return null;
+    final result = await YamiboApi.getThreadPage(tid: tid).timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => const Error('timeout'),
+    );
+    if (result is! Success) return null;
+    if (!SourceAuthGuard.checkHtml(NovelSource.yamibo, result.data)) {
+      return null;
+    }
+    if (YamiboParser.isUnavailableDuringDailyBackup(result.data)) {
+      throw _SubscriptionSearchException('Yamibo ${"yamibo_backup_window".tr}');
+    }
+    final error = YamiboParser.threadErrorMessage(result.data);
+    if (error?.isNotEmpty == true) return null;
+
+    late final YamiboThreadData detail;
+    late final Content content;
+    try {
+      detail = YamiboParser.getThreadDetail(result.data);
+      content = YamiboParser.getThreadContent(
+        result.data,
+        authorId: detail.authorId,
+      );
+    } catch (_) {
+      return null;
+    }
+    final matchText = [
+      detail.detail.title,
+      detail.detail.author,
+      detail.detail.status,
+      detail.detail.tags.join(' '),
+      detail.detail.introduce,
+      content.text,
+    ].join('\n');
+    final matchedTags = matchedYamiboSubscriptionTags(
+      originalTags: originalTags,
+      detailTags: detail.detail.tags,
+      matchText: matchText,
+    );
+    final requireAllTags = _subscriptionRequiresAllTags(config);
+    final matched = requireAllTags
+        ? BookTags.containsAll(matchedTags, originalTags)
+        : BookTags.containsAny(matchedTags, originalTags);
+    if (!matched) return null;
+
+    final candidate = _SubscriptionCandidate(
+      NovelCover(detail.detail.title, detail.detail.imgUrl, cover.aid),
+    );
+    candidate.tags.addAll([
+      'Yamibo',
+      '百合',
+      ...detail.detail.tags,
+      ...matchedTags,
+      ...effectiveTags,
+      ..._sourceSectionConditionValues(NovelSource.yamibo, config),
+    ]);
+    return candidate;
+  }
+
+  static Set<String> matchedYamiboSubscriptionTags({
+    required Iterable<String> originalTags,
+    required Iterable<String> detailTags,
+    required String matchText,
+  }) {
+    final searchableDetailTags = detailTags.where(
+      (tag) => !_isYamiboDisplayOnlyTag(tag),
+    );
+    return {
+      if (BookTags.containsAny(originalTags, ['百合'])) '百合',
+      for (final tag in BookTags.normalize(originalTags))
+        if (!_isYamiboDefaultTag(tag) &&
+            (BookTags.containsAny(searchableDetailTags, [tag]) ||
+                BookTags.containsAny([matchText], [tag])))
+          tag,
+    };
+  }
+
+  static List<String> yamiboSubscriptionSearchTags(List<String> tags) {
+    final normalized = BookTags.normalize(
+      tags.where((tag) => !_isYamiboDefaultTag(tag)),
+    );
+    final specificTags = normalized
+        .where((tag) => !_isYamiboInherentTag(tag))
+        .toList(growable: false);
+    return specificTags.isNotEmpty ? specificTags : normalized;
+  }
+
+  static bool _isYamiboDefaultTag(String tag) =>
+      BookTags.containsAny(['Yamibo'], [tag]);
+
+  static bool _isYamiboInherentTag(String tag) =>
+      BookTags.containsAny(['百合'], [tag]);
+
+  static bool _isYamiboDisplayOnlyTag(String tag) =>
+      BookTags.containsAny(['Yamibo', '百合', '论坛主题'], [tag]);
+
+  List<String> _yamiboForumIdsForConfig(SmartShelfConfig config) {
+    final sections = _sourceSectionValues(config, NovelSource.yamibo);
+    if (sections.isEmpty) {
+      return const [
+        YamiboApi.literatureFid,
+        YamiboApi.lightNovelFid,
+        YamiboApi.txtNovelFid,
+      ];
+    }
+    return sections;
+  }
+
+  bool _subscriptionRequiresAllTags(SmartShelfConfig config) {
+    if (config.mode == SmartShelfMatchMode.any) return false;
+    final tagGroups = config.groups.where(
+      (group) => group.conditions.any(
+        (condition) => condition.type == SmartShelfConditionType.tag,
+      ),
+    );
+    if (tagGroups.isEmpty) return true;
+    return tagGroups.every((group) => group.mode == SmartShelfMatchMode.all);
   }
 
   List<String> _tagsFromSmartConfig(SmartShelfConfig config) {
@@ -946,22 +1400,59 @@ class BookshelfController extends GetxController
   Future<List<NovelCover>> _searchSubscriptionTag(
     NovelSource source,
     String tag,
-  ) async {
-    final result = switch (source) {
-      NovelSource.wenku8 => await Api.searchNovelByTitle(title: tag, index: 1),
-      NovelSource.esj => await EsjApi.searchNovel(keyword: tag, page: 1),
-      NovelSource.yamibo => await YamiboApi.searchThreads(keyword: tag),
+    int page,
+    SmartShelfConfig config, {
+    required String folderId,
+  }) async {
+    late final String? requestUrl;
+    requestUrl = switch (source) {
+      NovelSource.wenku8 => Api.getNovelByCategoryUrl(
+        category: tag,
+        sort: '0',
+        index: page,
+      ),
+      _ => null,
     };
-    if (result is! Success) return const [];
+    final result = switch (source) {
+      NovelSource.wenku8 => await Api.getNovelByCategory(
+        category: tag,
+        sort: '0',
+        index: page,
+      ),
+      NovelSource.esj => await EsjApi.searchNovel(
+        keyword: tag,
+        page: page,
+        type: _esjTypeForConfig(config),
+      ),
+      NovelSource.yamibo => await YamiboApi.searchThreads(
+        keyword: tag,
+        page: page,
+        forumIds: _yamiboForumIdsForConfig(config),
+      ),
+    };
+    if (result is! Success) {
+      if (source == NovelSource.wenku8 &&
+          requestUrl != null &&
+          _isBrowserAssistedError('${result is Error ? result.error : ''}')) {
+        _setSyncAssistUrl(folderId, requestUrl);
+      }
+      throw _SubscriptionSearchException(
+        '${source.titleKey.tr}: ${result is Error && result.error != null ? result.error : "update_failed".tr}',
+      );
+    }
     return switch (source) {
       NovelSource.wenku8 =>
         SourceAuthGuard.checkHtml(source, result.data)
             ? Parser.parseToList(result.data)
-            : const <NovelCover>[],
+            : throw _SubscriptionSearchException(
+                '${source.titleKey.tr}: ${"source_login_required".tr}',
+              ),
       NovelSource.esj =>
         SourceAuthGuard.checkHtml(source, result.data)
             ? EsjParser.getSearchResults(result.data)
-            : const <NovelCover>[],
+            : throw _SubscriptionSearchException(
+                '${source.titleKey.tr}: ${"source_login_required".tr}',
+              ),
       NovelSource.yamibo =>
         result.data is YamiboSearchPageResponse
             ? (SourceAuthGuard.checkHtml(
@@ -970,21 +1461,87 @@ class BookshelfController extends GetxController
                   )
                   ? YamiboParser.getSearchPageData(
                       (result.data as YamiboSearchPageResponse).html,
-                      allowedForumIds: {
-                        YamiboApi.literatureFid,
-                        YamiboApi.lightNovelFid,
-                        YamiboApi.txtNovelFid,
-                      },
+                      allowedForumIds: _yamiboForumIdsForConfig(config).toSet(),
                     ).items
-                  : const <NovelCover>[])
+                  : throw _SubscriptionSearchException(
+                      '${source.titleKey.tr}: ${"source_login_required".tr}',
+                    ))
             : const <NovelCover>[],
     };
+  }
+
+  bool _isBrowserAssistedError(String error) =>
+      error.contains(cloudflare403ExceptionMessage) ||
+      error.contains(cloudflareChallengeExceptionMessage);
+
+  Future<List<NovelCover>> _searchSubscriptionTagPages(
+    NovelSource source,
+    String tag,
+    SmartShelfConfig config, {
+    required String folderId,
+  }) async {
+    final byAid = <String, NovelCover>{};
+    final variants = BookTags.queryVariants(tag);
+    final maxPages = switch (source) {
+      NovelSource.yamibo => 1,
+      NovelSource.wenku8 || NovelSource.esj => 3,
+    };
+    for (final query in variants) {
+      for (var page = 1; page <= maxPages; page++) {
+        final covers = await _searchSubscriptionTag(
+          source,
+          query,
+          page,
+          config,
+          folderId: folderId,
+        );
+        if (covers.isEmpty) break;
+        for (final cover in covers) {
+          byAid[cover.aid] = cover;
+        }
+      }
+    }
+    return byAid.values.toList();
+  }
+
+  int _esjTypeForConfig(SmartShelfConfig config) {
+    final sections = _sourceSectionValues(config, NovelSource.esj);
+    if (sections.isEmpty) return 0;
+    return int.tryParse(sections.first) ?? 0;
+  }
+
+  List<String> _sourceSectionValues(
+    SmartShelfConfig config,
+    NovelSource source,
+  ) {
+    final prefix = '${source.id}:';
+    return [
+      for (final group in config.groups)
+        for (final condition in group.conditions)
+          if (condition.type == SmartShelfConditionType.section &&
+              condition.value.startsWith(prefix))
+            condition.value.substring(prefix.length),
+    ];
+  }
+
+  List<String> _sourceSectionConditionValues(
+    NovelSource source,
+    SmartShelfConfig config,
+  ) {
+    final prefix = '${source.id}:';
+    return [
+      for (final group in config.groups)
+        for (final condition in group.conditions)
+          if (condition.type == SmartShelfConditionType.section &&
+              condition.value.startsWith(prefix))
+            condition.value,
+    ];
   }
 
   Future<void> _upsertSubscriptionCover(
     NovelCover cover,
     NovelSource source,
-    String tag,
+    Iterable<String> tags,
   ) async {
     final previous = (await DBService.instance.getAllBookshelf())
         .firstWhereOrNull((item) => item.aid == cover.aid);
@@ -1008,14 +1565,28 @@ class BookshelfController extends GetxController
         rating: previous?.rating ?? 0,
         remoteTagsJson: BookTags.encode([
           ...BookTags.decode(previous?.remoteTagsJson),
-          tag,
+          ...tags,
           source.titleKey.tr,
-          if (source == NovelSource.yamibo)
-            ...YamiboParser.titleTags(cover.title),
+          if (source == NovelSource.yamibo) ...[
+            '百合',
+            ...YamiboParser.yamiboTags(YamiboParser.safeTitleTags(cover.title)),
+          ],
+          ..._sectionTagsForSource(source, tags),
         ]),
         localTagsJson: previous?.localTagsJson ?? BookTags.emptyJson,
       ),
     );
+  }
+
+  List<String> _sectionTagsForSource(
+    NovelSource source,
+    Iterable<String> tags,
+  ) {
+    final sourcePrefix = '${source.id}:';
+    return [
+      for (final tag in tags)
+        if (tag.startsWith(sourcePrefix)) tag,
+    ];
   }
 
   Future<bool> _syncWenku8Shelf(int classId) async {
@@ -1066,6 +1637,73 @@ class BookshelfController extends GetxController
     return true;
   }
 
+  Future<bool> _refreshExistingBooksByAid(Iterable<String> aids) async {
+    final aidSet = aids.toSet();
+    if (aidSet.isEmpty) return true;
+    var ok = true;
+    if (aidSet.any(
+      (aid) => SourceFavoriteAdapter.sourceOfAid(aid) == NovelSource.wenku8,
+    )) {
+      ok = await _refreshExistingWenku8BooksByAid(aidSet) && ok;
+    }
+    if (aidSet.any(
+      (aid) => SourceFavoriteAdapter.sourceOfAid(aid) == NovelSource.esj,
+    )) {
+      ok = await syncEsjFavoritesToBookshelf(onlyAids: aidSet) && ok;
+    }
+    if (aidSet.any(
+      (aid) => SourceFavoriteAdapter.sourceOfAid(aid) == NovelSource.yamibo,
+    )) {
+      ok = await syncYamiboFavoritesToBookshelf(onlyAids: aidSet) && ok;
+    }
+    return ok;
+  }
+
+  Future<bool> _refreshExistingWenku8BooksByAid(Set<String> aids) async {
+    if (!SourceConfigService.instance.shouldPullOnlineToLocal(
+      NovelSource.wenku8,
+    )) {
+      return true;
+    }
+    final previous = {
+      for (final item in await DBService.instance.getAllBookshelf())
+        item.aid: item,
+    };
+    var ok = true;
+    for (var classId = 0; classId < 6; classId++) {
+      final result = await Api.getBookshelf(classId: classId);
+      if (result is! Success) {
+        ok = false;
+        continue;
+      }
+      if (!SourceAuthGuard.checkHtml(NovelSource.wenku8, result.data)) {
+        return false;
+      }
+      final bookshelf = Parser.getBookshelf(result.data, classId);
+      for (final item in bookshelf.list) {
+        if (!aids.contains(item.aid)) continue;
+        final prev = previous[item.aid];
+        await DBService.instance.upsertBookshelf(
+          BookshelfEntityData(
+            aid: item.aid,
+            bid: item.bid,
+            url: item.url,
+            title: item.title,
+            img: item.img,
+            classId: prev?.classId ?? classId.toString(),
+            updateKey: item.updateKey,
+            updateTime: item.updateTime,
+            hasUpdate: _hasBookshelfUpdate(prev, item.updateKey),
+            rating: prev?.rating ?? 0,
+            remoteTagsJson: _remoteTagsJsonFor(item, prev),
+            localTagsJson: prev?.localTagsJson ?? BookTags.emptyJson,
+          ),
+        );
+      }
+    }
+    return ok;
+  }
+
   Future<void> _removeMissingRemoteWenku8Items(
     int classId,
     Set<String> remoteAids,
@@ -1084,17 +1722,37 @@ class BookshelfController extends GetxController
     }
   }
 
-  Future<bool> refreshYamiboFavorites() => syncYamiboFavoritesToBookshelf();
+  Future<bool> refreshYamiboFavorites({
+    void Function(double? value, String message)? onProgress,
+  }) async {
+    final ok = await syncYamiboFavoritesToBookshelf(
+      onProgress: onProgress,
+      onError: (message) => _setSyncError(yamiboClassId, message),
+    );
+    if (!ok && YamiboParser.isDailyBackupWindow()) {
+      _setSyncError(yamiboClassId, 'Yamibo ${"yamibo_backup_window".tr}');
+    }
+    return ok;
+  }
 
-  Future<bool> refreshEsjFavorites() => syncEsjFavoritesToBookshelf();
+  Future<bool> refreshEsjFavorites({
+    void Function(double? value, String message)? onProgress,
+  }) => syncEsjFavoritesToBookshelf(onProgress: onProgress);
 
-  static Future<bool> syncEsjFavoritesToBookshelf() async {
+  static Future<bool> syncEsjFavoritesToBookshelf({
+    Set<String>? onlyAids,
+    void Function(double? value, String message)? onProgress,
+  }) async {
     if (!SourceConfigService.instance.shouldPullOnlineToLocal(
       NovelSource.esj,
     )) {
       return true;
     }
-    if (!EsjApi.hasCookie) return true;
+    if (!EsjApi.hasCookie) {
+      SourceAuthGuard.clearLogin(NovelSource.esj);
+      SourceAuthGuard.showLoginRequired(NovelSource.esj);
+      return false;
+    }
     final previous = {
       for (final item in await DBService.instance.getAllBookshelf())
         item.aid: item,
@@ -1110,6 +1768,7 @@ class BookshelfController extends GetxController
           if (!SourceAuthGuard.checkHtml(NovelSource.esj, result.data)) {
             return false;
           }
+          onProgress?.call(null, '${"refresh_bookshelf_tip".tr} $page');
           final List<BookshelfNovelInfo> items;
           try {
             items = EsjParser.getFavoritePage(result.data);
@@ -1132,6 +1791,7 @@ class BookshelfController extends GetxController
     }
 
     for (final item in favorites.values) {
+      if (onlyAids != null && !onlyAids.contains(item.aid)) continue;
       if (SourceConfigService.instance.isLocallyHidden(
         NovelSource.esj,
         item.aid,
@@ -1159,14 +1819,14 @@ class BookshelfController extends GetxController
         ),
       );
     }
-    if (favorites.isNotEmpty) {
+    if (onlyAids == null && favorites.isNotEmpty) {
       for (final item in previous.values) {
         if (item.classId == esjClassId && !favorites.containsKey(item.aid)) {
           await DBService.instance.deleteBookshelfByAid(item.aid);
         }
       }
     }
-    if (!await syncEsjViewHistoryToLocal()) return false;
+    if (onlyAids == null && !await syncEsjViewHistoryToLocal()) return false;
     return true;
   }
 
@@ -1223,13 +1883,22 @@ class BookshelfController extends GetxController
     }
   }
 
-  static Future<bool> syncYamiboFavoritesToBookshelf() async {
+  static Future<bool> syncYamiboFavoritesToBookshelf({
+    Set<String>? onlyAids,
+    void Function(double? value, String message)? onProgress,
+    void Function(String message)? onError,
+  }) async {
     if (!SourceConfigService.instance.shouldPullOnlineToLocal(
       NovelSource.yamibo,
     )) {
       return true;
     }
-    if (!YamiboApi.hasCookie) return true;
+    if (!YamiboApi.hasCookie) {
+      onError?.call('Yamibo ${"source_login_required".tr}');
+      SourceAuthGuard.clearLogin(NovelSource.yamibo);
+      SourceAuthGuard.showLoginRequired(NovelSource.yamibo);
+      return false;
+    }
     final previous = {
       for (final item in await DBService.instance.getAllBookshelf())
         item.aid: item,
@@ -1239,6 +1908,7 @@ class BookshelfController extends GetxController
     var page = 1;
     var total = 0;
     var perPage = 0;
+    var scanned = 0;
     var done = false;
 
     while (!done) {
@@ -1246,12 +1916,26 @@ class BookshelfController extends GetxController
       switch (result) {
         case Success():
           if (!SourceAuthGuard.checkHtml(NovelSource.yamibo, result.data)) {
+            onError?.call('Yamibo ${"source_login_required".tr}');
             return false;
           }
+          if (YamiboParser.isUnavailableDuringDailyBackup(result.data)) {
+            onError?.call('Yamibo ${"yamibo_backup_window".tr}');
+            return false;
+          }
+          onProgress?.call(
+            total <= 0 ? null : (scanned / total).clamp(0.0, 1.0),
+            total <= 0
+                ? '${"refresh_bookshelf_tip".tr} $page'
+                : '$scanned / $total',
+          );
           final YamiboFavoritePageData pageData;
           try {
             pageData = YamiboParser.getFavoritePageData(result.data);
-          } catch (_) {
+          } catch (e) {
+            onError?.call(
+              'Yamibo ${"yamibo_detail_parse_failed".trParams({"error": e.toString()})}',
+            );
             return false;
           }
           if (pageData.count > 0) total = pageData.count;
@@ -1261,8 +1945,10 @@ class BookshelfController extends GetxController
             break;
           }
 
-          final beforeCount = favorites.length;
+          final beforeScanned = scanned;
           for (final item in pageData.items) {
+            scanned += 1;
+            if (onlyAids != null && !onlyAids.contains(item.aid)) continue;
             final previousItem = previous[item.aid];
             if (previousItem != null &&
                 _yamiboTopicUpdateKey(previousItem.updateKey) ==
@@ -1277,11 +1963,12 @@ class BookshelfController extends GetxController
             }
           }
 
-          if (total > 0 && favorites.length >= total) done = true;
+          if (total > 0 && scanned >= total) done = true;
           if (perPage > 0 && pageData.items.length < perPage) done = true;
-          if (favorites.length == beforeCount) done = true;
+          if (scanned == beforeScanned) done = true;
           page += 1;
         case Error():
+          onError?.call('Yamibo ${result.error ?? "update_failed".tr}');
           return false;
       }
     }
@@ -1295,10 +1982,12 @@ class BookshelfController extends GetxController
       favorites[item.aid] = item;
     }
 
-    LocalStorageService.instance.setBookshelfAidOrder(
-      yamiboClassId,
-      favorites.keys,
-    );
+    if (onlyAids == null) {
+      LocalStorageService.instance.setBookshelfAidOrder(
+        yamiboClassId,
+        favorites.keys,
+      );
+    }
 
     for (final item in favorites.values) {
       if (SourceConfigService.instance.isLocallyHidden(
@@ -1328,7 +2017,7 @@ class BookshelfController extends GetxController
         ),
       );
     }
-    if (favorites.isNotEmpty) {
+    if (onlyAids == null && favorites.isNotEmpty) {
       for (final item in previous.values) {
         if (item.classId == yamiboClassId && !favorites.containsKey(item.aid)) {
           await DBService.instance.deleteBookshelfByAid(item.aid);
@@ -1354,7 +2043,11 @@ class BookshelfController extends GetxController
     final tags = item.remoteTags.isNotEmpty || item.tags.isNotEmpty
         ? item.tags
         : BookTags.decode(previous?.remoteTagsJson);
-    return BookTags.encode(tags);
+    return BookTags.encode(
+      item.aid.startsWith('yamibo:')
+          ? BookTags.merge(YamiboParser.yamiboTags(tags), const ['百合'])
+          : tags,
+    );
   }
 
   static BookshelfNovelInfo _mergeYamiboFavoriteWithPrevious(
@@ -1478,6 +2171,38 @@ class BookshelfController extends GetxController
     );
     return results.whereType<R>().toList();
   }
+}
+
+class _SubscriptionCandidate {
+  _SubscriptionCandidate(this.cover);
+
+  final NovelCover cover;
+  final Set<String> tags = <String>{};
+}
+
+class _SubscriptionSearchResult {
+  const _SubscriptionSearchResult(
+    this.candidates, {
+    this.failed = false,
+    this.errorMessage,
+  });
+
+  final Map<String, _SubscriptionCandidate> candidates;
+  final bool failed;
+  final String? errorMessage;
+}
+
+class _SubscriptionSearchException implements Exception {
+  const _SubscriptionSearchException(this.message);
+
+  final String message;
+}
+
+class BookshelfSyncProgress {
+  const BookshelfSyncProgress({this.value, this.message});
+
+  final double? value;
+  final String? message;
 }
 
 class BookshelfFolder {
