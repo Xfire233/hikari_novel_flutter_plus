@@ -375,6 +375,26 @@ class Wenku8WebViewTransport {
         task.lastLength = html.length;
         task.lastPreview = _htmlPreview(html);
       }
+      if (html is String) {
+        final redirectUrl =
+            BrowserAssistedFetchService.wenku8ReaderCatalogueRedirectUrl(
+              requestedUrl: task.url,
+              currentUrl: current,
+              html: html,
+            );
+        if (redirectUrl != null && task.registerRedirect(redirectUrl)) {
+          _log(
+            'follow catalogue redirect requested=${task.url} '
+            'current=${current ?? ''} target=$redirectUrl',
+          );
+          unawaited(
+            controller.loadUrl(
+              urlRequest: URLRequest(url: WebUri(redirectUrl)),
+            ),
+          );
+          return;
+        }
+      }
       final needsCurrentUrlBinding = _needsCurrentUrlBinding(task.url);
       final expectedCurrent =
           current != null && _isExpectedCurrentUrl(task.url, current);
@@ -478,9 +498,15 @@ class _WebViewTransportTask {
   bool isCompleted = false;
   bool isReading = false;
   bool loggedUnexpectedCurrent = false;
+  final followedRedirects = <String>{};
   String? lastCurrent;
   int? lastLength;
   String? lastPreview;
+
+  bool registerRedirect(String url) {
+    if (followedRedirects.length >= 3) return false;
+    return followedRedirects.add(url);
+  }
 }
 
 class _Wenku8ReaderRequest {

@@ -327,6 +327,30 @@ void main() {
       '145082',
       '145083',
     ]);
+    const readerGatewayHtml =
+        '<html xmlns="http://www.w3.org/1999/xhtml"><head>'
+        '<meta http-equiv="Content-Type" content="text/html; charset=gbk">'
+        '<title>崩坏世界的魔杖匠人小说在线阅读与TXT下载</title>'
+        '</head><body>'
+        '<a href="/novel/3/123/index.htm">小说在线阅读</a>'
+        '<a href="/modules/article/txtarticle.php?id=123">TXT下载</a>'
+        '</body></html>';
+    expect(
+      BrowserAssistedFetchService.isUsableHtmlForUrl(
+        'https://www.wenku8.cc/modules/article/reader.php?aid=123',
+        readerGatewayHtml,
+      ),
+      isFalse,
+    );
+    expect(
+      BrowserAssistedFetchService.wenku8ReaderCatalogueRedirectUrl(
+        requestedUrl:
+            'https://www.wenku8.cc/modules/article/reader.php?aid=123',
+        currentUrl: 'https://www.wenku8.net/modules/article/reader.php?aid=123',
+        html: readerGatewayHtml,
+      ),
+      'https://www.wenku8.net/novel/3/123/index.htm',
+    );
     const articleInfoLikeHtml =
         '<html><body><div id="content">'
         '<a href="/book/123.htm">book</a>'

@@ -1,4 +1,5 @@
 import 'package:hikari_novel_flutter/service/local_storage_service.dart';
+import 'package:html/parser.dart';
 
 class BrowserAssistedFetchService {
   const BrowserAssistedFetchService._();
@@ -147,6 +148,39 @@ class BrowserAssistedFetchService {
     return true;
   }
 
+  static String? wenku8ReaderCatalogueRedirectUrl({
+    required String requestedUrl,
+    String? currentUrl,
+    required String html,
+  }) {
+    final requestedUri = Uri.tryParse(requestedUrl.trim());
+    if (requestedUri == null) return null;
+    final reader = _wenku8ReaderPath(requestedUri);
+    if (reader == null || reader.cid?.isNotEmpty == true) return null;
+
+    final baseUri =
+        Uri.tryParse(
+          currentUrl?.trim().isNotEmpty == true
+              ? currentUrl!.trim()
+              : requestedUrl.trim(),
+        ) ??
+        requestedUri;
+    final current = currentUrl?.trim();
+    final requested = requestedUrl.trim();
+    for (final candidate in _navigationCandidates(html)) {
+      final target = baseUri.resolve(candidate.trim());
+      if (!_isWenku8Host(target.host)) continue;
+      final targetUrl = target.removeFragment().toString();
+      if (targetUrl == current || targetUrl == requested) continue;
+      final staticReader = _wenku8StaticReaderPath(target);
+      if (staticReader?.aid == reader.aid &&
+          (staticReader?.cid == null || staticReader!.cid!.isEmpty)) {
+        return targetUrl;
+      }
+    }
+    return null;
+  }
+
   static bool _hasContentElement(String html) =>
       RegExp(r'''<[^>]+\bid\s*=\s*["']?content["']?''').hasMatch(html);
 
@@ -266,6 +300,48 @@ class BrowserAssistedFetchService {
       html.contains('class="vcss"') ||
       html.contains("class='vcss'");
 
+  static Iterable<String> _navigationCandidates(String html) sync* {
+    final document = parse(html);
+    for (final element in document.querySelectorAll(
+      'a[href], frame[src], iframe[src]',
+    )) {
+      final value =
+          element.attributes['href']?.trim() ??
+          element.attributes['src']?.trim();
+      if (value != null && value.isNotEmpty) yield value;
+    }
+    for (final meta in document.querySelectorAll('meta[http-equiv]')) {
+      final httpEquiv = meta.attributes['http-equiv']?.toLowerCase().trim();
+      if (httpEquiv != 'refresh') continue;
+      final content = meta.attributes['content'] ?? '';
+      final match = RegExp(
+        r'''url\s*=\s*['"]?([^'";]+)''',
+        caseSensitive: false,
+      ).firstMatch(content);
+      final value = match?.group(1)?.trim();
+      if (value != null && value.isNotEmpty) yield value;
+    }
+    for (final script in document.querySelectorAll('script')) {
+      final text = script.text;
+      final patterns = [
+        RegExp(
+          r'''(?:window\.)?location(?:\.href)?\s*=\s*['"]([^'"]+)['"]''',
+          caseSensitive: false,
+        ),
+        RegExp(
+          r'''location\.replace\(\s*['"]([^'"]+)['"]''',
+          caseSensitive: false,
+        ),
+      ];
+      for (final pattern in patterns) {
+        for (final match in pattern.allMatches(text)) {
+          final value = match.group(1)?.trim();
+          if (value != null && value.isNotEmpty) yield value;
+        }
+      }
+    }
+  }
+
   static bool _hasWenku8ListBookLink(String html) =>
       html.contains('articleinfo.php?id=') ||
       _wenku8ListBookLinkCount(html) > 0;
@@ -330,6 +406,21 @@ class BrowserAssistedFetchService {
     ).firstMatch(uri.path.toLowerCase());
     if (match == null) return null;
     return _Wenku8StaticReaderPath(aid: match.group(1), cid: match.group(2));
+  }
+
+  static _Wenku8StaticReaderPath? _wenku8ReaderPath(Uri uri) {
+    if (!uri.path.toLowerCase().endsWith('/modules/article/reader.php')) {
+      return null;
+    }
+    final aid = uri.queryParameters['aid']?.trim();
+    if (aid == null || aid.isEmpty) return null;
+    return _Wenku8StaticReaderPath(aid: aid, cid: uri.queryParameters['cid']);
+  }
+
+  static bool _isWenku8Host(String host) {
+    final normalized = host.toLowerCase();
+    return normalized.endsWith('wenku8.cc') ||
+        normalized.endsWith('wenku8.net');
   }
 }
 
