@@ -7,16 +7,20 @@ import 'package:hikari_novel_flutter/common/database/database.dart';
 import 'package:hikari_novel_flutter/main.dart';
 import 'package:hikari_novel_flutter/models/book_tags.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
+import 'package:hikari_novel_flutter/models/source_login_result.dart';
 import 'package:hikari_novel_flutter/network/request.dart';
 import 'package:hikari_novel_flutter/network/yamibo_api.dart';
 import 'package:hikari_novel_flutter/network/yamibo_parser.dart';
 import 'package:hikari_novel_flutter/pages/bookshelf/controller.dart';
+import 'package:hikari_novel_flutter/pages/home/controller.dart';
 import 'package:hikari_novel_flutter/router/app_sub_router.dart';
 import 'package:hikari_novel_flutter/service/db_service.dart';
 import 'package:hikari_novel_flutter/service/local_storage_service.dart';
 import 'package:hikari_novel_flutter/service/source_auth_guard.dart';
 import 'package:hikari_novel_flutter/service/source_config_service.dart';
 import 'package:hikari_novel_flutter/widgets/browsing_novel_grid.dart';
+import 'package:hikari_novel_flutter/widgets/filter_capsule_controls.dart';
+import 'package:hikari_novel_flutter/widgets/home_collapsible_filter_bar.dart';
 import 'package:hikari_novel_flutter/widgets/source_backdrop.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
 
@@ -51,13 +55,27 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
   bool _loading = true;
   bool _loadingMore = false;
   bool _hasMore = true;
+  bool _typePanelExpanded = false;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
+    _forumName = _forumTitle(_currentFid);
     _scrollController.addListener(_handleScroll);
     _loadFavorites();
+    _loadPage(refresh: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant YamiboForumPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final shouldFollowInitialFid =
+        !widget.showForumTabs || widget.initialFid != oldWidget.initialFid;
+    if (!shouldFollowInitialFid || widget.initialFid == _currentFid) {
+      return;
+    }
+    _resetForum(widget.initialFid);
     _loadPage(refresh: true);
   }
 
@@ -114,8 +132,14 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
   }
 
   Widget _buildForumSelector(BuildContext context) {
-    final selectedTypeText = _typeName(_selectedTypeId ?? '');
-    final scheme = Theme.of(context).colorScheme;
+    final typeOptions = [
+      FilterCapsuleOption<String?>(
+        value: null,
+        label: 'yamibo_forum_type_all'.tr,
+      ),
+      for (final type in _types)
+        FilterCapsuleOption<String?>(value: type.id, label: type.title),
+    ];
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -127,73 +151,44 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
               onChanged: _changeForum,
             ),
           ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
-          child: Theme(
-            data: Theme.of(context).copyWith(
-              dividerColor: Colors.transparent,
-              splashColor: scheme.primary.withValues(alpha: 0.08),
-            ),
-            child: Material(
-              color: scheme.surface.withValues(alpha: 0.72),
-              borderRadius: BorderRadius.circular(18),
-              child: ExpansionTile(
-                shape: const Border(),
-                collapsedShape: const Border(),
-                tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-                childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                title: Row(
-                  children: [
-                    const Icon(Icons.sell_outlined, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        selectedTypeText.isEmpty
-                            ? 'yamibo_forum_type_all'.tr
-                            : selectedTypeText,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+        HomeCollapsibleFilterBar(
+          enabled: !widget.showAppBar,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FilterCapsuleOptionRow<String?>(
+                  options: typeOptions,
+                  selectedValue: _selectedTypeId,
+                  expanded: _typePanelExpanded,
+                  tooltip: 'yamibo_forum_type_all'.tr,
+                  onToggleExpanded: () {
+                    setState(() => _typePanelExpanded = !_typePanelExpanded);
+                  },
+                  onSelected: _selectType,
                 ),
-                children: [
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: MediaQuery.sizeOf(context).height * 0.36,
-                    ),
-                    child: SingleChildScrollView(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 6,
-                          children: [
-                            ChoiceChip(
-                              label: Text('yamibo_forum_type_all'.tr),
-                              selected: _selectedTypeId == null,
-                              showCheckmark: false,
-                              onSelected: (_) => _changeType(null),
-                            ),
-                            ..._types.map(
-                              (type) => ChoiceChip(
-                                label: Text(type.title),
-                                selected: _selectedTypeId == type.id,
-                                showCheckmark: false,
-                                onSelected: (_) => _changeType(type.id),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                FilterCapsulePanel<String?>(
+                  expanded: _typePanelExpanded,
+                  options: typeOptions,
+                  selectedValue: _selectedTypeId,
+                  onSelected: _selectType,
+                ),
+              ],
             ),
           ),
         ),
       ],
     );
+  }
+
+  void _selectType(String? typeId) {
+    if (_selectedTypeId != typeId) {
+      _changeType(typeId);
+    }
+    if (_typePanelExpanded && mounted) {
+      setState(() => _typePanelExpanded = false);
+    }
   }
 
   List<(String, String)> get _forumOptions => const [
@@ -211,6 +206,11 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
 
   void _changeForum(String fid) {
     if (_currentFid == fid) return;
+    _resetForum(fid);
+    _loadPage(refresh: true);
+  }
+
+  void _resetForum(String fid) {
     setState(() {
       _currentFid = fid;
       _selectedTypeId = null;
@@ -218,9 +218,11 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
       _threads.clear();
       _page = 1;
       _hasMore = true;
+      _loading = true;
+      _loadingMore = false;
+      _errorMessage = null;
       _forumName = _forumTitle(fid);
     });
-    _loadPage(refresh: true);
   }
 
   Widget _buildBody() {
@@ -256,7 +258,8 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
     }
 
     return RefreshIndicator(
-      onRefresh: () => _loadPage(refresh: true),
+      notificationPredicate: _allowPullRefreshNotification,
+      onRefresh: _onPullRefresh,
       child: _buildThreadList(showLoadingFooter: true),
     );
   }
@@ -427,6 +430,21 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
 
   Future<IndicatorResult> _refreshForumPage() => _loadPage(refresh: true);
 
+  Future<void> _onPullRefresh() async {
+    if (!widget.showAppBar &&
+        Get.isRegistered<HomeController>() &&
+        !Get.find<HomeController>().requestHomeRefresh()) {
+      return;
+    }
+    await _loadPage(refresh: true);
+  }
+
+  bool _allowPullRefreshNotification(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    if (widget.showAppBar || !Get.isRegistered<HomeController>()) return true;
+    return Get.find<HomeController>().homePullRefreshEnabled;
+  }
+
   Future<IndicatorResult> _previousForumPage() {
     if (_page <= 1) return Future.value(IndicatorResult.noMore);
     return _loadPage(refresh: false, pageOverride: _page - 1);
@@ -552,14 +570,11 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
   }
 }
 
-class YamiboWebLoginResult {
+class YamiboWebLoginResult extends SourceLoginResult {
   const YamiboWebLoginResult({
-    required this.loggedIn,
-    required this.syncFavorites,
+    required super.loggedIn,
+    required super.syncFavorites,
   });
-
-  final bool loggedIn;
-  final bool syncFavorites;
 }
 
 class YamiboHomeTabs extends StatelessWidget {
@@ -676,7 +691,9 @@ class _YamiboHomeTabButton extends StatelessWidget {
 }
 
 class YamiboWebLoginPage extends StatefulWidget {
-  const YamiboWebLoginPage({super.key});
+  const YamiboWebLoginPage({super.key, this.accountMode = false});
+
+  final bool accountMode;
 
   @override
   State<YamiboWebLoginPage> createState() => _YamiboWebLoginPageState();
@@ -696,9 +713,6 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
         if (didPop) return;
         final loggedIn = await _syncCookie(silent: true);
         if (!context.mounted) return;
-        if (!loggedIn) {
-          showSnackBar(message: 'source_login_required'.tr, context: context);
-        }
         Navigator.of(
           context,
         ).pop(YamiboWebLoginResult(loggedIn: loggedIn, syncFavorites: false));
@@ -706,18 +720,29 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(_title),
-          actions: [
-            IconButton(
-              onPressed: _webViewController?.reload,
-              icon: const Icon(Icons.refresh),
-            ),
-            IconButton(
-              onPressed: _syncAndCloseIfLoggedIn,
-              icon: const Icon(Icons.sync),
-              tooltip: 'yamibo_sync_login'.tr,
-            ),
-            TextButton(onPressed: _finish, child: Text('confirm'.tr)),
-          ],
+          actions: widget.accountMode
+              ? [
+                  IconButton(
+                    onPressed: _syncAndCloseIfLoggedIn,
+                    icon: const Icon(Icons.verified_user_outlined),
+                    tooltip: 'source_check_login_status'.tr,
+                  ),
+                  IconButton(
+                    onPressed: _syncFavorites,
+                    icon: const Icon(Icons.cloud_download_outlined),
+                    tooltip: 'source_sync_online_favorites'.tr,
+                  ),
+                ]
+              : [
+                  IconButton(
+                    onPressed: _webViewController?.reload,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                  TextButton(
+                    onPressed: _syncAndCloseIfLoggedIn,
+                    child: Text('confirm'.tr),
+                  ),
+                ],
         ),
         body: Column(
           children: [
@@ -762,20 +787,31 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
     );
   }
 
-  Future<void> _finish() async {
-    final loggedIn = await _syncCookie(silent: true);
-    if (!mounted) return;
-    Navigator.of(
-      context,
-    ).pop(YamiboWebLoginResult(loggedIn: loggedIn, syncFavorites: false));
-  }
-
   Future<void> _syncAndCloseIfLoggedIn() async {
     final loggedIn = await _syncCookie();
     if (!mounted || !loggedIn) return;
     Navigator.of(
       context,
     ).pop(const YamiboWebLoginResult(loggedIn: true, syncFavorites: true));
+  }
+
+  Future<void> _syncFavorites() async {
+    final loggedIn = await _syncCookie(silent: true);
+    if (!mounted) return;
+    if (!loggedIn) {
+      showSnackBar(message: 'source_login_required'.tr, context: context);
+      return;
+    }
+    final result = await BookshelfController.syncYamiboFavoritesToBookshelf();
+    if (!mounted) return;
+    if (Get.isRegistered<BookshelfController>()) {
+      await Get.find<BookshelfController>().loadFolders();
+    }
+    if (!mounted) return;
+    showSnackBar(
+      message: result ? 'update_successfully'.tr : 'update_failed'.tr,
+      context: context,
+    );
   }
 
   Future<bool> _syncCookie({bool silent = false}) async {

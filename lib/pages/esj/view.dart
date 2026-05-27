@@ -3,13 +3,17 @@ import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/pages/esj/controller.dart';
 import 'package:hikari_novel_flutter/widgets/browsing_novel_grid.dart';
+import 'package:hikari_novel_flutter/widgets/filter_capsule_controls.dart';
+import 'package:hikari_novel_flutter/widgets/home_collapsible_filter_bar.dart';
 import 'package:hikari_novel_flutter/widgets/keep_alive_wrapper.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
 
 class EsjView extends StatelessWidget {
-  EsjView({super.key});
+  EsjView({super.key, this.initialType = 0})
+    : controller = _esjController(initialType);
 
-  final controller = _esjController();
+  final int initialType;
+  final EsjController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -35,6 +39,7 @@ class EsjView extends StatelessWidget {
                         page: controller.pageIndex,
                         canPreviousPage: controller.canPreviousPage,
                         canNextPage: controller.canNextPage,
+                        guardHomeRefresh: true,
                       ),
                     ),
                   ),
@@ -69,246 +74,115 @@ class EsjView extends StatelessWidget {
   }
 }
 
-EsjController _esjController() =>
-    Get.isRegistered<EsjController>() ? Get.find() : Get.put(EsjController());
+EsjController _esjController(int type) {
+  final tag = EsjController.tagForType(type);
+  return Get.isRegistered<EsjController>(tag: tag)
+      ? Get.find<EsjController>(tag: tag)
+      : Get.put(EsjController(initialType: type), tag: tag);
+}
 
-class _EsjFilterBar extends StatelessWidget {
+class _EsjFilterBar extends StatefulWidget {
   const _EsjFilterBar({required this.controller});
 
   final EsjController controller;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-      child: Obx(() {
-        final tags = _visibleFrequentTags(controller.orderedTagOptions);
-        final chips = <Widget>[
-          _buildTagChip(
-            context,
-            label: 'esj_tag_all'.tr,
-            selected: controller.selectedTag.value.isEmpty,
-            onSelected: () => controller.changeTag(''),
-          ),
-          for (final tag in tags)
-            _buildTagChip(
-              context,
-              label: tag,
-              selected: controller.selectedTag.value == tag,
-              onSelected: () => controller.changeTag(tag),
-            ),
-        ];
-        return SizedBox(
-          height: 52,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildSortBlock(context),
-              const SizedBox(width: 8),
-              Expanded(child: _buildTagBlock(context, chips)),
-            ],
-          ),
-        );
-      }),
-    );
-  }
+  State<_EsjFilterBar> createState() => _EsjFilterBarState();
+}
 
-  List<String> _visibleFrequentTags(List<String> orderedTags) {
-    final selected = controller.selectedTag.value.trim();
-    final visible = <String>[];
-    if (selected.isNotEmpty && orderedTags.contains(selected)) {
-      visible.add(selected);
-    }
-    for (final tag in orderedTags) {
-      if (visible.length >= 4) break;
-      if (!visible.contains(tag)) visible.add(tag);
-    }
-    return visible;
+enum _EsjFilterPanel { sort, tag }
+
+class _EsjFilterBarState extends State<_EsjFilterBar> {
+  _EsjFilterPanel? _expandedPanel;
+
+  EsjController get controller => widget.controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return HomeCollapsibleFilterBar(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+        child: Obx(() {
+          final tagOptions = [
+            FilterCapsuleOption(value: '', label: 'esj_tag_all'.tr),
+            for (final tag in controller.orderedTagOptions)
+              FilterCapsuleOption(value: tag, label: tag),
+          ];
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 52,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildSortBlock(context),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilterCapsuleOptionRow<String>(
+                        options: tagOptions,
+                        selectedValue: controller.selectedTag.value,
+                        expanded: _expandedPanel == _EsjFilterPanel.tag,
+                        tooltip: 'esj_tag_all'.tr,
+                        onToggleExpanded: () =>
+                            _togglePanel(_EsjFilterPanel.tag),
+                        onSelected: (value) {
+                          controller.changeTag(value);
+                          _collapsePanel();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              FilterCapsulePanel<String>(
+                expanded: _expandedPanel != null,
+                options: _expandedPanel == _EsjFilterPanel.sort
+                    ? [
+                        for (final item in controller.sortOptions)
+                          FilterCapsuleOption(
+                            value: '${item.$1}',
+                            label: item.$2,
+                          ),
+                      ]
+                    : tagOptions,
+                selectedValue: _expandedPanel == _EsjFilterPanel.sort
+                    ? '${controller.sort.value}'
+                    : controller.selectedTag.value,
+                onSelected: (value) {
+                  if (_expandedPanel == _EsjFilterPanel.sort) {
+                    controller.changeSort(int.parse(value));
+                  } else {
+                    controller.changeTag(value);
+                  }
+                  _collapsePanel();
+                },
+              ),
+            ],
+          );
+        }),
+      ),
+    );
   }
 
   Widget _buildSortBlock(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return SizedBox(
+    return FilterCapsuleButton(
       width: 126,
-      child: Builder(
-        builder: (sortContext) => Material(
-          color: scheme.secondaryContainer.withValues(alpha: 0.86),
-          borderRadius: BorderRadius.circular(18),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(18),
-            onTap: () => _showSortMenu(sortContext),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 12, right: 6),
-                    child: Text(
-                      controller.sortText,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: scheme.onSecondaryContainer,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-                _buildDropdownArea(
-                  context,
-                  tooltip: controller.sortText,
-                  foreground: scheme.onSecondaryContainer,
-                  background: scheme.secondaryContainer.withValues(alpha: 0.1),
-                  onTap: () => _showSortMenu(sortContext),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      label: controller.sortText,
+      emphasized: true,
+      expanded: _expandedPanel == _EsjFilterPanel.sort,
+      onTap: () => _togglePanel(_EsjFilterPanel.sort),
     );
   }
 
-  Widget _buildTagBlock(BuildContext context, List<Widget> chips) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surface.withValues(alpha: 0.54),
-      borderRadius: BorderRadius.circular(18),
-      child: Row(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(8, 8, 4, 8),
-              child: Row(
-                children: [
-                  for (var i = 0; i < chips.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 6),
-                    chips[i],
-                  ],
-                ],
-              ),
-            ),
-          ),
-          _buildDropdownArea(
-            context,
-            tooltip: 'esj_tag_all'.tr,
-            foreground: scheme.onSurfaceVariant,
-            background: scheme.surfaceContainerHighest.withValues(alpha: 0.45),
-            onTap: () => _showAllTags(context),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTagChip(
-    BuildContext context, {
-    required String label,
-    required bool selected,
-    required VoidCallback onSelected,
-  }) {
-    final scheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: 32,
-      child: ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => onSelected(),
-        showCheckmark: false,
-        visualDensity: VisualDensity.compact,
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        labelPadding: const EdgeInsets.symmetric(horizontal: 6),
-        backgroundColor: scheme.surface.withValues(alpha: 0.82),
-        selectedColor: scheme.primaryContainer.withValues(alpha: 0.92),
-        side: BorderSide(
-          color: selected
-              ? scheme.primary.withValues(alpha: 0.38)
-              : scheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDropdownArea(
-    BuildContext context, {
-    required String tooltip,
-    required Color foreground,
-    required Color background,
-    required VoidCallback onTap,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: SizedBox(
-        width: 42,
-        height: double.infinity,
-        child: Material(
-          color: background,
-          borderRadius: const BorderRadius.horizontal(
-            right: Radius.circular(18),
-          ),
-          child: InkWell(
-            borderRadius: const BorderRadius.horizontal(
-              right: Radius.circular(18),
-            ),
-            onTap: onTap,
-            child: Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 26,
-              color: foreground,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showSortMenu(BuildContext context) {
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final box = context.findRenderObject() as RenderBox?;
-    final topLeft = box?.localToGlobal(Offset.zero, ancestor: overlay);
-    final size = box?.size ?? Size.zero;
-    final position = topLeft == null
-        ? RelativeRect.fill
-        : RelativeRect.fromRect(topLeft & size, Offset.zero & overlay.size);
-    showMenu<int>(
-      context: context,
-      position: position,
-      items: controller.sortOptions
-          .map((item) => PopupMenuItem(value: item.$1, child: Text(item.$2)))
-          .toList(),
-    ).then((value) {
-      if (value != null) controller.changeSort(value);
+  void _togglePanel(_EsjFilterPanel panel) {
+    setState(() {
+      _expandedPanel = _expandedPanel == panel ? null : panel;
     });
   }
 
-  void _showAllTags(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (_) => ListView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-        children: [
-          ListTile(
-            title: Text('esj_tag_all'.tr),
-            onTap: () {
-              Navigator.pop(context);
-              controller.changeTag('');
-            },
-          ),
-          for (final tag in controller.orderedTagOptions)
-            ListTile(
-              title: Text(tag),
-              trailing: controller.selectedTag.value == tag
-                  ? const Icon(Icons.check)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                controller.changeTag(tag);
-              },
-            ),
-        ],
-      ),
-    );
+  void _collapsePanel() {
+    if (_expandedPanel == null) return;
+    setState(() => _expandedPanel = null);
   }
 }

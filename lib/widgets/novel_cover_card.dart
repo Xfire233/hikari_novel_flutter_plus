@@ -21,7 +21,8 @@ class NovelCoverCard extends StatelessWidget {
     final imageUrl = novelCover.imageUrl?.trim();
     return InkWell(
       borderRadius: BorderRadius.circular(kCardBorderRadius),
-      onTap: () => AppSubRouter.toNovelDetail(aid: novelCover.aid),
+      onTap: () =>
+          AppSubRouter.toNovelDetail(aid: novelCover.aid, cover: novelCover),
       child: Card(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(kCardBorderRadius),
@@ -231,6 +232,9 @@ class _CoverImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (source == NovelSource.yamibo) {
+      return _CoverPlaceholder(title: title, source: source);
+    }
     final url = imageUrl?.trim() ?? '';
     if (!_isUsableNetworkUrl(url) || _isPlaceholderOnlyUrl(url)) {
       return _CoverPlaceholder(title: title, source: source);

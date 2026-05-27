@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/common/constants.dart';
 import 'package:hikari_novel_flutter/common/extension.dart';
+import 'package:hikari_novel_flutter/common/log.dart';
 import 'package:hikari_novel_flutter/models/book_tags.dart';
 import 'package:hikari_novel_flutter/models/chapter_cache_task.dart';
 import 'package:hikari_novel_flutter/models/common/wenku8_node.dart';
@@ -42,6 +43,8 @@ class NovelDetailController extends GetxController
   static const _yamiboOwnerUpdateSeparator = '\nowner:';
 
   final String aid;
+  final String seedTitle;
+  final String? seedImageUrl;
 
   bool get isYamibo => SourceId.isYamibo(aid);
 
@@ -51,7 +54,11 @@ class NovelDetailController extends GetxController
 
   String get esjBookId => SourceId.esjBookId(aid);
 
-  NovelDetailController({required this.aid});
+  NovelDetailController({
+    required this.aid,
+    this.seedTitle = '',
+    this.seedImageUrl,
+  });
 
   Rx<PageState> pageState = PageState.loading.obs;
   String errorMsg = "";
@@ -130,7 +137,6 @@ class NovelDetailController extends GetxController
     deselect();
   }
 
-  //切换某个章节的选中状态（假设 chapter.isSelected 是 RxBool）
   void toggleChapterSelection(int volumeIndex, int chapterIndex) {
     final chapter =
         novelDetail.value!.catalogue[volumeIndex].chapters[chapterIndex];
@@ -138,7 +144,7 @@ class NovelDetailController extends GetxController
     _syncVolumeSelection(volumeIndex);
   }
 
-  //切换某卷（全部选中或全部取消）
+  //鍒囨崲鏌愬嵎锛堝叏閮ㄩ€変腑鎴栧叏閮ㄥ彇娑堬級
   void toggleVolumeSelection(int volumeIndex) {
     final volume = novelDetail.value!.catalogue[volumeIndex];
     final allSelected = volume.chapters.every((c) => c.isSelected.value);
@@ -148,7 +154,6 @@ class NovelDetailController extends GetxController
     volume.isSelected.value = !allSelected;
   }
 
-  //根据章节选中数同步卷状态
   void _syncVolumeSelection(int volumeIndex) {
     final volume = novelDetail.value!.catalogue[volumeIndex];
     final total = volume.chapters.length;
@@ -158,12 +163,10 @@ class NovelDetailController extends GetxController
     } else if (selected == total) {
       volume.isSelected.value = true;
     } else {
-      //部分选中：你可以用单独字段或在 UI 用 selected数判断
       volume.isSelected.value = false;
     }
   }
 
-  //获取选中的章节列表
   List<CatChapter> getSelectedChapters() {
     final out = <CatChapter>[];
     final detail = novelDetail.value;
@@ -202,6 +205,11 @@ class NovelDetailController extends GetxController
 
   Future<void> startCache() async {
     for (var chap in getSelectedChapters()) {
+      final cacheFile = _chapterCacheFile(chap.cid);
+      if (await cacheFile.exists() && await cacheFile.length() > 0) {
+        cachedChapter.add(chap.cid);
+        continue;
+      }
       await cacheQueueController.addTask(
         ChapterCacheTask(
           uuid: "${aid}_${chap.cid}",
@@ -244,14 +252,17 @@ class NovelDetailController extends GetxController
   }
 
   void checkIsChapterCached(String cid) async {
-    if (await File(
-      "${_supportDir.path}/cached_chapter/${SourceId.safeFilePart(aid)}_${SourceId.safeFilePart(cid)}.txt",
-    ).exists()) {
+    final cacheFile = _chapterCacheFile(cid);
+    if (await cacheFile.exists() && await cacheFile.length() > 0) {
       cachedChapter.add(cid);
     } else {
       cachedChapter.remove(cid);
     }
   }
+
+  File _chapterCacheFile(String cid) => File(
+    "${_supportDir.path}/cached_chapter/${SourceId.safeFilePart(aid)}_${SourceId.safeFilePart(cid)}.txt",
+  );
 
   Future<void> getNovelDetail() async {
     if (isEsj) {
@@ -264,58 +275,203 @@ class NovelDetailController extends GetxController
       return;
     }
 
-    late NovelDetail data;
+    NovelDetail? data;
+    Object? detailError;
 
     final nd = await Api.getNovelDetail(aid: aid);
 
     switch (nd) {
       case Success():
-        data = Parser.getNovelDetail(nd.data);
-        final cat = await Api.getCatalogue(aid: aid);
-        switch (cat) {
-          case Success():
-            {
-              data.catalogue.addAll(Parser.getCatalogue(cat.data));
-              novelDetail.value = data;
-
-              DBService.instance.upsertBrowsingHistory(
-                BrowsingHistoryEntityData(
-                  aid: aid,
-                  title: data.title,
-                  img: data.imgUrl,
-                  time: DateTime.now(),
-                ),
-              );
-
-              await _syncLocalBookshelfState();
-              if (isInBookshelf.value) {
-                await DBService.instance.clearBookshelfUpdate(aid);
-              }
-
-              pageState.value = PageState.success;
-              await DBService.instance.upsertNovelDetail(
-                NovelDetailEntityData(
-                  aid: aid,
-                  json: novelDetail.value!.toString(),
-                ),
-              ); //缓存小说详情
-            }
-          case Error():
-            {
-              //检测本地是否有缓存
-              if (await _getNovelDetailByLocal()) return;
-              errorMsg = cat.error.toString();
-              pageState.value = PageState.error;
-            }
+        try {
+          data = Parser.getNovelDetail(nd.data);
+          if (!_hasUsefulWenku8Metadata(data)) {
+            detailError = 'Wenku8 articleinfo metadata is empty';
+            data = null;
+          }
+        } catch (e, stackTrace) {
+          detailError = e;
+          Log.e('HIKARI_WENKU8 detail articleinfo parse failed aid=$aid $e');
+          Log.e(stackTrace);
         }
+        data ??= await _getWenku8StaticDetail();
+        if (data == null && await _getNovelDetailByLocal()) {
+          unawaited(_refreshWenku8CatalogueInBackground());
+          return;
+        }
+        data ??= _fallbackNovelDetail();
+        await _loadWenku8CatalogueIntoDetail(data, detailError: detailError);
+        return;
       case Error():
         {
-          //检测本地是否有缓存
-          if (await _getNovelDetailByLocal()) return;
-          errorMsg = nd.error.toString();
-          pageState.value = PageState.error;
+          //妫€娴嬫湰鍦版槸鍚︽湁缂撳瓨
+          data = await _getWenku8StaticDetail();
+          if (data != null) {
+            await _loadWenku8CatalogueIntoDetail(data, detailError: nd.error);
+            return;
+          }
+          if (await _getNovelDetailByLocal()) {
+            unawaited(_refreshWenku8CatalogueInBackground());
+            return;
+          }
+          await _loadWenku8CatalogueIntoDetail(
+            _fallbackNovelDetail(),
+            detailError: nd.error,
+          );
         }
     }
+  }
+
+  Future<NovelDetail?> _getWenku8StaticDetail() async {
+    final result = await Api.getNovelStaticDetail(aid: aid);
+    switch (result) {
+      case Success():
+        try {
+          final data = Parser.getNovelDetail(result.data);
+          if (_hasUsefulWenku8Metadata(data)) return data;
+        } catch (e, stackTrace) {
+          Log.e('Wenku8 static detail parse failed aid=$aid $e');
+          Log.e(stackTrace);
+        }
+      case Error():
+        Log.w('Wenku8 static detail failed aid=$aid: ${result.error}');
+    }
+    return null;
+  }
+
+  bool _hasUsefulWenku8Metadata(NovelDetail data) {
+    return data.author.trim().isNotEmpty ||
+        data.status.trim().isNotEmpty ||
+        data.introduce.trim().isNotEmpty ||
+        data.tags.isNotEmpty;
+  }
+
+  Future<NovelDetail> _mergeCachedWenku8Metadata(NovelDetail data) async {
+    if (isEsj || isYamibo) return data;
+    final local = (await DBService.instance.getNovelDetail(aid))?.json;
+    if (local == null) return data;
+
+    try {
+      final cached = NovelDetail.fromString(local);
+      final merged = NovelDetail(
+        _preferNonEmpty(data.title, cached.title),
+        _preferNonEmpty(data.author, cached.author),
+        _preferNonEmpty(data.status, cached.status),
+        _preferNonEmpty(data.finUpdate, cached.finUpdate),
+        _preferNonEmpty(data.imgUrl, cached.imgUrl),
+        _preferNonEmpty(data.introduce, cached.introduce),
+        BookTags.merge(data.tags, cached.tags),
+        _preferNonEmpty(data.heat, cached.heat),
+        _preferNonEmpty(data.trending, cached.trending),
+        data.isAnimated || cached.isAnimated,
+      );
+      merged.catalogue
+        ..clear()
+        ..addAll(data.catalogue);
+      return merged;
+    } catch (_) {
+      return data;
+    }
+  }
+
+  String _preferNonEmpty(String primary, String fallback) {
+    final value = primary.trim();
+    return value.isNotEmpty ? primary : fallback;
+  }
+
+  Future<void> _loadWenku8CatalogueIntoDetail(
+    NovelDetail data, {
+    Object? detailError,
+  }) async {
+    final cat = await Api.getCatalogue(aid: aid);
+    switch (cat) {
+      case Success():
+        try {
+          final catalogue = Parser.getCatalogue(cat.data);
+          final chapterCount = catalogue.fold<int>(
+            0,
+            (total, volume) => total + volume.chapters.length,
+          );
+          if (chapterCount == 0) {
+            Log.w(
+              'HIKARI_WENKU8 detail catalogue parsed empty aid=$aid '
+              'length=${cat.data.length} preview=${_htmlPreview(cat.data)}',
+            );
+            if (await _getNovelDetailByLocal()) return;
+            errorMsg = 'Wenku8 catalogue is empty';
+            pageState.value = PageState.error;
+            return;
+          }
+          data.catalogue
+            ..clear()
+            ..addAll(catalogue);
+          data = await _mergeCachedWenku8Metadata(data);
+          novelDetail.value = data;
+
+          DBService.instance.upsertBrowsingHistory(
+            BrowsingHistoryEntityData(
+              aid: aid,
+              title: data.title,
+              img: data.imgUrl,
+              time: DateTime.now(),
+            ),
+          );
+
+          await _syncLocalBookshelfState();
+          if (isInBookshelf.value) {
+            await DBService.instance.clearBookshelfUpdate(aid);
+          }
+
+          pageState.value = PageState.success;
+          await DBService.instance.upsertNovelDetail(
+            NovelDetailEntityData(
+              aid: aid,
+              json: novelDetail.value!.toString(),
+            ),
+          );
+          if (detailError != null) {
+            Log.w(
+              'Wenku8 detail used fallback metadata aid=$aid: $detailError',
+            );
+          }
+        } catch (e, stackTrace) {
+          Log.e('HIKARI_WENKU8 detail catalogue parse failed aid=$aid $e');
+          Log.e(stackTrace);
+          if (await _getNovelDetailByLocal()) return;
+          errorMsg = e.toString();
+          pageState.value = PageState.error;
+        }
+      case Error():
+        if (await _getNovelDetailByLocal()) return;
+        errorMsg = cat.error.toString();
+        pageState.value = PageState.error;
+    }
+  }
+
+  Future<void> _refreshWenku8CatalogueInBackground() async {
+    try {
+      await _loadWenku8CatalogueIntoDetail(_fallbackNovelDetail());
+    } catch (e, stackTrace) {
+      Log.e('HIKARI_WENKU8 detail background refresh failed aid=$aid $e');
+      Log.e(stackTrace);
+    }
+  }
+
+  NovelDetail _fallbackNovelDetail() {
+    final title = seedTitle.trim().isNotEmpty
+        ? seedTitle.trim()
+        : 'Wenku8 #$aid';
+    return NovelDetail(
+      title,
+      '',
+      '',
+      '',
+      seedImageUrl?.trim() ?? '',
+      '',
+      const [],
+      '',
+      '',
+      false,
+    );
   }
 
   Future<void> _getYamiboNovelDetail() async {
@@ -587,7 +743,13 @@ class NovelDetailController extends GetxController
     }
   }
 
-  bool _isAdding = false; //防抖
+  String _htmlPreview(String html) {
+    final compact = html.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (compact.length <= 180) return compact;
+    return compact.substring(0, 180);
+  }
+
+  bool _isAdding = false; //闃叉姈
   Future<void> _syncLocalBookshelfState() async {
     final bs = await DBService.instance.getAllBookshelf();
     BookshelfEntityData? item;
@@ -768,6 +930,7 @@ class NovelDetailController extends GetxController
             );
             isInBookshelf.value = false;
           } else {
+            await _upsertWenku8LocalBookshelf(targetClassId);
             await bookshelfController.refreshDefaultBookshelf();
             await _moveWenku8RemoteFavoriteToConfiguredTarget();
             if (targetClassId != BookshelfController.defaultClassId) {
@@ -788,6 +951,29 @@ class NovelDetailController extends GetxController
         }
     }
     _isAdding = false;
+  }
+
+  Future<void> _upsertWenku8LocalBookshelf(String targetClassId) async {
+    final detail = novelDetail.value;
+    if (detail == null) return;
+    await DBService.instance.upsertBookshelf(
+      BookshelfEntityData(
+        aid: aid,
+        bid: aid,
+        url: '${Api.wenku8Node.node}/modules/article/articleinfo.php?id=$aid',
+        title: detail.title,
+        img: detail.imgUrl,
+        classId: targetClassId,
+        updateKey: '',
+        updateTime: null,
+        hasUpdate: false,
+        rating: localRating.value,
+        remoteTagsJson: BookTags.encode(detail.tags),
+        localTagsJson: BookTags.emptyJson,
+      ),
+    );
+    isInBookshelf.value = true;
+    await bookshelfController.loadFolders();
   }
 
   Future<void> _moveWenku8RemoteFavoriteToConfiguredTarget() async {
@@ -837,7 +1023,7 @@ class NovelDetailController extends GetxController
     );
   }
 
-  bool _isRemoving = false; //防抖
+  bool _isRemoving = false; //闃叉姈
   void removeFromBookshelf() async {
     if (_isRemoving) return;
     _isRemoving = true;
@@ -947,7 +1133,7 @@ class NovelDetailController extends GetxController
     }
   }
 
-  ///检测阅读记录是否适用于当前设置（是否双页，阅读方向）
+  ///妫€娴嬮槄璇昏褰曟槸鍚﹂€傜敤浜庡綋鍓嶈缃紙鏄惁鍙岄〉锛岄槄璇绘柟鍚戯級
   bool isValidReadHistory(ReadHistoryEntityData? data) {
     if (data == null) {
       return false;
@@ -1047,7 +1233,6 @@ class NovelDetailController extends GetxController
   }
 
   Future<void> markAsRead() async {
-    // 1为滚动模式，2为翻页模式，翻页模式的左右方向不影响阅读记录的使用
     final readerMode =
         LocalStorageService.instance.getReaderDirection() ==
             ReaderDirection.upToDown

@@ -4,7 +4,6 @@ import 'package:hikari_novel_flutter/models/source_config.dart';
 import 'package:hikari_novel_flutter/pages/welcome/controller.dart';
 import 'package:hikari_novel_flutter/widgets/source_backdrop.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
-import '../../models/common/wenku8_node.dart';
 
 class WelcomePage extends StatelessWidget {
   WelcomePage({super.key});
@@ -13,8 +12,6 @@ class WelcomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -50,45 +47,6 @@ class WelcomePage extends StatelessWidget {
                         : null,
                     label: Text("start_using".tr),
                     icon: const Icon(Icons.check),
-                  ),
-                ),
-                const SizedBox(height: 28),
-                PopupMenuButton<Wenku8Node>(
-                  onSelected: controller.changeWenku8Node,
-                  itemBuilder: (BuildContext context) => [
-                    PopupMenuItem<Wenku8Node>(
-                      value: Wenku8Node.wwwWenku8Net,
-                      child: Text(
-                        Wenku8Node.wwwWenku8Net.node,
-                        style: controller.wenku8Node == Wenku8Node.wwwWenku8Net
-                            ? TextStyle(
-                                color: primaryColor,
-                                fontWeight: FontWeight.bold,
-                              )
-                            : null,
-                      ),
-                    ),
-                    PopupMenuItem<Wenku8Node>(
-                      value: Wenku8Node.wwwWenku8Cc,
-                      child: Text(
-                        Wenku8Node.wwwWenku8Cc.node,
-                        style: controller.wenku8Node == Wenku8Node.wwwWenku8Cc
-                            ? TextStyle(
-                                color: primaryColor,
-                                fontWeight: FontWeight.bold,
-                              )
-                            : null,
-                      ),
-                    ),
-                  ],
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.lan_outlined, size: 16, color: primaryColor),
-                      const SizedBox(width: 8),
-                      Text("node".tr, style: TextStyle(color: primaryColor)),
-                    ],
                   ),
                 ),
               ],

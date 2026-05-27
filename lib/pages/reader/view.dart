@@ -12,12 +12,14 @@ import 'package:hikari_novel_flutter/pages/reader/widgets/horizontal_read_page.d
 import 'package:hikari_novel_flutter/pages/reader/widgets/reader_background.dart';
 import 'package:hikari_novel_flutter/pages/reader/widgets/vertical_read_page.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
+import 'package:hikari_novel_flutter/widgets/wenku8_browser_assist.dart';
 import 'package:intl/intl.dart';
 import 'package:hikari_novel_flutter/service/tts_service.dart';
 import 'package:hikari_novel_flutter/pages/reader/widgets/tts_floating_controller.dart';
 
 import '../../common/constants.dart';
 import '../../models/page_state.dart';
+import '../../network/api.dart';
 import '../../router/route_path.dart';
 
 enum _ReaderTapAction { previous, center, next }
@@ -119,16 +121,15 @@ class ReaderPage extends StatelessWidget {
               Obx(
                 () => Offstage(
                   offstage: controller.pageState.value != PageState.loading,
-                  child: const LoadingPage(),
+                  child: buildWenku8CompatibilityLoadingPage(
+                    enabled: !controller.isEsj && !controller.isYamibo,
+                  ),
                 ),
               ),
               Obx(
                 () => Offstage(
                   offstage: controller.pageState.value != PageState.error,
-                  child: ErrorMessage(
-                    msg: controller.errorMsg,
-                    action: controller.getContent,
-                  ),
+                  child: _buildErrorMessage(),
                 ),
               ),
               _buildBottomStatusBar(context),
@@ -207,9 +208,9 @@ class ReaderPage extends StatelessWidget {
                                   icon: const Icon(Icons.settings_outlined),
                                 ),
                               ),
-                              TtsService.instance.enabled.value
-                                  ? Expanded(
-                                      child: IconButton(
+                              Expanded(
+                                child: TtsService.instance.enabled.value
+                                    ? IconButton(
                                         tooltip: "listen_to_books".tr,
                                         onPressed: () async {
                                           final tts = TtsService.instance;
@@ -250,9 +251,9 @@ class ReaderPage extends StatelessWidget {
                                             Icons.play_circle_outline,
                                           );
                                         }),
-                                      ),
-                                    )
-                                  : Container(),
+                                      )
+                                    : const SizedBox.shrink(),
+                              ),
                               Expanded(
                                 child: IconButton(
                                   onPressed: () {
@@ -281,6 +282,16 @@ class ReaderPage extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildErrorMessage() {
+    final isWenku8 = !controller.isEsj && !controller.isYamibo;
+    return buildWenku8BrowserAssistErrorMessage(
+      message: controller.errorMsg,
+      url: Api.getNovelContentUrl(aid: controller.aid, cid: controller.cid),
+      onRetry: controller.getContent,
+      enabled: isWenku8,
     );
   }
 
@@ -480,7 +491,7 @@ class ReaderPage extends StatelessWidget {
       onCenterTap: () => controller.showBar.value = !controller.showBar.value,
       onLeftTap: controller.prevPage,
       onRightTap: controller.nextPage,
-      onReachStart: controller.prevChapter,
+      onReachStart: () => controller.prevChapter(openAtEnd: true),
       onReachEnd: controller.nextChapter,
       onPageChanged: (index, max) {
         controller.currentIndex.value = index;
@@ -538,7 +549,7 @@ class ReaderPage extends StatelessWidget {
         ),
       ),
       refreshOnStart: false,
-      onRefresh: controller.prevChapter,
+      onRefresh: () => controller.prevChapter(openAtEnd: true),
       onLoad: controller.nextChapter,
       child: horizontalReader,
     );
@@ -703,7 +714,7 @@ class ReaderPage extends StatelessWidget {
                           ),
                           contentPadding: const EdgeInsets.only(
                             left: 50.0,
-                            right: 10.0,
+                            right: 24.0,
                           ),
                           onTap: () {
                             controller.currentVolumeIndex = volumeIndex;

@@ -22,37 +22,43 @@ class LoginPage extends StatelessWidget {
           leading: CloseButton(onPressed: Get.back),
           title: Obx(() => Text(controller.currentUrl.value)),
           actions: controller.pageState.value == PageState.success
-              ? [
-                  IconButton(
-                    onPressed: () async {
-                      if (await controller.inAppWebViewController
-                              ?.canGoBack() ==
-                          true) {
-                        controller.inAppWebViewController?.goBack();
-                      }
-                    },
-                    icon: Icon(Icons.arrow_upward),
-                    tooltip: "back_to_previous_web_page".tr,
-                  ),
-                  IconButton(
-                    onPressed: () =>
-                        controller.inAppWebViewController?.reload(),
-                    icon: Icon(Icons.refresh),
-                    tooltip: "refresh_web_page".tr,
-                  ),
-                  if (controller.captureHtmlOnly)
-                    IconButton(
-                      onPressed: controller.captureCurrentHtmlAndReturn,
-                      icon: const Icon(Icons.download_done_outlined),
-                      tooltip: "browser_assisted_capture_page".tr,
-                    )
-                  else
-                    IconButton(
-                      onPressed: controller.syncBrowserVerification,
-                      icon: const Icon(Icons.verified_user),
-                      tooltip: "wenku8_sync_verification".tr,
-                    ),
-                ]
+              ? controller.accountMode
+                    ? [
+                        IconButton(
+                          onPressed: controller.confirmLoginAndReturn,
+                          icon: const Icon(Icons.verified_user),
+                          tooltip: "source_check_login_status".tr,
+                        ),
+                        IconButton(
+                          onPressed: controller.syncOnlineFavorites,
+                          icon: const Icon(Icons.cloud_download_outlined),
+                          tooltip: "source_sync_online_favorites".tr,
+                        ),
+                      ]
+                    : [
+                        IconButton(
+                          onPressed: () async {
+                            if (await controller.inAppWebViewController
+                                    ?.canGoBack() ==
+                                true) {
+                              controller.inAppWebViewController?.goBack();
+                            }
+                          },
+                          icon: Icon(Icons.arrow_upward),
+                          tooltip: "back_to_previous_web_page".tr,
+                        ),
+                        IconButton(
+                          onPressed: () =>
+                              controller.inAppWebViewController?.reload(),
+                          icon: Icon(Icons.refresh),
+                          tooltip: "refresh_web_page".tr,
+                        ),
+                        IconButton(
+                          onPressed: controller.confirmLoginAndReturn,
+                          icon: const Icon(Icons.check_circle_outline),
+                          tooltip: "confirm".tr,
+                        ),
+                      ]
               : [],
         ),
         body: Stack(
@@ -90,7 +96,7 @@ class LoginPage extends StatelessWidget {
                           },
                           onLoadStop: (webController, webUri) async {
                             if (webUri != null) {
-                              controller.saveCookie(webUri);
+                              controller.handlePageLoaded(webUri);
                             }
 
                             if (webUri.toString() == controller.url) {

@@ -1,4 +1,4 @@
-﻿import 'package:easy_refresh/easy_refresh.dart';
+import 'package:easy_refresh/easy_refresh.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/novel_cover.dart';
@@ -10,10 +10,14 @@ import 'package:hikari_novel_flutter/service/local_storage_service.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
 
 class EsjController extends GetxController {
+  EsjController({int initialType = 0}) : type = initialType.obs;
+
+  static String tagForType(int type) => 'EsjController $type';
+
   final easyRefreshController = EasyRefreshController();
   final data = RxList<NovelCover>();
   final pageState = PageState.loading.obs;
-  final type = 0.obs;
+  final RxInt type;
   final sort = 1.obs;
   final selectedTag = ''.obs;
   String errorMsg = '';

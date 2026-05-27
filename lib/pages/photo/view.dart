@@ -16,6 +16,11 @@ class PhotoPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final args = Get.arguments as Map<String, dynamic>? ?? {};
+    final galleryMode = args["gallery_mode"] == true;
+    final urlList = (args["list"] as List<dynamic>?)?.cast<String>() ?? [];
+    final singleUrl = args["url"] as String? ?? '';
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -30,16 +35,16 @@ class PhotoPage extends StatelessWidget {
       ),
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
-      body: Get.arguments["gallery_mode"]
+      body: galleryMode && urlList.isNotEmpty
           ? Stack(
               children: [
                 PhotoViewGallery.builder(
                   scrollPhysics: const BouncingScrollPhysics(),
-                  itemCount: Get.arguments["list"].length,
+                  itemCount: urlList.length,
                   builder: (_, index) {
                     return PhotoViewGalleryPageOptions(
                       imageProvider: CachedNetworkImageProvider(
-                        Get.arguments["list"][index],
+                        urlList[index],
                         headers: Request.userAgent,
                       ),
                     );
@@ -63,16 +68,16 @@ class PhotoPage extends StatelessWidget {
                     padding: const EdgeInsets.all(20.0),
                     child: Obx(
                       () => Text(
-                        "${currentIndex.value + 1} / ${Get.arguments["list"].length}",
+                        "${currentIndex.value + 1} / ${urlList.length}",
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
                           shadows: [
                             Shadow(
-                              color: Colors.black.withValues(alpha: 0.6), //阴影颜色
-                              offset: Offset(1, 1), //阴影偏移量
-                              blurRadius: 6, //模糊程度
+                              color: Colors.black.withValues(alpha: 0.6),
+                              offset: Offset(1, 1),
+                              blurRadius: 6,
                             ),
                           ],
                         ),
@@ -84,7 +89,7 @@ class PhotoPage extends StatelessWidget {
             )
           : PhotoView(
               imageProvider: CachedNetworkImageProvider(
-                Get.arguments["url"],
+                singleUrl,
                 headers: Request.userAgent,
               ),
               loadingBuilder: (context, progress) => Center(

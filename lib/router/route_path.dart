@@ -5,8 +5,6 @@ class RoutePath {
 
   static const login = "/login";
 
-  static const account = "/account";
-
   static const novelDetail = "/novel_detail";
 
   static const comment = "/comment";

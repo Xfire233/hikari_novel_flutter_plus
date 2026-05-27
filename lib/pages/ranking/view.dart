@@ -2,39 +2,61 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/pages/ranking/controller.dart';
-import 'package:hikari_novel_flutter/widgets/capsule_dropdown.dart';
+import 'package:hikari_novel_flutter/widgets/filter_capsule_controls.dart';
+import 'package:hikari_novel_flutter/widgets/home_collapsible_filter_bar.dart';
 import 'package:hikari_novel_flutter/widgets/wenku8_browser_assist.dart';
 
 import '../../widgets/keep_alive_wrapper.dart';
 import '../../widgets/browsing_novel_grid.dart';
 import '../../widgets/state_page.dart';
 
-class RankingView extends StatelessWidget {
-  RankingView({super.key});
+class RankingView extends StatefulWidget {
+  const RankingView({super.key});
 
+  @override
+  State<RankingView> createState() => _RankingViewState();
+}
+
+class _RankingViewState extends State<RankingView> {
   final controller = Get.put(RankingController());
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
     return KeepAliveWrapper(
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 176,
-                  child: Obx(
-                    () => CapsuleDropdown<Object?>(
-                      label: controller.ranking.value,
-                      items: _getRankingList(),
-                      onSelected: (_) {},
-                      emphasized: true,
+          HomeCollapsibleFilterBar(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              child: Obx(() {
+                final options = _rankingOptions();
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FilterCapsuleOptionRow<String>(
+                      options: options,
+                      selectedValue: controller.ranking.value,
+                      expanded: _expanded,
+                      tooltip: controller.ranking.value,
+                      onToggleExpanded: _togglePanel,
+                      onSelected: (value) {
+                        controller.ranking.value = value;
+                        _collapsePanel();
+                      },
                     ),
-                  ),
-                ),
-              ],
+                    FilterCapsulePanel<String>(
+                      expanded: _expanded,
+                      options: options,
+                      selectedValue: controller.ranking.value,
+                      onSelected: (value) {
+                        controller.ranking.value = value;
+                        _collapsePanel();
+                      },
+                    ),
+                  ],
+                );
+              }),
             ),
           ),
           Expanded(
@@ -55,6 +77,7 @@ class RankingView extends StatelessWidget {
                         page: controller.pageIndex,
                         canPreviousPage: controller.canPreviousPage,
                         canNextPage: controller.canNextPage,
+                        guardHomeRefresh: true,
                       ),
                     ),
                   ),
@@ -69,23 +92,13 @@ class RankingView extends StatelessWidget {
                 Obx(
                   () => Offstage(
                     offstage: controller.pageState.value != PageState.loading,
-                    child: LoadingPage(),
+                    child: buildWenku8CompatibilityLoadingPage(),
                   ),
                 ),
                 Obx(
                   () => Offstage(
                     offstage: controller.pageState.value != PageState.error,
-                    child: ErrorMessage(
-                      msg: controller.errorMsg,
-                      action: () => controller.getPage(false),
-                      extraAction: isSpecificMessage(controller.errorMsg)
-                          ? () => openWenku8BrowserAssist(
-                              url: controller.currentRequestUrl(),
-                              onCaptured: () => controller.getPage(false),
-                            )
-                          : null,
-                      extraButtonText: 'wenku8_browser_verify',
-                    ),
+                    child: _buildErrorMessage(),
                   ),
                 ),
               ],
@@ -96,92 +109,27 @@ class RankingView extends StatelessWidget {
     );
   }
 
-  List<PopupMenuEntry<Object?>> _getRankingList() {
+  List<FilterCapsuleOption<String>> _rankingOptions() {
     return [
-      PopupMenuItem(
-        child: Text("last_update".tr),
-        onTap: () {
-          controller.ranking.value = "last_update".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("post_date".tr),
-        onTap: () {
-          controller.ranking.value = "post_date".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("all_visit".tr),
-        onTap: () {
-          controller.ranking.value = "all_visit".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("all_vote".tr),
-        onTap: () {
-          controller.ranking.value = "all_vote".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("good_num".tr),
-        onTap: () {
-          controller.ranking.value = "good_num".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("day_visit".tr),
-        onTap: () {
-          controller.ranking.value = "day_visit".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("day_vote".tr),
-        onTap: () {
-          controller.ranking.value = "day_vote".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("month_visit".tr),
-        onTap: () {
-          controller.ranking.value = "month_visit".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("month_vote".tr),
-        onTap: () {
-          controller.ranking.value = "month_vote".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("week_visit".tr),
-        onTap: () {
-          controller.ranking.value = "week_visit".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("week_vote".tr),
-        onTap: () {
-          controller.ranking.value = "week_vote".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("size".tr),
-        onTap: () {
-          controller.ranking.value = "size".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("animated".tr),
-        onTap: () {
-          controller.ranking.value = "animated".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("not_animated".tr),
-        onTap: () {
-          controller.ranking.value = "not_animated".tr;
-        },
-      ),
+      for (final key in RankingController.rankingKeys)
+        FilterCapsuleOption(value: key, label: key.tr),
     ];
+  }
+
+  void _togglePanel() {
+    setState(() => _expanded = !_expanded);
+  }
+
+  void _collapsePanel() {
+    if (!_expanded) return;
+    setState(() => _expanded = false);
+  }
+
+  Widget _buildErrorMessage() {
+    return buildWenku8BrowserAssistErrorMessage(
+      message: controller.errorMsg,
+      url: controller.currentRequestUrl(),
+      onRetry: () => controller.getPage(false),
+    );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
+import 'package:hikari_novel_flutter/models/novel_cover.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
 import 'package:hikari_novel_flutter/pages/main/controller.dart';
 import 'package:hikari_novel_flutter/router/route_path.dart';
@@ -26,8 +27,13 @@ class AppSubRouter {
     }
   }
 
-  static void toNovelDetail({required String aid}) =>
-      _toContentPage(RoutePath.novelDetail, arg: aid);
+  static void toNovelDetail({required String aid, NovelCover? cover}) =>
+      _toContentPage(
+        RoutePath.novelDetail,
+        arg: cover == null
+            ? aid
+            : {'aid': aid, 'title': cover.title, 'imageUrl': cover.imageUrl},
+      );
 
   static void toComment({required String aid}) =>
       _toContentPage(RoutePath.comment, arg: aid);

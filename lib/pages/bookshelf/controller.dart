@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/common/constants.dart';
 import 'package:hikari_novel_flutter/models/book_tags.dart';
 import 'package:hikari_novel_flutter/models/bookshelf.dart';
+import 'package:hikari_novel_flutter/models/common/wenku8_node.dart';
 import 'package:hikari_novel_flutter/models/content.dart';
 import 'package:hikari_novel_flutter/models/custom_exception.dart';
 import 'package:hikari_novel_flutter/models/novel_cover.dart';
@@ -46,6 +47,10 @@ class BookshelfController extends GetxController
   static const _rootFolderViewModeKey = '__bookshelf_root__';
   static const _yamiboOwnerUpdateSeparator = '\nowner:';
   static const _localFolderPrefix = 'local_';
+  static const _subscriptionCacheClassId = '__smart_subscription_cache__';
+  static const _yamiboSubscriptionSearchInterval = Duration(seconds: 10);
+  static Future<void> _yamiboSubscriptionSearchQueue = Future.value();
+  static DateTime? _lastYamiboSubscriptionSearchAt;
 
   RxInt tabIndex = 0.obs;
 
@@ -154,7 +159,7 @@ class BookshelfController extends GetxController
     final result = <BookshelfFolder>[
       BookshelfFolder(
         id: defaultClassId,
-        name: "default_bookshelf".tr,
+        name: "wenku8".tr,
         builtIn: true,
         cover: BookshelfFolderCover.fromJson(covers[defaultClassId]),
         count: allBooks.where((item) => item.classId == defaultClassId).length,
@@ -200,10 +205,7 @@ class BookshelfController extends GetxController
       );
     }
 
-    final recentAids = _existingBookshelfAids(
-      await _getRecentReadAids(recentLimit),
-      allBooks,
-    );
+    final recentAids = await _getRecentReadAids(recentLimit);
     if (recentAids.isNotEmpty) {
       result.add(
         BookshelfFolder(
@@ -953,6 +955,40 @@ class BookshelfController extends GetxController
     }
   }
 
+  Future<String> refreshSource(NovelSource source) async {
+    final folderId = switch (source) {
+      NovelSource.wenku8 => defaultClassId,
+      NovelSource.yamibo => yamiboClassId,
+      NovelSource.esj => esjClassId,
+    };
+    _clearSyncError(folderId);
+    _setSyncProgress(folderId, message: "refresh_bookshelf_tip".tr);
+    try {
+      bool ok;
+      switch (source) {
+        case NovelSource.wenku8:
+          final results = await Future.wait(
+            Iterable.generate(6, (index) => _syncWenku8Shelf(index)),
+          );
+          ok = results.every((item) => item);
+        case NovelSource.yamibo:
+          ok = await refreshYamiboFavorites(
+            onProgress: (value, message) =>
+                _setSyncProgress(folderId, value: value, message: message),
+          );
+        case NovelSource.esj:
+          ok = await refreshEsjFavorites(
+            onProgress: (value, message) =>
+                _setSyncProgress(folderId, value: value, message: message),
+          );
+      }
+      await loadFolders();
+      return _syncResultMessage(ok, folderId);
+    } finally {
+      _clearSyncProgress(folderId);
+    }
+  }
+
   Future<bool> _refreshFolder(BookshelfFolder folder) async {
     if (folder.id == defaultClassId) {
       return _syncWenku8Shelf(0);
@@ -1038,6 +1074,27 @@ class BookshelfController extends GetxController
           ? config.subscriptionTags
           : _tagsFromSmartConfig(config);
       if (tags.isEmpty) continue;
+      final enabledSources = SourceConfigService.instance.enabledSources;
+      final sourceScope = config.sources.isEmpty
+          ? enabledSources
+          : config.sources
+                .where((source) => enabledSources.contains(source))
+                .toList();
+      if (onlyFolderId == null &&
+          _shouldSkipRecentYamiboSubscription(id, sourceScope)) {
+        _setSyncProgress(
+          id,
+          message: "smart_subscription_skip_recent".trParams({
+            "time": _smartSubscriptionIntervalLabel(
+              LocalStorageService.instance
+                  .getSmartSubscriptionMinSyncIntervalSeconds(),
+            ),
+          }),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        _clearSyncProgress(id);
+        continue;
+      }
       final previous = {
         for (final item in LocalStorageService.instance.getSmartShelfMembership(
           id,
@@ -1046,12 +1103,6 @@ class BookshelfController extends GetxController
       };
       final candidates = <String, _SubscriptionCandidate>{};
       var folderOk = true;
-      final enabledSources = SourceConfigService.instance.enabledSources;
-      final sourceScope = config.sources.isEmpty
-          ? enabledSources
-          : config.sources
-                .where((source) => enabledSources.contains(source))
-                .toList();
       _setSyncProgress(id, message: "refresh_bookshelf_tip".tr);
       for (final source in sourceScope) {
         final sourceResult = await _searchSubscriptionSource(
@@ -1099,9 +1150,43 @@ class BookshelfController extends GetxController
         id,
         nextByAid.values.toList(),
       );
+      if (folderOk) {
+        LocalStorageService.instance.setSmartShelfLastSuccessfulSyncAt(
+          id,
+          DateTime.now(),
+        );
+      }
       _clearSyncProgress(id);
     }
     return allOk;
+  }
+
+  bool _shouldSkipRecentYamiboSubscription(
+    String folderId,
+    List<NovelSource> sourceScope,
+  ) {
+    if (!sourceScope.contains(NovelSource.yamibo)) return false;
+    final seconds = LocalStorageService.instance
+        .getSmartSubscriptionMinSyncIntervalSeconds();
+    if (seconds <= 0) return false;
+    final last = LocalStorageService.instance.getSmartShelfLastSuccessfulSyncAt(
+      folderId,
+    );
+    if (last == null) return false;
+    return DateTime.now().difference(last) < Duration(seconds: seconds);
+  }
+
+  static String _smartSubscriptionIntervalLabel(int seconds) {
+    return switch (seconds) {
+      <= 0 => "smart_subscription_interval_none".tr,
+      600 => "smart_subscription_interval_10m".tr,
+      1800 => "smart_subscription_interval_30m".tr,
+      3600 => "smart_subscription_interval_1h".tr,
+      10800 => "smart_subscription_interval_3h".tr,
+      21600 => "smart_subscription_interval_6h".tr,
+      86400 => "smart_subscription_interval_24h".tr,
+      _ => "${seconds}s",
+    };
   }
 
   Future<_SubscriptionSearchResult> _searchSubscriptionSource(
@@ -1178,6 +1263,7 @@ class BookshelfController extends GetxController
             folderId,
             message: '${"refresh_bookshelf_tip".tr} ${searchResults.length}',
           );
+          await _waitForYamiboSubscriptionSearchSlot(folderId);
           final result = await YamiboApi.searchThreads(
             keyword: query,
             page: page,
@@ -1316,7 +1402,7 @@ class BookshelfController extends GetxController
     if (!matched) return null;
 
     final candidate = _SubscriptionCandidate(
-      NovelCover(detail.detail.title, detail.detail.imgUrl, cover.aid),
+      NovelCover(detail.detail.title, '', cover.aid),
     );
     candidate.tags.addAll([
       'Yamibo',
@@ -1413,6 +1499,9 @@ class BookshelfController extends GetxController
       ),
       _ => null,
     };
+    if (source == NovelSource.yamibo) {
+      await _waitForYamiboSubscriptionSearchSlot(folderId);
+    }
     final result = switch (source) {
       NovelSource.wenku8 => await Api.getNovelByCategory(
         category: tag,
@@ -1468,6 +1557,35 @@ class BookshelfController extends GetxController
                     ))
             : const <NovelCover>[],
     };
+  }
+
+  Future<void> _waitForYamiboSubscriptionSearchSlot(String folderId) {
+    final next = _yamiboSubscriptionSearchQueue.then((_) async {
+      while (true) {
+        final last = _lastYamiboSubscriptionSearchAt;
+        if (last == null) break;
+        final elapsed = DateTime.now().difference(last);
+        final remaining = _yamiboSubscriptionSearchInterval - elapsed;
+        if (remaining <= Duration.zero) break;
+        final seconds =
+            remaining.inSeconds +
+            (remaining.inMilliseconds % 1000 == 0 ? 0 : 1);
+        _setSyncProgress(
+          folderId,
+          message: "yamibo_search_throttle_wait".trParams({
+            "seconds": '$seconds',
+          }),
+        );
+        await Future<void>.delayed(
+          remaining > const Duration(seconds: 1)
+              ? const Duration(seconds: 1)
+              : remaining,
+        );
+      }
+      _lastYamiboSubscriptionSearchAt = DateTime.now();
+    });
+    _yamiboSubscriptionSearchQueue = next.catchError((_) {});
+    return next;
   }
 
   bool _isBrowserAssistedError(String error) =>
@@ -1545,20 +1663,24 @@ class BookshelfController extends GetxController
   ) async {
     final previous = (await DBService.instance.getAllBookshelf())
         .firstWhereOrNull((item) => item.aid == cover.aid);
+    final addToSourceShelf = LocalStorageService.instance
+        .getSmartSubscriptionAddsToSourceShelf();
     await DBService.instance.upsertBookshelf(
       BookshelfEntityData(
         aid: cover.aid,
         bid: previous?.bid ?? cover.aid,
         url: previous?.url ?? '',
         title: cover.title,
-        img: cover.imageUrl ?? previous?.img ?? '',
+        img: _syncedImageFor(source, cover.imageUrl, previous),
         classId:
             previous?.classId ??
-            switch (source) {
-              NovelSource.wenku8 => defaultClassId,
-              NovelSource.esj => esjClassId,
-              NovelSource.yamibo => yamiboClassId,
-            },
+            (addToSourceShelf
+                ? switch (source) {
+                    NovelSource.wenku8 => defaultClassId,
+                    NovelSource.esj => esjClassId,
+                    NovelSource.yamibo => yamiboClassId,
+                  }
+                : _subscriptionCacheClassId),
         updateKey: previous?.updateKey ?? '',
         updateTime: previous?.updateTime,
         hasUpdate: previous?.hasUpdate ?? false,
@@ -1622,7 +1744,7 @@ class BookshelfController extends GetxController
           bid: e.bid,
           url: e.url,
           title: e.title,
-          img: e.img,
+          img: _syncedImageFor(NovelSource.wenku8, e.img, prev),
           classId: keepLocal ? prev!.classId : classId.toString(),
           updateKey: e.updateKey,
           updateTime: e.updateTime,
@@ -1689,7 +1811,7 @@ class BookshelfController extends GetxController
             bid: item.bid,
             url: item.url,
             title: item.title,
-            img: item.img,
+            img: _syncedImageFor(NovelSource.wenku8, item.img, prev),
             classId: prev?.classId ?? classId.toString(),
             updateKey: item.updateKey,
             updateTime: item.updateTime,
@@ -1808,7 +1930,7 @@ class BookshelfController extends GetxController
           bid: item.bid,
           url: item.url,
           title: item.title,
-          img: item.img,
+          img: _syncedImageFor(NovelSource.esj, item.img, prev),
           classId: keepLocal ? prev!.classId : esjClassId,
           updateKey: item.updateKey,
           updateTime: item.updateTime,
@@ -2006,7 +2128,7 @@ class BookshelfController extends GetxController
           bid: item.bid,
           url: item.url,
           title: item.title,
-          img: item.img,
+          img: _syncedImageFor(NovelSource.yamibo, item.img, prev),
           classId: keepLocal ? prev!.classId : yamiboClassId,
           updateKey: item.updateKey,
           updateTime: item.updateTime,
@@ -2036,6 +2158,17 @@ class BookshelfController extends GetxController
     return previous.updateKey.isNotEmpty && previous.updateKey != updateKey;
   }
 
+  static String _syncedImageFor(
+    NovelSource source,
+    String? onlineImage,
+    BookshelfEntityData? previous,
+  ) {
+    if (source == NovelSource.yamibo) return '';
+    final online = onlineImage?.trim() ?? '';
+    if (online.isNotEmpty) return online;
+    return previous?.img ?? '';
+  }
+
   static String _remoteTagsJsonFor(
     BookshelfNovelInfo item,
     BookshelfEntityData? previous,
@@ -2054,15 +2187,12 @@ class BookshelfController extends GetxController
     BookshelfNovelInfo item,
     BookshelfEntityData previous,
   ) {
-    final previousImg = _isYamiboPlaceholderImage(previous.img)
-        ? ''
-        : previous.img;
     return BookshelfNovelInfo(
       bid: item.bid,
       aid: item.aid,
       url: item.url,
       title: item.title,
-      img: previousImg.isEmpty ? item.img : previousImg,
+      img: '',
       updateKey: previous.updateKey,
       updateTime: previous.updateTime,
       hasUpdate: previous.hasUpdate,
@@ -2072,15 +2202,6 @@ class BookshelfController extends GetxController
           : BookTags.decode(previous.remoteTagsJson),
       localTags: BookTags.decode(previous.localTagsJson),
     );
-  }
-
-  static bool _isYamiboPlaceholderImage(String url) {
-    final lower = url.trim().toLowerCase();
-    if (lower.isEmpty) return false;
-    return lower == YamiboApi.logoUrl.toLowerCase() ||
-        lower.contains('/static/image/common/logo') ||
-        lower.contains('discuz') ||
-        lower.contains('community');
   }
 
   static String _yamiboTopicUpdateKey(String updateKey) =>
@@ -2303,6 +2424,7 @@ class BookshelfContentController extends GetxController {
   RxInt selectedCount = 0.obs;
   String errorMsg = "";
   StreamSubscription<List<BookshelfEntityData>>? _bookshelfSubscription;
+  StreamSubscription<List<BrowsingHistoryEntityData>>? _historySubscription;
   Worker? _smartFolderWorker;
   Worker? _sortWorker;
   List<BookshelfEntityData> _lastBookshelfData = const [];
@@ -2389,6 +2511,11 @@ class BookshelfContentController extends GetxController {
 
   void _watchSmartFolder() async {
     await _loadSmartFolderBooks();
+    if (classId == BookshelfController.recentSmartId) {
+      _historySubscription = DBService.instance
+          .getWatchableAllBrowsingHistory()
+          .listen((_) => _loadSmartFolderBooks());
+    }
     _smartFolderWorker = ever(_bookshelfController.folders, (_) async {
       await _loadSmartFolderBooks();
     });
@@ -2397,17 +2524,67 @@ class BookshelfContentController extends GetxController {
   @override
   void onClose() {
     _bookshelfSubscription?.cancel();
+    _historySubscription?.cancel();
     _smartFolderWorker?.dispose();
     _sortWorker?.dispose();
     super.onClose();
   }
 
   Future<void> _loadSmartFolderBooks() async {
+    if (classId == BookshelfController.recentSmartId) {
+      await _loadRecentReadBooks();
+      return;
+    }
     final allBooks = await DBService.instance.getAllBookshelf();
     final dynamicAids = await _bookshelfController.getSmartFolderAids(classId);
     _onBookshelfData(
       allBooks.where((b) => dynamicAids.contains(b.aid)).toList(),
     );
+  }
+
+  Future<void> _loadRecentReadBooks() async {
+    final limit = LocalStorageService.instance.getBookshelfRecentCount();
+    final histories = await DBService.instance.getRecentBrowsingHistory(limit);
+    final booksByAid = {
+      for (final book in await DBService.instance.getAllBookshelf())
+        book.aid: book,
+    };
+    _onBookshelfData(
+      histories.map((history) {
+        final book = booksByAid[history.aid];
+        if (book != null) return book;
+        return _bookshelfDataFromHistory(history);
+      }).toList(),
+    );
+  }
+
+  BookshelfEntityData _bookshelfDataFromHistory(
+    BrowsingHistoryEntityData history,
+  ) {
+    return BookshelfEntityData(
+      aid: history.aid,
+      bid: history.aid,
+      url: _detailUrlForHistoryAid(history.aid),
+      title: history.title,
+      img: history.img,
+      classId: classId,
+      updateKey: '',
+      updateTime: null,
+      hasUpdate: false,
+      rating: 0,
+      remoteTagsJson: BookTags.emptyJson,
+      localTagsJson: BookTags.emptyJson,
+    );
+  }
+
+  String _detailUrlForHistoryAid(String aid) {
+    if (SourceId.isEsj(aid)) {
+      return EsjApi.detailUrl(SourceId.esjBookId(aid));
+    }
+    if (SourceId.isYamibo(aid)) {
+      return YamiboApi.threadUrl(SourceId.yamiboTid(aid));
+    }
+    return '${Api.wenku8Node.node}/modules/article/articleinfo.php?id=$aid';
   }
 
   void _onBookshelfData(List<BookshelfEntityData> bss) async {

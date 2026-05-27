@@ -17,15 +17,24 @@ import 'package:hikari_novel_flutter/router/route_path.dart';
 import 'package:hikari_novel_flutter/service/db_service.dart';
 
 import '../../network/request.dart';
+import '../../network/api.dart';
 import '../../service/local_storage_service.dart';
 import '../../widgets/local_rating_bar.dart';
 import '../../widgets/source_backdrop.dart';
 import '../../widgets/state_page.dart';
+import '../../widgets/wenku8_browser_assist.dart';
 
 class NovelDetailPage extends StatefulWidget {
   final String aid;
+  final String seedTitle;
+  final String? seedImageUrl;
 
-  const NovelDetailPage({super.key, required this.aid});
+  const NovelDetailPage({
+    super.key,
+    required this.aid,
+    this.seedTitle = '',
+    this.seedImageUrl,
+  });
 
   @override
   State<NovelDetailPage> createState() => _NovelDetailPageState();
@@ -43,7 +52,13 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
     super.initState();
 
     Get.delete<NovelDetailController>();
-    controller = Get.put(NovelDetailController(aid: widget.aid));
+    controller = Get.put(
+      NovelDetailController(
+        aid: widget.aid,
+        seedTitle: widget.seedTitle,
+        seedImageUrl: widget.seedImageUrl,
+      ),
+    );
   }
 
   @override
@@ -179,25 +194,35 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
       Obx(
         () => LoadingPage(
           message: controller.loadingMessage.value.isEmpty
-              ? null
+              ? (_isWenku8 &&
+                        LocalStorageService.instance
+                            .getWenku8CompatibilityMode()
+                    ? 'wenku8_compatibility_loading_tip'.tr
+                    : null)
               : controller.loadingMessage.value,
         ),
       ),
     ),
   );
 
-  Widget _buildErrorPage() => Scaffold(
-    appBar: AppBar(),
-    body: _buildBackdrop(
-      ErrorMessage(
-        msg: controller.errorMsg,
-        action: controller.getNovelDetail,
-        extraAction: controller.isYamibo ? controller.openWithBrowser : null,
-        extraButtonText: controller.isYamibo ? 'yamibo_open_web' : null,
-        extraIconData: Icons.open_in_browser,
-      ),
-    ),
-  );
+  Widget _buildErrorPage() {
+    final errorContent = _isWenku8
+        ? buildWenku8BrowserAssistErrorMessage(
+            message: controller.errorMsg,
+            url: Api.getNovelDetailUrl(aid: controller.aid),
+            onRetry: controller.getNovelDetail,
+          )
+        : ErrorMessage(
+            msg: controller.errorMsg,
+            action: controller.getNovelDetail,
+            extraAction: controller.isYamibo
+                ? controller.openWithBrowser
+                : null,
+            extraButtonText: 'yamibo_open_web',
+            extraIconData: Icons.open_in_browser,
+          );
+    return Scaffold(appBar: AppBar(), body: _buildBackdrop(errorContent));
+  }
 
   Widget _buildBackdrop(Widget child) {
     return SourceBackdrop(source: _source, child: child);
@@ -304,7 +329,7 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
               final value = controller.isChapterOrderReversed.value;
               return Row(
                 children: [
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 20),
                   TextButton.icon(
                     onPressed: () {
                       controller.isChapterOrderReversed.toggle();
@@ -576,6 +601,8 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
                     children: [
                       Text(
                         detail.title,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.bold,
@@ -658,7 +685,7 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
             ),
             const SizedBox(height: 12),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
                   Obx(

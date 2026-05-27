@@ -5,6 +5,7 @@ import 'package:hikari_novel_flutter/models/common/language.dart';
 import 'package:hikari_novel_flutter/models/common/wenku8_node.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
 import 'package:hikari_novel_flutter/pages/bookshelf/controller.dart';
+import 'package:hikari_novel_flutter/pages/home/controller.dart';
 import 'package:hikari_novel_flutter/service/backup_service.dart';
 import 'package:hikari_novel_flutter/service/source_config_service.dart';
 
@@ -16,6 +17,15 @@ class SettingController extends GetxController {
   RxBool isRelativeTime = LocalStorageService.instance.getIsRelativeTime().obs;
   RxBool browsingEInkMode = LocalStorageService.instance
       .getBrowsingEInkMode()
+      .obs;
+  RxBool homeAppBarAutoCollapse = LocalStorageService.instance
+      .getHomeAppBarAutoCollapse()
+      .obs;
+  RxBool smartSubscriptionAddsToSourceShelf = LocalStorageService.instance
+      .getSmartSubscriptionAddsToSourceShelf()
+      .obs;
+  RxInt smartSubscriptionMinSyncIntervalSeconds = LocalStorageService.instance
+      .getSmartSubscriptionMinSyncIntervalSeconds()
       .obs;
   RxBool yamiboOwnerCatalogue = LocalStorageService.instance
       .getYamiboOwnerCatalogue()
@@ -41,7 +51,26 @@ class SettingController extends GetxController {
   void changeBrowsingEInkMode(bool enabled) {
     browsingEInkMode.value = enabled;
     LocalStorageService.instance.setBrowsingEInkMode(enabled);
+    _refreshHomeChromeIfVisible();
     Get.forceAppUpdate();
+  }
+
+  void changeHomeAppBarAutoCollapse(bool enabled) {
+    homeAppBarAutoCollapse.value = enabled;
+    LocalStorageService.instance.setHomeAppBarAutoCollapse(enabled);
+    _refreshHomeChromeIfVisible();
+  }
+
+  void changeSmartSubscriptionAddsToSourceShelf(bool enabled) {
+    smartSubscriptionAddsToSourceShelf.value = enabled;
+    LocalStorageService.instance.setSmartSubscriptionAddsToSourceShelf(enabled);
+  }
+
+  void changeSmartSubscriptionMinSyncIntervalSeconds(int seconds) {
+    smartSubscriptionMinSyncIntervalSeconds.value = seconds;
+    LocalStorageService.instance.setSmartSubscriptionMinSyncIntervalSeconds(
+      seconds,
+    );
   }
 
   void changeYamiboOwnerCatalogue(bool enabled) {
@@ -154,6 +183,13 @@ class SettingController extends GetxController {
         isRelativeTime.value = LocalStorageService.instance.getIsRelativeTime();
         browsingEInkMode.value = LocalStorageService.instance
             .getBrowsingEInkMode();
+        homeAppBarAutoCollapse.value = LocalStorageService.instance
+            .getHomeAppBarAutoCollapse();
+        smartSubscriptionAddsToSourceShelf.value = LocalStorageService.instance
+            .getSmartSubscriptionAddsToSourceShelf();
+        smartSubscriptionMinSyncIntervalSeconds.value = LocalStorageService
+            .instance
+            .getSmartSubscriptionMinSyncIntervalSeconds();
         yamiboOwnerCatalogue.value = LocalStorageService.instance
             .getYamiboOwnerCatalogue();
         wenku8Node.value = LocalStorageService.instance.getWenku8Node();
@@ -162,6 +198,7 @@ class SettingController extends GetxController {
         bookshelfSortType.value = BookshelfSortType
             .values[LocalStorageService.instance.getBookshelfSortType()];
         _refreshBookshelfIfVisible();
+        _refreshHomeChromeIfVisible();
       }
       return imported;
     } finally {
@@ -173,5 +210,10 @@ class SettingController extends GetxController {
     if (!Get.isRegistered<BookshelfController>()) return;
     final controller = Get.find<BookshelfController>();
     controller.loadFolders();
+  }
+
+  void _refreshHomeChromeIfVisible() {
+    if (!Get.isRegistered<HomeController>()) return;
+    Get.find<HomeController>().refreshHomeChromeSettings();
   }
 }

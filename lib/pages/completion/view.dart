@@ -6,7 +6,6 @@ import 'package:hikari_novel_flutter/widgets/keep_alive_wrapper.dart';
 import 'package:hikari_novel_flutter/widgets/wenku8_browser_assist.dart';
 
 import '../../widgets/browsing_novel_grid.dart';
-import '../../widgets/state_page.dart';
 
 class CompletionView extends StatelessWidget {
   CompletionView({super.key});
@@ -25,6 +24,7 @@ class CompletionView extends StatelessWidget {
                 padding: EdgeInsets.fromLTRB(8, 0, 8, 0),
                 child: BrowsingNovelGrid(
                   data: controller.data.toList(),
+                  easyRefreshController: controller.easyRefreshController,
                   onRefresh: () => controller.getPage(false),
                   onLoad: () => controller.getPage(true),
                   onPreviousPage: controller.getPreviousBrowsingPage,
@@ -32,6 +32,7 @@ class CompletionView extends StatelessWidget {
                   page: controller.pageIndex,
                   canPreviousPage: controller.canPreviousPage,
                   canNextPage: controller.canNextPage,
+                  guardHomeRefresh: true,
                 ),
               ),
             ),
@@ -39,27 +40,25 @@ class CompletionView extends StatelessWidget {
           Obx(
             () => Offstage(
               offstage: controller.pageState.value != PageState.loading,
-              child: LoadingPage(),
+              child: buildWenku8CompatibilityLoadingPage(),
             ),
           ),
           Obx(
             () => Offstage(
               offstage: controller.pageState.value != PageState.error,
-              child: ErrorMessage(
-                msg: controller.errorMsg,
-                action: () => controller.getPage(false),
-                extraAction: isSpecificMessage(controller.errorMsg)
-                    ? () => openWenku8BrowserAssist(
-                        url: controller.currentRequestUrl(),
-                        onCaptured: () => controller.getPage(false),
-                      )
-                    : null,
-                extraButtonText: 'wenku8_browser_verify',
-              ),
+              child: _buildErrorMessage(),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildErrorMessage() {
+    return buildWenku8BrowserAssistErrorMessage(
+      message: controller.errorMsg,
+      url: controller.currentRequestUrl(),
+      onRetry: () => controller.getPage(false),
     );
   }
 }

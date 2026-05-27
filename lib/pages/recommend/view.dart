@@ -1,15 +1,14 @@
 import 'package:easy_refresh/easy_refresh.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:hikari_novel_flutter/models/custom_exception.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/network/api.dart';
+import 'package:hikari_novel_flutter/pages/home/controller.dart';
 import 'package:hikari_novel_flutter/pages/recommend/controller.dart';
 import 'package:hikari_novel_flutter/pages/recommend/widgets/recommend_block_view.dart';
 import 'package:hikari_novel_flutter/service/local_storage_service.dart';
 import 'package:hikari_novel_flutter/widgets/browsing_novel_grid.dart';
 import 'package:hikari_novel_flutter/widgets/keep_alive_wrapper.dart';
-import 'package:hikari_novel_flutter/widgets/state_page.dart';
 import 'package:hikari_novel_flutter/widgets/wenku8_browser_assist.dart';
 
 class RecommendView extends StatelessWidget {
@@ -34,23 +33,13 @@ class RecommendView extends StatelessWidget {
           Obx(
             () => Offstage(
               offstage: controller.pageState.value != PageState.loading,
-              child: LoadingPage(),
+              child: buildWenku8CompatibilityLoadingPage(),
             ),
           ),
           Obx(
             () => Offstage(
               offstage: controller.pageState.value != PageState.error,
-              child: ErrorMessage(
-                msg: controller.errorMsg,
-                action: controller.getRecommend,
-                extraAction: _isCloudflareError(controller.errorMsg)
-                    ? () => openWenku8BrowserAssist(
-                        url: Api.getRecommendUrl(),
-                        onCaptured: controller.getRecommend,
-                      )
-                    : null,
-                extraButtonText: 'wenku8_browser_verify',
-              ),
+              child: _buildErrorMessage(),
             ),
           ),
         ],
@@ -58,9 +47,13 @@ class RecommendView extends StatelessWidget {
     );
   }
 
-  bool _isCloudflareError(String msg) =>
-      msg.contains(cloudflareChallengeExceptionMessage) ||
-      msg.contains(cloudflare403ExceptionMessage);
+  Widget _buildErrorMessage() {
+    return buildWenku8BrowserAssistErrorMessage(
+      message: controller.errorMsg,
+      url: Api.getRecommendUrl(),
+      onRetry: controller.getRecommend,
+    );
+  }
 
   Widget _buildContent() {
     if (LocalStorageService.instance.getBrowsingEInkMode()) {
@@ -73,15 +66,23 @@ class RecommendView extends StatelessWidget {
         page: 1,
         canPreviousPage: false,
         canNextPage: false,
+        guardHomeRefresh: true,
       );
     }
 
-    return EasyRefresh(
-      onRefresh: controller.getRecommend,
-      child: ListView(
-        children: controller.data.map((item) {
-          return RecommendBlockView(block: item);
-        }).toList(),
+    final list = ListView(
+      children: controller.data.map((item) {
+        return RecommendBlockView(block: item);
+      }).toList(),
+    );
+    if (!Get.isRegistered<HomeController>()) {
+      return EasyRefresh(onRefresh: controller.getRecommend, child: list);
+    }
+    final home = Get.find<HomeController>();
+    return Obx(
+      () => EasyRefresh(
+        onRefresh: home.homePullRefreshEnabled ? controller.getRecommend : null,
+        child: list,
       ),
     );
   }

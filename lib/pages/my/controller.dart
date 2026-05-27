@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
+import 'package:hikari_novel_flutter/models/source_login_result.dart';
 import 'package:hikari_novel_flutter/models/user_info.dart';
 import 'package:hikari_novel_flutter/models/resource.dart';
+import 'package:hikari_novel_flutter/models/common/wenku8_node.dart';
+import 'package:hikari_novel_flutter/network/api.dart';
 import 'package:hikari_novel_flutter/network/esj_api.dart';
 import 'package:hikari_novel_flutter/network/esj_parser.dart';
 import 'package:hikari_novel_flutter/network/yamibo_api.dart';
 import 'package:hikari_novel_flutter/network/yamibo_parser.dart';
-import 'package:hikari_novel_flutter/pages/bookshelf/controller.dart';
+import 'package:hikari_novel_flutter/pages/esjzone_web/view.dart';
 import 'package:hikari_novel_flutter/pages/home/controller.dart';
 import 'package:hikari_novel_flutter/pages/yamibo_forum/view.dart';
-import 'package:hikari_novel_flutter/router/app_sub_router.dart';
 import 'package:hikari_novel_flutter/router/route_path.dart';
 import 'package:hikari_novel_flutter/service/source_auth_guard.dart';
 import 'package:hikari_novel_flutter/service/source_config_service.dart';
@@ -82,15 +84,64 @@ class MyController extends GetxController {
   }
 
   Future<void> openSourceLogin(BuildContext context, NovelSource source) async {
-    switch (source) {
-      case NovelSource.wenku8:
-        await Get.toNamed(RoutePath.login);
-        userInfo.value = LocalStorageService.instance.getUserInfo();
-      case NovelSource.esj:
-        AppSubRouter.toEsjzone();
-      case NovelSource.yamibo:
-        await _openYamiboLogin(context);
-    }
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final result = switch (source) {
+      NovelSource.wenku8 =>
+        await Get.toNamed(RoutePath.login) as SourceLoginResult?,
+      NovelSource.esj => await navigator.push<SourceLoginResult>(
+        MaterialPageRoute(builder: (_) => const EsjzoneWebPage()),
+      ),
+      NovelSource.yamibo => await navigator.push<YamiboWebLoginResult>(
+        MaterialPageRoute(builder: (_) => const YamiboWebLoginPage()),
+      ),
+    };
+    if (!context.mounted) return;
+    await _handleLoginResult(context, source, result);
+    await refreshAccountNames();
+    accountRevision.value++;
+  }
+
+  Future<void> openSourceAccountWeb(
+    BuildContext context,
+    NovelSource source,
+  ) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final result = switch (source) {
+      NovelSource.wenku8 =>
+        await Get.toNamed(
+              RoutePath.login,
+              arguments: {
+                'accountMode': true,
+                'initialUrl': '${Api.wenku8Node.node}/userdetail.php',
+              },
+            )
+            as SourceLoginResult?,
+      NovelSource.esj => await navigator.push<SourceLoginResult>(
+        MaterialPageRoute(
+          builder: (_) => const EsjzoneWebPage(accountMode: true),
+        ),
+      ),
+      NovelSource.yamibo => await navigator.push<YamiboWebLoginResult>(
+        MaterialPageRoute(
+          builder: (_) => const YamiboWebLoginPage(accountMode: true),
+        ),
+      ),
+    };
+    if (!context.mounted) return;
+    await _handleLoginResult(context, source, result);
+    await refreshAccountNames();
+    accountRevision.value++;
+  }
+
+  Future<void> syncSourceBookshelf(
+    BuildContext context,
+    NovelSource source,
+  ) async {
+    final message = await Get.find<HomeController>().syncSourceBookshelf(
+      source,
+    );
+    if (!context.mounted) return;
+    showSnackBar(message: message, context: context);
     await refreshAccountNames();
     accountRevision.value++;
   }
@@ -106,33 +157,28 @@ class MyController extends GetxController {
     showSnackBar(message: 'logout_successfully'.tr, context: Get.context!);
   }
 
-  Future<void> _openYamiboLogin(BuildContext context) async {
-    final result = await Navigator.of(context, rootNavigator: true)
-        .push<YamiboWebLoginResult>(
-          MaterialPageRoute(builder: (_) => const YamiboWebLoginPage()),
-        );
-    if (!context.mounted) return;
-    if (result?.loggedIn != true) return;
+  @override
+  void onClose() {
+    usernameController.dispose();
+    passwordController.dispose();
+    super.onClose();
+  }
 
-    SourceConfigService.instance.enableSourceAfterLogin(NovelSource.yamibo);
-    if (result?.syncFavorites == true &&
-        SourceConfigService.instance.shouldPullOnlineToLocal(
-          NovelSource.yamibo,
-        )) {
-      final synced = await BookshelfController.syncYamiboFavoritesToBookshelf();
-      if (Get.isRegistered<BookshelfController>()) {
-        await Get.find<BookshelfController>().loadFolders();
-      }
-      if (!context.mounted) return;
-      showSnackBar(
-        message: synced ? 'update_successfully'.tr : 'update_failed'.tr,
-        context: context,
-      );
-    } else {
-      showSnackBar(message: 'yamibo_login_synced'.tr, context: context);
+  Future<void> _handleLoginResult(
+    BuildContext context,
+    NovelSource source,
+    SourceLoginResult? result,
+  ) async {
+    if (result?.loggedIn != true) return;
+    if (source == NovelSource.wenku8) {
+      userInfo.value = LocalStorageService.instance.getUserInfo();
     }
-    if (Get.isRegistered<HomeController>()) {
-      Get.find<HomeController>().reloadYamiboForum();
-    }
+    final homeController = Get.find<HomeController>();
+    final message = await homeController.handleConfirmedLogin(
+      source,
+      syncFavorites: result!.syncFavorites,
+    );
+    if (!context.mounted || message == null) return;
+    showSnackBar(message: message, context: context);
   }
 }

@@ -1,3 +1,0 @@
-display_name: Hikari Novel Local Android
-short_description: Local Android emulator workflow for Hikari Novel.
-default_prompt: "Use the local Android emulator workflow for Hikari Novel: start Hikari_API35, build/install debug APK, run Flutter commands with explicit Windows paths, and validate with adb."

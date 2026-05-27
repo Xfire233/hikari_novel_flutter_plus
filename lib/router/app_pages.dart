@@ -45,10 +45,17 @@ class AppRoutes {
         return GetPageRoute(settings: settings, page: () => LogoPage());
       case RoutePath.novelDetail:
         {
-          var args = settings.arguments as String;
+          final raw = settings.arguments;
+          final args = raw is Map
+              ? raw.map((key, value) => MapEntry('$key', value))
+              : {'aid': '$raw'};
           return _contentRoute(
             settings: settings,
-            page: () => NovelDetailPage(aid: args),
+            page: () => NovelDetailPage(
+              aid: '${args['aid'] ?? ''}',
+              seedTitle: '${args['title'] ?? ''}',
+              seedImageUrl: args['imageUrl']?.toString(),
+            ),
           );
         }
       case RoutePath.comment:

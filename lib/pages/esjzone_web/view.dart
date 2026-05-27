@@ -7,6 +7,7 @@ import 'package:hikari_novel_flutter/models/book_tags.dart';
 import 'package:hikari_novel_flutter/models/resource.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
 import 'package:hikari_novel_flutter/models/source_id.dart';
+import 'package:hikari_novel_flutter/models/source_login_result.dart';
 import 'package:hikari_novel_flutter/network/esj_api.dart';
 import 'package:hikari_novel_flutter/network/esj_parser.dart';
 import 'package:hikari_novel_flutter/network/request.dart';
@@ -19,9 +20,10 @@ import 'package:hikari_novel_flutter/service/source_favorite_adapter.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
 
 class EsjzoneWebPage extends StatefulWidget {
-  const EsjzoneWebPage({super.key, this.initialUrl});
+  const EsjzoneWebPage({super.key, this.initialUrl, this.accountMode = false});
 
   final String? initialUrl;
+  final bool accountMode;
 
   @override
   State<EsjzoneWebPage> createState() => _EsjzoneWebPageState();
@@ -52,50 +54,62 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
         if (didPop) return;
         final loggedIn = await _syncCookie(silent: true);
         if (!context.mounted) return;
-        if (!loggedIn) {
-          showSnackBar(message: 'source_login_required'.tr, context: context);
-        }
-        Navigator.of(context).pop();
+        Navigator.of(
+          context,
+        ).pop(SourceLoginResult(loggedIn: loggedIn, syncFavorites: false));
       },
       child: Scaffold(
         appBar: AppBar(
           title: Text(_title),
           titleSpacing: 16,
-          actions: [
-            IconButton(
-              onPressed: _webViewController?.reload,
-              icon: const Icon(Icons.refresh),
-            ),
-            IconButton(
-              onPressed: () => _syncCookie(syncFavorites: true),
-              icon: const Icon(Icons.login),
-              tooltip: 'esjzone_sync_login'.tr,
-            ),
-            IconButton(
-              onPressed: _openUrlDialog,
-              icon: const Icon(Icons.link),
-              tooltip: 'ESJZone URL',
-            ),
-            PopupMenuButton<_EsjAction>(
-              onSelected: _handleAction,
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: _EsjAction.reader,
-                  enabled: _currentBookId != null,
-                  child: Text('open_in_reader'.tr),
-                ),
-                PopupMenuItem(
-                  value: _EsjAction.favorite,
-                  enabled: _currentBookId != null,
-                  child: Text('favorite'.tr),
-                ),
-                PopupMenuItem(
-                  value: _EsjAction.syncFavorite,
-                  child: Text('sync_esj_favorites'.tr),
-                ),
-              ],
-            ),
-          ],
+          actions: widget.accountMode
+              ? [
+                  IconButton(
+                    onPressed: _confirmLoginAndClose,
+                    icon: const Icon(Icons.verified_user_outlined),
+                    tooltip: 'source_check_login_status'.tr,
+                  ),
+                  IconButton(
+                    onPressed: _syncFavorites,
+                    icon: const Icon(Icons.cloud_download_outlined),
+                    tooltip: 'source_sync_online_favorites'.tr,
+                  ),
+                ]
+              : [
+                  IconButton(
+                    onPressed: _webViewController?.reload,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                  IconButton(
+                    onPressed: _confirmLoginAndClose,
+                    icon: const Icon(Icons.login),
+                    tooltip: 'esjzone_sync_login'.tr,
+                  ),
+                  IconButton(
+                    onPressed: _openUrlDialog,
+                    icon: const Icon(Icons.link),
+                    tooltip: 'ESJZone URL',
+                  ),
+                  PopupMenuButton<_EsjAction>(
+                    onSelected: _handleAction,
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: _EsjAction.reader,
+                        enabled: _currentBookId != null,
+                        child: Text('open_in_reader'.tr),
+                      ),
+                      PopupMenuItem(
+                        value: _EsjAction.favorite,
+                        enabled: _currentBookId != null,
+                        child: Text('favorite'.tr),
+                      ),
+                      PopupMenuItem(
+                        value: _EsjAction.syncFavorite,
+                        child: Text('sync_esj_favorites'.tr),
+                      ),
+                    ],
+                  ),
+                ],
         ),
         body: Stack(
           children: [
@@ -177,7 +191,7 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
             Offstage(offstage: !_busy, child: const LoadingPage()),
           ],
         ),
-        floatingActionButton: _currentBookId == null
+        floatingActionButton: widget.accountMode || _currentBookId == null
             ? null
             : FloatingActionButton.extended(
                 onPressed: _openCurrentBookInReader,
@@ -197,6 +211,14 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
       case _EsjAction.syncFavorite:
         await _syncFavorites();
     }
+  }
+
+  Future<void> _confirmLoginAndClose() async {
+    final loggedIn = await _syncCookie();
+    if (!mounted || !loggedIn) return;
+    Navigator.of(
+      context,
+    ).pop(const SourceLoginResult(loggedIn: true, syncFavorites: true));
   }
 
   Future<void> _openUrlDialog() async {

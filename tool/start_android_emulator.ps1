@@ -9,6 +9,9 @@ $sdk = Join-Path $env:LOCALAPPDATA "Android\Sdk"
 $adb = Join-Path $sdk "platform-tools\adb.exe"
 $emulator = Join-Path $sdk "emulator\emulator.exe"
 
+$env:HOME = $env:USERPROFILE
+$env:ANDROID_AVD_HOME = Join-Path $env:USERPROFILE ".android\avd"
+
 if (!(Test-Path $adb)) {
   throw "adb.exe not found at $adb"
 }
@@ -18,7 +21,7 @@ if (!(Test-Path $emulator)) {
 
 $deviceLine = & $adb devices | Select-String -Pattern "emulator-\d+\s+device" | Select-Object -First 1
 if ($null -eq $deviceLine) {
-  Start-Process -FilePath $emulator -ArgumentList @("@$AvdName", "-gpu", "swiftshader_indirect", "-no-snapshot-load")
+  Start-Process -FilePath $emulator -ArgumentList @("@$AvdName", "-gpu", "swiftshader_indirect", "-no-snapshot-load", "-no-metrics")
 }
 
 & $adb wait-for-device

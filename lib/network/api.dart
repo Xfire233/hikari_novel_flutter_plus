@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:dio/dio.dart';
 import 'package:enough_convert/enough_convert.dart';
 import 'package:get/get.dart' hide Response;
 import 'package:hikari_novel_flutter/common/extension.dart';
@@ -49,7 +50,25 @@ class Api {
     required String ranking,
     required int index,
   }) =>
-      "${wenku8Node.node}/modules/article/toplist.php?sort=$ranking&page=$index";
+      "${wenku8Node.node}/modules/article/toplist.php?sort=${_wenku8RankingSortParam(ranking)}&page=$index";
+
+  static String _wenku8RankingSortParam(String ranking) {
+    return switch (ranking.trim()) {
+      'last_update' => 'lastupdate',
+      'post_date' => 'postdate',
+      'all_visit' => 'allvisit',
+      'all_vote' => 'allvote',
+      'good_num' => 'goodnum',
+      'day_visit' => 'dayvisit',
+      'day_vote' => 'dayvote',
+      'month_visit' => 'monthvisit',
+      'month_vote' => 'monthvote',
+      'week_visit' => 'weekvisit',
+      'week_vote' => 'weekvote',
+      'unanimated' => 'notanimated',
+      _ => ranking.trim().replaceAll('_', ''),
+    };
+  }
 
   /// 根据分类获取小说列表
   /// - [category] 小说的分类，即tag
@@ -101,17 +120,30 @@ class Api {
   /// 获取小说信息
   /// - [aid] 小说的id
   static Future<Resource> getNovelDetail({required String aid}) {
-    final String url =
-        "${wenku8Node.node}/modules/article/articleinfo.php?id=$aid";
-    return Request.get(url, charsetsType: charsetsType);
+    return Request.get(getNovelDetailUrl(aid: aid), charsetsType: charsetsType);
   }
+
+  static String getNovelDetailUrl({required String aid}) =>
+      "${wenku8Node.node}/modules/article/articleinfo.php?id=$aid";
+
+  static Future<Resource> getNovelStaticDetail({required String aid}) {
+    return Request.get(
+      getNovelStaticDetailUrl(aid: aid),
+      charsetsType: charsetsType,
+    );
+  }
+
+  static String getNovelStaticDetailUrl({required String aid}) =>
+      "${wenku8Node.node}/book/$aid.htm";
 
   /// 获取小说的章节目录
   /// - [aid] 小说的id
   static Future<Resource> getCatalogue({required String aid}) {
-    final String url = "${wenku8Node.node}/modules/article/reader.php?aid=$aid";
-    return Request.get(url, charsetsType: charsetsType);
+    return Request.get(getCatalogueUrl(aid: aid), charsetsType: charsetsType);
   }
+
+  static String getCatalogueUrl({required String aid}) =>
+      "${wenku8Node.node}/modules/article/reader.php?aid=$aid";
 
   /// 加入书库
   /// - [aid] 小说的id
@@ -361,9 +393,17 @@ class Api {
   static Future<Resource> getNovelContent({
     required String aid,
     required String cid,
+    CancelToken? cancelToken,
   }) {
-    final String url =
-        "${Api.wenku8Node.node}/modules/article/reader.php?aid=$aid&cid=$cid";
-    return Request.get(url, charsetsType: charsetsType);
+    return Request.get(
+      getNovelContentUrl(aid: aid, cid: cid),
+      charsetsType: charsetsType,
+      cancelToken: cancelToken,
+    );
   }
+
+  static String getNovelContentUrl({
+    required String aid,
+    required String cid,
+  }) => "${Api.wenku8Node.node}/modules/article/reader.php?aid=$aid&cid=$cid";
 }

@@ -25,42 +25,58 @@ class ErrorMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final actions = <Widget>[
+      if (action != null)
+        FilledButton.icon(
+          onPressed: action,
+          icon: Icon(iconData),
+          label: Text(buttonText.tr),
+        ),
+      if (extraAction != null)
+        OutlinedButton.icon(
+          onPressed: extraAction,
+          icon: Icon(extraIconData),
+          label: Text((extraButtonText ?? '').tr),
+        ),
+    ];
+
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            "error".tr,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 420,
+            maxHeight: MediaQuery.sizeOf(context).height * 0.72,
           ),
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-            child: _buildErrorInfo(context),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                "error".tr,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: _buildErrorInfo(context),
+                ),
+              ),
+              if (actions.isNotEmpty)
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 10,
+                  runSpacing: 8,
+                  children: actions,
+                ),
+            ],
           ),
-          action == null
-              ? Container()
-              : FilledButton.icon(
-                  onPressed: action,
-                  icon: Icon(iconData),
-                  label: Text(buttonText.tr),
-                ),
-          extraAction == null
-              ? Container()
-              : Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: OutlinedButton.icon(
-                    onPressed: extraAction,
-                    icon: Icon(extraIconData),
-                    label: Text((extraButtonText ?? '').tr),
-                  ),
-                ),
-        ],
+        ),
       ),
     );
   }
@@ -176,7 +192,8 @@ Widget _getCommonErrorInfoView(BuildContext context, String msg) {
   String tip = msg;
   if (msg.contains(cloudflareChallengeExceptionMessage)) {
     tip = "cloudflare_challenge_exception_tip".tr;
-  } else if (msg.contains(cloudflare403ExceptionMessage)) {
+  } else if (msg.contains(cloudflare403ExceptionMessage) ||
+      isCloudflareErrorMessage(msg)) {
     tip = "cloudflare_403_exception_tip".tr;
   }
 
@@ -222,6 +239,7 @@ void showSnackBar({
 }) {
   // Create a SnackBar widget with specified properties
   var snack = SnackBar(
+    behavior: SnackBarBehavior.floating,
     margin: const EdgeInsets.symmetric(
       vertical: 20,
       horizontal: 10,
@@ -243,5 +261,16 @@ void showSnackBar({
 }
 
 bool isSpecificMessage(String msg) =>
+    isCloudflareErrorMessage(msg) ||
     msg.contains(cloudflareChallengeExceptionMessage) ||
     msg.contains(cloudflare403ExceptionMessage);
+
+bool isCloudflareErrorMessage(String msg) {
+  final normalized = msg.toLowerCase();
+  return normalized.contains('cloudflare') ||
+      normalized.contains('cf challenge') ||
+      msg.contains('CF验证') ||
+      msg.contains('CF 驗證') ||
+      msg.contains('验证未通过') ||
+      msg.contains('驗證未通過');
+}

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/novel_cover.dart';
+import 'package:hikari_novel_flutter/pages/home/controller.dart';
 import 'package:hikari_novel_flutter/router/app_sub_router.dart';
 import 'package:hikari_novel_flutter/service/local_storage_service.dart';
 import 'package:hikari_novel_flutter/service/volume_key_service.dart';
@@ -26,6 +27,7 @@ class BrowsingNovelGrid extends StatelessWidget {
     required this.canNextPage,
     this.easyRefreshController,
     this.forceListView = false,
+    this.guardHomeRefresh = false,
   });
 
   final List<NovelCover> data;
@@ -38,6 +40,7 @@ class BrowsingNovelGrid extends StatelessWidget {
   final bool canNextPage;
   final EasyRefreshController? easyRefreshController;
   final bool forceListView;
+  final bool guardHomeRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -50,12 +53,7 @@ class BrowsingNovelGrid extends StatelessWidget {
       children: data.map((item) => NovelCoverCard(novelCover: item)).toList(),
     );
     if (!LocalStorageService.instance.getBrowsingEInkMode()) {
-      return EasyRefresh(
-        controller: easyRefreshController,
-        onRefresh: onRefresh,
-        onLoad: onLoad,
-        child: grid,
-      );
+      return _buildRefreshContainer(child: grid);
     }
 
     return BrowsingPageMode(
@@ -100,12 +98,7 @@ class BrowsingNovelGrid extends StatelessWidget {
       itemBuilder: (_, index) => _NovelTitleListTile(novel: data[index]),
     );
     if (!LocalStorageService.instance.getBrowsingEInkMode()) {
-      return EasyRefresh(
-        controller: easyRefreshController,
-        onRefresh: onRefresh,
-        onLoad: onLoad,
-        child: list,
-      );
+      return _buildRefreshContainer(child: list);
     }
 
     return BrowsingPageMode(
@@ -167,6 +160,28 @@ class BrowsingNovelGrid extends StatelessWidget {
     );
   }
 
+  Widget _buildRefreshContainer({required Widget child}) {
+    final controller = easyRefreshController;
+    if (!guardHomeRefresh || !Get.isRegistered<HomeController>()) {
+      return _EasyRefreshWithFooterReset(
+        controller: controller,
+        onRefresh: onRefresh,
+        onLoad: onLoad,
+        child: child,
+      );
+    }
+    final home = Get.find<HomeController>();
+    return Obx(() {
+      final refreshEnabled = home.homePullRefreshEnabled;
+      return _EasyRefreshWithFooterReset(
+        controller: controller,
+        onRefresh: refreshEnabled ? onRefresh : null,
+        onLoad: onLoad,
+        child: child,
+      );
+    });
+  }
+
   static _ListPageMetrics _listMetrics(BoxConstraints constraints, int count) {
     final height = constraints.maxHeight.isFinite
         ? constraints.maxHeight
@@ -179,6 +194,60 @@ class BrowsingNovelGrid extends StatelessWidget {
         ? 1
         : ((count + itemsPerPage - 1) ~/ itemsPerPage);
     return _ListPageMetrics(itemsPerPage: itemsPerPage, pageCount: pageCount);
+  }
+}
+
+class _EasyRefreshWithFooterReset extends StatefulWidget {
+  const _EasyRefreshWithFooterReset({
+    required this.child,
+    required this.onLoad,
+    this.controller,
+    this.onRefresh,
+  });
+
+  final EasyRefreshController? controller;
+  final Future<IndicatorResult> Function()? onRefresh;
+  final Future<IndicatorResult> Function()? onLoad;
+  final Widget child;
+
+  @override
+  State<_EasyRefreshWithFooterReset> createState() =>
+      _EasyRefreshWithFooterResetState();
+}
+
+class _EasyRefreshWithFooterResetState
+    extends State<_EasyRefreshWithFooterReset> {
+  @override
+  void initState() {
+    super.initState();
+    _resetFooterAfterAttach();
+  }
+
+  @override
+  void didUpdateWidget(covariant _EasyRefreshWithFooterReset oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.controller != oldWidget.controller) {
+      _resetFooterAfterAttach();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return EasyRefresh(
+      controller: widget.controller,
+      onRefresh: widget.onRefresh,
+      onLoad: widget.onLoad,
+      child: widget.child,
+    );
+  }
+
+  void _resetFooterAfterAttach() {
+    final controller = widget.controller;
+    if (controller == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      controller.resetFooter();
+    });
   }
 }
 
@@ -218,7 +287,7 @@ class _NovelTitleListTile extends StatelessWidget {
         softWrap: true,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(height: 1.28),
       ),
-      onTap: () => AppSubRouter.toNovelDetail(aid: novel.aid),
+      onTap: () => AppSubRouter.toNovelDetail(aid: novel.aid, cover: novel),
     );
   }
 }

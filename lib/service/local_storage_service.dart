@@ -21,71 +21,78 @@ class LocalStorageService extends GetxService {
   late final Box<dynamic> _reader;
   final RxInt loginRevision = 0.obs;
 
-  static const String kCookie = "cookie",
-      kYamiboCookie = "yamiboCookie",
-      kEsjCookie = "esjCookie",
-      kUserInfo = "user_info",
-      kLanguage = "language",
-      kWenku8Node = "wenku8Node",
-      kIsDynamicColor = "isDynamicColor",
-      kCustomColor = "customColor",
-      kRecentThemeColors = "recentThemeColors",
-      kThemeMode = "themeMode",
-      kIsRelativeTime = "isRelativeTime",
-      kReaderDirection = "readerDirection",
-      kReaderFontSize = "readerFontSize",
-      kReaderLineSpacing = "readerLineSpacing",
-      kReaderWakeLock = "readerWakeLock",
-      kReaderLeftMargin = "readerLeftMargin",
-      kReaderTopMargin = "readerTopMargin",
-      kReaderRightMargin = "readerRightMargin",
-      kReaderBottomMargin = "readerBottomMargin",
-      kReaderDualPageMode = "readerDualPageMode",
-      kReaderDualPageSpacing = "readerDualPageSpacing",
-      kReaderImmersionMode = "readerImmersionMode",
-      kReaderStatusBar = "readerStatusBar",
-      kReaderDayBgColor = "readerDayBgColor",
-      kReaderDayTextColor = "readerDayTextColor",
-      kReaderNightBgColor = "readerNightBgColor",
-      kReaderNightTextColor = "readerNightTextColor",
-      kRecentReaderTextColors = "recentReaderTextColors",
-      kRecentReaderBgColors = "recentReaderBgColors",
-      kReaderDayBgImage = "readerDayBgImage",
-      kReaderNightBgImage = "readerNightBgImage",
-      kReaderTextFamily = "readerTextFamily",
-      kReaderTextStyleFilePath = "readerTextStyleFilePath",
-      kReaderPageTurningAnimation = "readerPageTurningAnimation",
-      kReaderTtsEnabled = "readerTtsEnabled",
-      kReaderTtsEngine = "readerTtsEngine",
-      kReaderTtsVoice = "readerTtsVoice",
-      kReaderTtsRate = "readerTtsRate",
-      kDevModeEnabled = "devModeEnabled",
-      kReaderTtsPitch = "readerTtsPitch",
-      kReaderTtsVolume = "readerTtsVolume",
-      kReaderParaIndent = "readerParaIndent",
-      kReaderParaSpacing = "readerParaSpacing",
-      kReaderBottomStatusBarHorizontalSpacing =
-          "readerBottomStatusBarHorizontalSpacing",
-      kReaderVolumeKeyTurning = "readerVolumeKeyTurning",
-      kReaderEInkMode = "readerEInkMode",
-      kBrowsingEInkMode = "browsingEInkMode",
-      kBookshelfRecentCount = "bookshelfRecentCount",
-      kBookshelfSortType = "bookshelfSortType",
-      kBookshelfSortTypes = "bookshelfSortTypes",
-      kBookshelfAidOrders = "bookshelfAidOrders",
-      kBookshelfViewModes = "bookshelfViewModes",
-      kBookshelfFolderCovers = "bookshelfFolderCovers",
-      kBookshelfFolders = "bookshelfFolders",
-      kSmartShelfMemberships = "smartShelfMemberships",
-      kAssistedHtmlCache = "assistedHtmlCache",
-      kSourceTagUseCounts = "sourceTagUseCounts",
-      kYamiboOwnerCatalogue = "yamiboOwnerCatalogue",
-      kYamiboOwnerCatalogueKeys = "yamiboOwnerCatalogueKeys",
-      kWenku8LastCategory = "wenku8LastCategory",
-      kWenku8LastCategorySort = "wenku8LastCategorySort",
-      kWenku8LastRanking = "wenku8LastRanking",
-      kSourceSyncConfigs = "sourceSyncConfigs",
-      kSourceLocalHiddenAids = "sourceLocalHiddenAids";
+  static const String
+  kCookie = "cookie",
+  kWenku8UserAgent = "wenku8UserAgent",
+  kYamiboCookie = "yamiboCookie",
+  kEsjCookie = "esjCookie",
+  kUserInfo = "user_info",
+  kLanguage = "language",
+  kWenku8Node = "wenku8Node",
+  kWenku8CompatibilityMode = "wenku8CompatibilityMode",
+  kIsDynamicColor = "isDynamicColor",
+  kCustomColor = "customColor",
+  kRecentThemeColors = "recentThemeColors",
+  kThemeMode = "themeMode",
+  kIsRelativeTime = "isRelativeTime",
+  kReaderDirection = "readerDirection",
+  kReaderFontSize = "readerFontSize",
+  kReaderLineSpacing = "readerLineSpacing",
+  kReaderWakeLock = "readerWakeLock",
+  kReaderLeftMargin = "readerLeftMargin",
+  kReaderTopMargin = "readerTopMargin",
+  kReaderRightMargin = "readerRightMargin",
+  kReaderBottomMargin = "readerBottomMargin",
+  kReaderDualPageMode = "readerDualPageMode",
+  kReaderDualPageSpacing = "readerDualPageSpacing",
+  kReaderImmersionMode = "readerImmersionMode",
+  kReaderStatusBar = "readerStatusBar",
+  kReaderDayBgColor = "readerDayBgColor",
+  kReaderDayTextColor = "readerDayTextColor",
+  kReaderNightBgColor = "readerNightBgColor",
+  kReaderNightTextColor = "readerNightTextColor",
+  kRecentReaderTextColors = "recentReaderTextColors",
+  kRecentReaderBgColors = "recentReaderBgColors",
+  kReaderDayBgImage = "readerDayBgImage",
+  kReaderNightBgImage = "readerNightBgImage",
+  kReaderTextFamily = "readerTextFamily",
+  kReaderTextStyleFilePath = "readerTextStyleFilePath",
+  kReaderPageTurningAnimation = "readerPageTurningAnimation",
+  kReaderTtsEnabled = "readerTtsEnabled",
+  kReaderTtsEngine = "readerTtsEngine",
+  kReaderTtsVoice = "readerTtsVoice",
+  kReaderTtsRate = "readerTtsRate",
+  kDevModeEnabled = "devModeEnabled",
+  kReaderTtsPitch = "readerTtsPitch",
+  kReaderTtsVolume = "readerTtsVolume",
+  kReaderParaIndent = "readerParaIndent",
+  kReaderParaSpacing = "readerParaSpacing",
+  kReaderBottomStatusBarHorizontalSpacing =
+      "readerBottomStatusBarHorizontalSpacing",
+  kReaderVolumeKeyTurning = "readerVolumeKeyTurning",
+  kReaderEInkMode = "readerEInkMode",
+  kBrowsingEInkMode = "browsingEInkMode",
+  kHomeAppBarAutoCollapse = "homeAppBarAutoCollapse",
+  kSmartSubscriptionAddsToSourceShelf = "smartSubscriptionAddsToSourceShelf",
+  kBookshelfRecentCount = "bookshelfRecentCount",
+  kBookshelfSortType = "bookshelfSortType",
+  kBookshelfSortTypes = "bookshelfSortTypes",
+  kBookshelfAidOrders = "bookshelfAidOrders",
+  kBookshelfViewModes = "bookshelfViewModes",
+  kBookshelfFolderCovers = "bookshelfFolderCovers",
+  kBookshelfFolders = "bookshelfFolders",
+  kSmartShelfMemberships = "smartShelfMemberships",
+  kSmartShelfSyncMetadata = "smartShelfSyncMetadata",
+  kSmartSubscriptionMinSyncIntervalSeconds = "smartSubscriptionMinSyncIntervalSeconds",
+  kAssistedHtmlCache = "assistedHtmlCache",
+  kSourceTagUseCounts = "sourceTagUseCounts",
+  kYamiboOwnerCatalogue = "yamiboOwnerCatalogue",
+  kYamiboOwnerCatalogueKeys = "yamiboOwnerCatalogueKeys",
+  kWenku8LastCategory = "wenku8LastCategory",
+  kWenku8LastCategorySort = "wenku8LastCategorySort",
+  kWenku8LastRanking = "wenku8LastRanking",
+  kSourceSyncConfigs = "sourceSyncConfigs",
+  kSourceLocalHiddenAids = "sourceLocalHiddenAids";
 
   Future<void> init() async {
     final Directory dir = await getApplicationSupportDirectory();
@@ -103,6 +110,17 @@ class LocalStorageService extends GetxService {
   }
 
   String? getCookie() => _loginInfo.get(kCookie);
+
+  void setWenku8UserAgent(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      _loginInfo.delete(kWenku8UserAgent);
+    } else {
+      _loginInfo.put(kWenku8UserAgent, value.trim());
+    }
+    loginRevision.value++;
+  }
+
+  String? getWenku8UserAgent() => _loginInfo.get(kWenku8UserAgent);
 
   void setYamiboCookie(String? value) {
     _loginInfo.put(kYamiboCookie, value);
@@ -178,6 +196,12 @@ class LocalStorageService extends GetxService {
         kWenku8Node,
         defaultValue: Wenku8Node.wwwWenku8Cc.index,
       )];
+
+  void setWenku8CompatibilityMode(bool enabled) =>
+      _setting.put(kWenku8CompatibilityMode, enabled);
+
+  bool getWenku8CompatibilityMode() =>
+      _setting.get(kWenku8CompatibilityMode, defaultValue: false);
 
   ReaderDirection getReaderDirection() =>
       ReaderDirection.values[_reader.get(
@@ -399,6 +423,26 @@ class LocalStorageService extends GetxService {
   void setBrowsingEInkMode(bool enabled) =>
       _setting.put(kBrowsingEInkMode, enabled);
 
+  bool getHomeAppBarAutoCollapse() =>
+      _setting.get(kHomeAppBarAutoCollapse, defaultValue: true);
+
+  void setHomeAppBarAutoCollapse(bool enabled) =>
+      _setting.put(kHomeAppBarAutoCollapse, enabled);
+
+  bool getSmartSubscriptionAddsToSourceShelf() =>
+      _setting.get(kSmartSubscriptionAddsToSourceShelf, defaultValue: false);
+
+  void setSmartSubscriptionAddsToSourceShelf(bool enabled) =>
+      _setting.put(kSmartSubscriptionAddsToSourceShelf, enabled);
+
+  int getSmartSubscriptionMinSyncIntervalSeconds() =>
+      _setting.get(kSmartSubscriptionMinSyncIntervalSeconds, defaultValue: 0);
+
+  void setSmartSubscriptionMinSyncIntervalSeconds(int seconds) => _setting.put(
+    kSmartSubscriptionMinSyncIntervalSeconds,
+    seconds < 0 ? 0 : seconds,
+  );
+
   bool getYamiboOwnerCatalogue() =>
       _setting.get(kYamiboOwnerCatalogue, defaultValue: false);
 
@@ -537,6 +581,36 @@ class LocalStorageService extends GetxService {
     );
   }
 
+  Map<String, Map<String, String>> getSmartShelfSyncMetadata() {
+    final raw = _setting.get(kSmartShelfSyncMetadata, defaultValue: const {});
+    if (raw is! Map) return {};
+    final result = <String, Map<String, String>>{};
+    for (final entry in raw.entries) {
+      final value = entry.value;
+      if (value is Map) {
+        result['${entry.key}'] = value.map(
+          (key, item) => MapEntry('$key', '$item'),
+        );
+      }
+    }
+    return result;
+  }
+
+  DateTime? getSmartShelfLastSuccessfulSyncAt(String shelfId) {
+    final raw = getSmartShelfSyncMetadata()[shelfId]?['lastSuccessfulSyncAt'];
+    if (raw == null || raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
+  }
+
+  void setSmartShelfLastSuccessfulSyncAt(String shelfId, DateTime time) {
+    final metadata = getSmartShelfSyncMetadata();
+    metadata[shelfId] = {
+      ...(metadata[shelfId] ?? const <String, String>{}),
+      'lastSuccessfulSyncAt': time.toIso8601String(),
+    };
+    _setting.put(kSmartShelfSyncMetadata, metadata);
+  }
+
   Map<String, Map<String, String>> getAssistedHtmlCache() {
     final raw = _setting.get(kAssistedHtmlCache, defaultValue: const {});
     if (raw is! Map) return {};
@@ -577,6 +651,10 @@ class LocalStorageService extends GetxService {
     _setting.put(kAssistedHtmlCache, {
       for (final entry in entries.take(40)) entry.key: entry.value,
     });
+  }
+
+  void clearAssistedHtmlCache() {
+    _setting.delete(kAssistedHtmlCache);
   }
 
   Map<String, int> getSourceTagUseCounts(String sourceId) {
@@ -748,7 +826,13 @@ class LocalStorageService extends GetxService {
     'recentThemeColors': _colorValues(getRecentThemeColors()),
     'relativeTime': getIsRelativeTime(),
     'wenku8Node': getWenku8Node().index,
+    'wenku8CompatibilityMode': getWenku8CompatibilityMode(),
     'browsingEInkMode': getBrowsingEInkMode(),
+    'homeAppBarAutoCollapse': getHomeAppBarAutoCollapse(),
+    'smartSubscriptionAddsToSourceShelf':
+        getSmartSubscriptionAddsToSourceShelf(),
+    'smartSubscriptionMinSyncIntervalSeconds':
+        getSmartSubscriptionMinSyncIntervalSeconds(),
     'yamiboOwnerCatalogue': getYamiboOwnerCatalogue(),
     'yamiboOwnerCatalogueKeys': getYamiboOwnerCatalogueKeys(),
     'devModeEnabled': getDevModeEnabled(),
@@ -760,6 +844,7 @@ class LocalStorageService extends GetxService {
     'bookshelfFolderCovers': getBookshelfFolderCovers(),
     'bookshelfFolders': getBookshelfFolders(),
     'smartShelfMemberships': getSmartShelfMemberships(),
+    'smartShelfSyncMetadata': getSmartShelfSyncMetadata(),
     'sourceTagUseCounts': _setting.get(
       kSourceTagUseCounts,
       defaultValue: const {},
@@ -795,6 +880,20 @@ class LocalStorageService extends GetxService {
     _setBool(data, 'dynamicColor', setIsDynamicColor);
     _setBool(data, 'relativeTime', setIsRelativeTime);
     _setBool(data, 'browsingEInkMode', setBrowsingEInkMode);
+    _setBool(data, 'wenku8CompatibilityMode', setWenku8CompatibilityMode);
+    _setBool(data, 'homeAppBarAutoCollapse', setHomeAppBarAutoCollapse);
+    _setBool(
+      data,
+      'smartSubscriptionAddsToSourceShelf',
+      setSmartSubscriptionAddsToSourceShelf,
+    );
+    final subscriptionInterval = _intAt(
+      data,
+      'smartSubscriptionMinSyncIntervalSeconds',
+    );
+    if (subscriptionInterval != null) {
+      setSmartSubscriptionMinSyncIntervalSeconds(subscriptionInterval);
+    }
     _setBool(data, 'yamiboOwnerCatalogue', setYamiboOwnerCatalogue);
     final yamiboOwnerCatalogueKeys = data['yamiboOwnerCatalogueKeys'];
     if (yamiboOwnerCatalogueKeys is Map) {
@@ -880,6 +979,20 @@ class LocalStorageService extends GetxService {
                     return item.map((k, v) => MapEntry('$k', '$v'));
                   }).toList()
                 : const <Map<String, String>>[],
+          );
+        }),
+      );
+    }
+    final syncMetadata = data['smartShelfSyncMetadata'];
+    if (syncMetadata is Map) {
+      _setting.put(
+        kSmartShelfSyncMetadata,
+        syncMetadata.map((key, value) {
+          return MapEntry(
+            '$key',
+            value is Map
+                ? value.map((itemKey, item) => MapEntry('$itemKey', '$item'))
+                : <String, String>{},
           );
         }),
       );

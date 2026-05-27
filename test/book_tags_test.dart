@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hikari_novel_flutter/models/book_tags.dart';
+import 'package:hikari_novel_flutter/models/bookshelf.dart';
 import 'package:hikari_novel_flutter/models/smart_shelf.dart';
 import 'package:hikari_novel_flutter/network/yamibo_parser.dart';
 import 'package:hikari_novel_flutter/pages/bookshelf/controller.dart';
@@ -130,6 +131,48 @@ void main() {
     expect(
       restored.subscriptionSyncMode,
       SmartShelfSubscriptionSyncMode.incremental,
+    );
+  });
+
+  test('matches smart shelf local minimum rating condition', () {
+    const config = SmartShelfConfig(
+      groups: [
+        SmartShelfConditionGroup(
+          conditions: [
+            SmartShelfCondition(
+              type: SmartShelfConditionType.ratingMin,
+              value: '4',
+            ),
+          ],
+        ),
+      ],
+    );
+
+    expect(
+      config.matches(
+        BookshelfNovelInfo(
+          bid: '1',
+          aid: '1',
+          url: '',
+          title: 'rated',
+          img: '',
+          rating: 4,
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      config.matches(
+        BookshelfNovelInfo(
+          bid: '2',
+          aid: '2',
+          url: '',
+          title: 'low rated',
+          img: '',
+          rating: 3.5,
+        ),
+      ),
+      isFalse,
     );
   });
 }

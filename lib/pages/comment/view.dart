@@ -102,10 +102,13 @@ class CommentPage extends StatelessWidget {
                       TextButton(onPressed: Get.back, child: Text("cancel".tr)),
                       TextButton(
                         onPressed: () async {
-                          showSnackBar(
-                            message: await controller.sendComment(),
-                            context: Get.context!,
-                          );
+                          final message = await controller.sendComment();
+                          if (Get.context != null) {
+                            showSnackBar(
+                              message: message,
+                              context: Get.context!,
+                            );
+                          }
                           Get.back();
                         },
                         child: Text("send".tr),

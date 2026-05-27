@@ -23,19 +23,19 @@ import '../models/user_info.dart';
 ///此部分的代码基本都是沿用之前的逻辑，然后用AI转化了下
 class Parser {
   static List<NovelCover> parseToList(String htmlContent) {
-    final node = Api.wenku8Node.node.replaceAll("https://", "");
+    final node = _currentWenku8Host();
     final List<NovelCover> result = [];
     final Document document = parse(htmlContent);
 
-    final Element? contentElement = document.getElementById("content");
+    final Element? contentElement =
+        document.getElementById("content") ?? document.querySelector('body');
     if (contentElement == null) {
       return result;
     }
-    const String targetStyle =
-        "width:373px;height:136px;float:left;margin:5px 0px 5px 5px;";
-    final List<Element> bookItems = contentElement.querySelectorAll(
-      '[style="$targetStyle"]',
-    );
+    final List<Element> bookItems = contentElement
+        .querySelectorAll('div')
+        .where(_isWenku8ListBookItem)
+        .toList(growable: false);
 
     for (final Element novelItem in bookItems) {
       try {
@@ -43,13 +43,31 @@ class Parser {
         String img = imgElement?.attributes['src'] ?? '';
         img = ImageUrlHelper.normalize(img);
 
-        final Element? titleLinkElement = novelItem.querySelector("a");
-        final String title = titleLinkElement?.attributes['title'] ?? "";
+        final matchingLinks = novelItem
+            .querySelectorAll("a")
+            .where((element) {
+              final href = element.attributes['href'] ?? '';
+              return href.contains('/book/') ||
+                  href.startsWith('book/') ||
+                  href.contains('articleinfo.php');
+            })
+            .toList(growable: false);
+        final Element? titleLinkElement =
+            matchingLinks.firstWhereOrNull(_hasVisibleTitle) ??
+            (matchingLinks.isEmpty ? null : matchingLinks.first);
+        final String title =
+            titleLinkElement?.attributes['title']?.trim().isNotEmpty == true
+            ? titleLinkElement!.attributes['title']!.trim()
+            : titleLinkElement?.text.trim() ?? "";
 
-        final Element? divElement = novelItem.querySelector("div");
-        final Element? detailLinkElement = divElement?.querySelector("a");
-        final String href = detailLinkElement?.attributes['href'] ?? '';
-        final String detailUrl = (href.isNotEmpty) ? "https://$node$href" : '';
+        final String href = titleLinkElement?.attributes['href'] ?? '';
+        final String detailUrl = href.isEmpty
+            ? ''
+            : href.startsWith('http')
+            ? href
+            : href.startsWith('/')
+            ? "https://$node$href"
+            : "https://$node/$href";
 
         if (detailUrl.isEmpty) {
           continue;
@@ -68,11 +86,11 @@ class Parser {
         if (bookIndex != -1 && htmIndex != -1 && htmIndex > bookIndex + 5) {
           aid = detailUrl.substring(bookIndex + 5, htmIndex);
         } else {
-          final aidIndex = detailUrl.indexOf("aid=");
-          final bidIndex = detailUrl.indexOf("&bid=");
-          if (aidIndex != -1 && bidIndex != -1 && bidIndex > aidIndex + 4) {
-            aid = detailUrl.substring(aidIndex + 4, bidIndex);
-          }
+          aid =
+              Uri.tryParse(detailUrl)?.queryParameters['id'] ??
+              Uri.tryParse(detailUrl)?.queryParameters['aid'] ??
+              Uri.tryParse(detailUrl)?.queryParameters['bid'] ??
+              '';
         }
 
         if (title != "" && detailUrl.isNotEmpty) {
@@ -84,6 +102,44 @@ class Parser {
     }
 
     return result;
+  }
+
+  static String _currentWenku8Host() {
+    try {
+      return Api.wenku8Node.node.replaceFirst(RegExp(r'^https?://'), '');
+    } catch (_) {
+      return Wenku8Node.wwwWenku8Cc.node.replaceFirst(
+        RegExp(r'^https?://'),
+        '',
+      );
+    }
+  }
+
+  static bool _isWenku8ListBookItem(Element element) {
+    final style = (element.attributes['style'] ?? '').toLowerCase().replaceAll(
+      ' ',
+      '',
+    );
+    final isWideListCard =
+        style.contains('width:373px') && style.contains('height:136px');
+    final isCompactListCard =
+        style.contains('width:95px') && style.contains('height:155px');
+    if (!isWideListCard && !isCompactListCard) {
+      return false;
+    }
+    return element.querySelector('img') != null &&
+        element.querySelectorAll('a').any((link) {
+          final href = link.attributes['href'] ?? '';
+          return href.contains('/book/') ||
+              href.startsWith('book/') ||
+              href.contains('articleinfo.php');
+        });
+  }
+
+  static bool _hasVisibleTitle(Element element) {
+    final title = element.attributes['title']?.trim();
+    if (title != null && title.isNotEmpty) return true;
+    return element.text.trim().isNotEmpty;
   }
 
   static List<NovelCover> parseOtherBookshelfToList(String html) {
@@ -107,58 +163,33 @@ class Parser {
   }
 
   static NovelDetail getNovelDetail(String html) {
-    bool isOffShelves = false;
     final Document document = parse(html);
-    final Element? t1 = document.getElementById('content');
-    final Element t2 = t1!.getElementsByTagName('table')[0];
-    final String title = t2.querySelector('span > b')?.text.trim() ?? '';
-    final trs = t2.getElementsByTagName('tr');
-    final tds = trs[2].getElementsByTagName('td');
-    final String author = tds[1].text.trim().substring(5);
-    final String status = tds[2].text.trim().substring(5);
-    String finUpdate;
-    try {
-      finUpdate = tds[3].text.trim().substring(5) + "update".tr;
-    } catch (_) {
-      isOffShelves = true;
-      finUpdate = "delisted".tr;
-    }
-    String imgUrl = t1.getElementsByTagName('img')[0].attributes['src'] ?? '';
+    final legacyDetail = _parseWenku8LegacyDetail(document);
+    final Element root =
+        document.getElementById('content') ??
+        document.querySelector('body') ??
+        document.documentElement!;
+
+    final String title = _extractWenku8DetailTitle(document, root);
+    final String author = _wenku8FieldValue(root, _wenku8AuthorLabels);
+    final String status = _wenku8FieldValue(root, _wenku8StatusLabels);
+    final String updateValue = _wenku8FieldValue(root, _wenku8UpdateLabels);
+    final String finUpdate = _formatWenku8Update(updateValue);
+    String imgUrl = root.querySelector('img')?.attributes['src'] ?? '';
     imgUrl = ImageUrlHelper.normalize(imgUrl);
-    final table2 = t1.getElementsByTagName('table')[2];
-    final td2 = table2.getElementsByTagName('td')[1];
-    final spans = td2.getElementsByTagName('span');
-    String introduce = spans[5].innerHtml.replaceAll("<br>", "\n");
-    final String tag = spans[0].text;
-    String tempHeat = spans[1].text;
-    bool isAnimated = false;
-    try {
-      table2.getElementsByTagName('td')[0].getElementsByTagName('span')[0].text;
-      isAnimated = true;
-    } catch (_) {
-      isAnimated = false;
-    }
-    if (isOffShelves) {
-      introduce = tempHeat;
-      tempHeat = "not_trending".tr;
-    } else {
-      final rawDate = finUpdate.split("update".tr)[0];
-      finUpdate = Util.getDateTime(rawDate) + "update".tr;
-      finUpdate = finUpdate.trim();
-    }
-    String trending;
-    try {
-      trending = "increase_rate".tr + tempHeat.substring(18, 20);
-    } catch (_) {
-      trending = "increase_rate".tr + tempHeat.substring(18, 19);
-    }
+    final introduce = _extractWenku8Introduce(root);
     final tags = BookTags.normalize([
-      ...tag.replaceRange(0, 7, "").split(" "),
+      ..._extractWenku8Tags(document, root),
       ...BookTags.statusTags(status, finUpdate),
     ]);
-    final heat = "heat".tr + tempHeat.substring(5, 7);
+    final heatValue = _wenku8FieldValue(root, _wenku8HeatLabels);
+    final heat = heatValue.isEmpty ? '' : "heat".tr + heatValue;
+    final trending = '';
+    final isAnimated =
+        root.querySelector('img[src*="anime"], img[src*="animated"]') != null ||
+        root.text.toLowerCase().contains('animated');
 
-    return NovelDetail(
+    final flexibleDetail = NovelDetail(
       title,
       author,
       status,
@@ -170,19 +201,353 @@ class Parser {
       trending,
       isAnimated,
     );
+    if (legacyDetail != null && _hasUsefulWenku8Detail(legacyDetail)) {
+      return _mergeWenku8ParsedDetail(legacyDetail, flexibleDetail);
+    }
+    return flexibleDetail;
   }
+
+  static NovelDetail _mergeWenku8ParsedDetail(
+    NovelDetail primary,
+    NovelDetail fallback,
+  ) {
+    return NovelDetail(
+      _preferNonEmpty(primary.title, fallback.title),
+      _preferNonEmpty(primary.author, fallback.author),
+      _preferNonEmpty(primary.status, fallback.status),
+      _preferNonEmpty(primary.finUpdate, fallback.finUpdate),
+      _preferNonEmpty(primary.imgUrl, fallback.imgUrl),
+      _preferNonEmpty(primary.introduce, fallback.introduce),
+      BookTags.merge(primary.tags, fallback.tags),
+      _preferNonEmpty(primary.heat, fallback.heat),
+      _preferNonEmpty(primary.trending, fallback.trending),
+      primary.isAnimated || fallback.isAnimated,
+    );
+  }
+
+  static String _preferNonEmpty(String primary, String fallback) {
+    final value = primary.trim();
+    return value.isNotEmpty ? primary : fallback;
+  }
+
+  static NovelDetail? _parseWenku8LegacyDetail(Document document) {
+    try {
+      final Element? content = document.getElementById('content');
+      if (content == null) return null;
+      final tables = content.getElementsByTagName('table');
+      if (tables.length < 3) return null;
+
+      final headerTable = tables[0];
+      final String title = _extractWenku8DetailTitle(document, headerTable);
+      final rows = headerTable.getElementsByTagName('tr');
+      final infoCells = rows.length > 2
+          ? rows[2].getElementsByTagName('td')
+          : const <Element>[];
+      final String author = infoCells.length > 1
+          ? _stripWenku8FieldPrefix(infoCells[1].text, _wenku8AuthorLabels)
+          : '';
+      final String status = infoCells.length > 2
+          ? _stripWenku8FieldPrefix(infoCells[2].text, _wenku8StatusLabels)
+          : '';
+      final String updateValue = infoCells.length > 3
+          ? _stripWenku8FieldPrefix(infoCells[3].text, _wenku8UpdateLabels)
+          : '';
+      final String finUpdate = _formatWenku8Update(updateValue);
+
+      String imgUrl = content.getElementsByTagName('img').isNotEmpty
+          ? content.getElementsByTagName('img')[0].attributes['src'] ?? ''
+          : '';
+      imgUrl = ImageUrlHelper.normalize(imgUrl);
+
+      final detailTable = tables[2];
+      final detailCells = detailTable.getElementsByTagName('td');
+      final rightCell = detailCells.length > 1 ? detailCells[1] : detailTable;
+      final spans = rightCell.getElementsByTagName('span');
+      final tagText = spans.isNotEmpty ? spans[0].text : '';
+      final heatText = spans.length > 1 ? spans[1].text : '';
+      final introduce = spans.length > 5
+          ? _cleanWenku8IntroduceHtml(spans[5].innerHtml)
+          : _extractWenku8Introduce(rightCell);
+      final isAnimated =
+          detailCells.isNotEmpty &&
+          detailCells[0].getElementsByTagName('span').isNotEmpty;
+      final tags = BookTags.normalize([
+        ..._extractWenku8TagsFromLabelText(tagText),
+        ...BookTags.statusTags(status, finUpdate),
+      ]);
+
+      final heatValue = _stripWenku8FieldPrefix(heatText, _wenku8HeatLabels);
+      final heat = heatValue.isEmpty ? '' : "heat".tr + heatValue;
+      final trending = _extractWenku8Trending(heatText);
+
+      return NovelDetail(
+        title,
+        author,
+        status,
+        finUpdate,
+        imgUrl,
+        introduce,
+        tags,
+        heat,
+        trending,
+        isAnimated,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static bool _hasUsefulWenku8Detail(NovelDetail detail) =>
+      detail.title.trim().isNotEmpty ||
+      detail.author.trim().isNotEmpty ||
+      detail.status.trim().isNotEmpty ||
+      detail.introduce.trim().isNotEmpty ||
+      detail.tags.isNotEmpty;
+
+  static const _wenku8AuthorLabels = [
+    '\u5c0f\u8bf4\u4f5c\u8005',
+    '\u6587\u7ae0\u4f5c\u8005',
+    '\u4f5c\u8005',
+    '\u5c0f\u8aaa\u4f5c\u8005',
+    '\u6587\u7ae0\u4f5c\u8005',
+  ];
+  static const _wenku8StatusLabels = [
+    '\u5199\u4f5c\u8fdb\u7a0b',
+    '\u6587\u7ae0\u72b6\u6001',
+    '\u5c0f\u8bf4\u72b6\u6001',
+    '\u72b6\u6001',
+    '\u5beb\u4f5c\u9032\u7a0b',
+    '\u6587\u7ae0\u72c0\u614b',
+    '\u5c0f\u8aaa\u72c0\u614b',
+    '\u72c0\u614b',
+  ];
+  static const _wenku8UpdateLabels = [
+    '\u6700\u540e\u66f4\u65b0',
+    '\u66f4\u65b0\u65f6\u95f4',
+    '\u66f4\u65b0\u65e5\u671f',
+    '\u6700\u5f8c\u66f4\u65b0',
+    '\u66f4\u65b0\u6642\u9593',
+  ];
+  static const _wenku8TagLabels = [
+    '\u5c0f\u8bf4Tags',
+    '\u5c0f\u8bf4\u6807\u7b7e',
+    '\u5c0f\u8bf4\u6a19\u7c64',
+    '\u6807\u7b7e',
+    '\u6a19\u7c64',
+    'Tags',
+  ];
+  static const _wenku8CategoryLabels = [
+    '\u5c0f\u8bf4\u7c7b\u522b',
+    '\u6587\u7ae0\u7c7b\u522b',
+    '\u7c7b\u522b',
+    '\u5c0f\u8aaa\u985e\u5225',
+    '\u6587\u7ae0\u985e\u5225',
+    '\u985e\u5225',
+  ];
+  static const _wenku8HeatLabels = [
+    '\u603b\u70b9\u51fb',
+    '\u70b9\u51fb',
+    '\u70ed\u5ea6',
+    '\u7e3d\u9ede\u64ca',
+    '\u9ede\u64ca',
+    '\u71b1\u5ea6',
+  ];
+  static const _wenku8FieldBoundaryLabels = [
+    ..._wenku8AuthorLabels,
+    ..._wenku8StatusLabels,
+    ..._wenku8UpdateLabels,
+    ..._wenku8TagLabels,
+    ..._wenku8CategoryLabels,
+    ..._wenku8HeatLabels,
+    '\u5c0f\u8bf4\u6027\u8d28',
+    '\u5c0f\u8aaa\u6027\u8cea',
+    '\u5b8c\u6210\u5b57\u6570',
+    '\u6388\u6743\u72b6\u6001',
+    '\u6388\u6b0a\u72c0\u614b',
+    '\u603b\u63a8\u8350',
+    '\u7e3d\u63a8\u85a6',
+    '\u6708\u70b9\u51fb',
+    '\u5468\u70b9\u51fb',
+    '\u65e5\u70b9\u51fb',
+  ];
+
+  static String _extractWenku8DetailTitle(Document document, Element root) {
+    final direct =
+        root.querySelector('span > b')?.text.trim() ??
+        root.querySelector('h1')?.text.trim() ??
+        root.querySelector('h2')?.text.trim() ??
+        '';
+    if (direct.isNotEmpty) return direct;
+    final pageTitle = document.querySelector('title')?.text.trim() ?? '';
+    return pageTitle
+        .split(RegExp(r'\s[-_]\s|\s-\s|_'))
+        .first
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  static String _wenku8FieldValue(Element root, List<String> labels) {
+    final candidates = <String>[
+      ...root
+          .querySelectorAll('span, td, div, p, li')
+          .map((element) => element.text),
+      root.text,
+    ];
+    for (final candidate in candidates) {
+      final text = candidate.replaceAll(RegExp(r'\s+'), ' ').trim();
+      if (text.isEmpty) continue;
+      for (final label in labels) {
+        final index = text.toLowerCase().indexOf(label.toLowerCase());
+        if (index < 0) continue;
+        var raw = text.substring(index + label.length);
+        var end = raw.length;
+        for (final boundary in _wenku8FieldBoundaryLabels) {
+          if (boundary == label) continue;
+          final boundaryIndex = raw.toLowerCase().indexOf(
+            boundary.toLowerCase(),
+          );
+          if (boundaryIndex > 0 && boundaryIndex < end) end = boundaryIndex;
+        }
+        raw = raw.substring(0, end);
+        final value = _cleanWenku8FieldValue(raw);
+        if (value.isNotEmpty) return value;
+      }
+    }
+    return '';
+  }
+
+  static String _cleanWenku8FieldValue(String value) => value
+      .replaceAll(RegExp('^[\\s:\uFF1A]+'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  static String _stripWenku8FieldPrefix(String value, List<String> labels) {
+    var text = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+    for (final label in labels) {
+      final index = text.toLowerCase().indexOf(label.toLowerCase());
+      if (index < 0) continue;
+      text = text.substring(index + label.length);
+      break;
+    }
+    return _cleanWenku8FieldValue(text);
+  }
+
+  static String _formatWenku8Update(String value) {
+    final clean = value.trim();
+    if (clean.isEmpty) return '';
+    final date = RegExp(r'\d{4}-\d{1,2}-\d{1,2}').firstMatch(clean)?.group(0);
+    if (date == null) return clean;
+    try {
+      return '${Util.getDateTime(date)}${"update".tr}'.trim();
+    } catch (_) {
+      return '$date${"update".tr}'.trim();
+    }
+  }
+
+  static List<String> _extractWenku8Tags(Document document, Element root) {
+    final legacyTags = root
+        .getElementsByTagName('span')
+        .expand((element) => _extractWenku8TagsFromLabelText(element.text));
+    final labelTags = _splitWenku8Tags(
+      _wenku8FieldValue(root, _wenku8TagLabels),
+    );
+    // Query inside #content only — the site-wide nav also contains a
+    // tags.php link ("Tags云集") that is not a book tag.
+    final linkedTags = root
+        .querySelectorAll('a[href*="tags.php"]')
+        .map((element) => element.text.trim())
+        .where((text) => text.isNotEmpty);
+    final category = _wenku8FieldValue(root, _wenku8CategoryLabels);
+    return BookTags.normalize([
+      ...legacyTags,
+      ...labelTags,
+      ...linkedTags,
+      if (category.isNotEmpty) category,
+    ]);
+  }
+
+  static List<String> _extractWenku8TagsFromLabelText(String value) {
+    final text = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (text.isEmpty) return const [];
+    for (final label in _wenku8TagLabels) {
+      final index = text.toLowerCase().indexOf(label.toLowerCase());
+      if (index < 0) continue;
+      return _splitWenku8Tags(
+        _cleanWenku8FieldValue(text.substring(index + label.length)),
+      );
+    }
+    return const [];
+  }
+
+  static List<String> _splitWenku8Tags(String value) => value
+      .split(RegExp('[\\s,\uFF0C\u3001/|;\uFF1B]+'))
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
+
+  static String _extractWenku8Trending(String value) {
+    final matches = RegExp(r'\d+').allMatches(value).toList(growable: false);
+    if (matches.isEmpty) return '';
+    final valueText = matches.last.group(0);
+    if (valueText == null || valueText.isEmpty) return '';
+    return "increase_rate".tr + valueText;
+  }
+
+  static String _extractWenku8Introduce(Element root) {
+    final explicit = root
+        .querySelector('#intro, #bookintro, .intro')
+        ?.innerHtml;
+    if (explicit != null && explicit.trim().isNotEmpty) {
+      return _cleanWenku8IntroduceHtml(explicit);
+    }
+    final spans = root.getElementsByTagName('span');
+    if (spans.length > 5) {
+      final legacy = _cleanWenku8IntroduceHtml(spans[5].innerHtml);
+      if (legacy.length >= 8 && !_looksLikeWenku8Metadata(legacy)) {
+        return legacy;
+      }
+    }
+    final candidates = root
+        .querySelectorAll('p, td, div, span')
+        .map((element) => _cleanWenku8IntroduceHtml(element.innerHtml))
+        .where((text) => text.length >= 20 && !_looksLikeWenku8Metadata(text))
+        .toList(growable: false);
+    if (candidates.isEmpty) return '';
+    candidates.sort((a, b) => b.length.compareTo(a.length));
+    return candidates.first;
+  }
+
+  static String _cleanWenku8IntroduceHtml(String html) => html
+      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+      .replaceAll(RegExp(r'<[^>]+>'), ' ')
+      .replaceAll(RegExp(r'[ \t\f\r]+'), ' ')
+      .replaceAll(RegExp(r'\n\s+'), '\n')
+      .trim();
+
+  static bool _looksLikeWenku8Metadata(String text) =>
+      _wenku8FieldBoundaryLabels.any(text.contains);
 
   static int getMaxNum(String html) {
     final document = parse(html);
-    final List<Element> lastPageElements = document.getElementsByClassName(
-      "last",
-    );
-    int pageCount = 0;
-    for (final tempElement in lastPageElements) {
-      final String textContent = tempElement.text.trim();
-      final int? parsedPage = int.tryParse(textContent);
-      if (parsedPage != null) {
-        pageCount = parsedPage;
+    var pageCount = 0;
+    final candidates = <String>[
+      ...document.getElementsByClassName("last").map((e) => e.text),
+      ...document
+          .querySelectorAll('a[href*="page="]')
+          .map((e) => e.attributes['href'] ?? ''),
+      ...document
+          .querySelectorAll('option[value*="page="]')
+          .map((e) => e.attributes['value'] ?? ''),
+      ...document
+          .querySelectorAll('input[value]')
+          .map((e) => e.attributes['value'] ?? ''),
+    ];
+    for (final candidate in candidates) {
+      for (final match in RegExp(
+        r'(?:page=|[^\d])(\d{1,5})(?=[^\d]|$)',
+      ).allMatches(' $candidate ')) {
+        final parsed = int.tryParse(match.group(1) ?? '');
+        if (parsed != null && parsed > pageCount) pageCount = parsed;
       }
     }
     return pageCount;
@@ -271,7 +636,7 @@ class Parser {
     final document = parse(html);
 
     final table = document.querySelector('table.css');
-    if (table == null) return [];
+    if (table == null) return _getCatalogueByChapterLinks(document);
 
     final rows = table.querySelectorAll('tr');
     final List<CatVolume> volumes = [];
@@ -302,11 +667,8 @@ class Parser {
 
         if (title.isEmpty || href.isEmpty) continue;
 
-        String cid = '';
-        final parts = href.split('&cid=');
-        if (parts.length > 1) {
-          cid = parts.last;
-        }
+        final cid = _getWenku8ChapterCidFromHref(href);
+        if (cid.isEmpty) continue;
 
         currentChapters.add(CatChapter(title: title, cid: cid));
       }
@@ -319,6 +681,39 @@ class Parser {
     }
 
     return volumes;
+  }
+
+  static List<CatVolume> _getCatalogueByChapterLinks(Document document) {
+    final links = document.querySelectorAll('a[href]').toList(growable: false);
+    final chapters = <CatChapter>[];
+    final seen = <String>{};
+    for (final link in links) {
+      final title = link.text.trim();
+      final href = link.attributes['href']?.trim() ?? '';
+      if (title.isEmpty || href.isEmpty) continue;
+      final cid = _getWenku8ChapterCidFromHref(href);
+      if (cid.isEmpty || !seen.add(cid)) continue;
+      chapters.add(CatChapter(title: title, cid: cid));
+    }
+    if (chapters.isEmpty) return const [];
+    return [CatVolume(title: '正文', chapters: chapters)];
+  }
+
+  static String _getWenku8ChapterCidFromHref(String href) {
+    final uri = Uri.tryParse(href.replaceAll('&amp;', '&'));
+    final queryCid = uri?.queryParameters['cid']?.trim() ?? '';
+    if (queryCid.isNotEmpty) return queryCid;
+
+    final regexCid = RegExp(
+      r'[?&]cid=([^&#]+)',
+    ).firstMatch(href)?.group(1)?.trim();
+    if (regexCid != null && regexCid.isNotEmpty) return regexCid;
+
+    final path = href.split('?').first.split('#').first;
+    final normalized = path.replaceAll('\\', '/').toLowerCase();
+    if (normalized.contains('/book/')) return '';
+    final file = normalized.split('/').last;
+    return RegExp(r'^(\d+)\.htm$').firstMatch(file)?.group(1) ?? '';
   }
 
   static List<CommentItem> getComment(String html) {
@@ -664,7 +1059,13 @@ class Parser {
   static Content getContent(String html) {
     // 解析HTML并提取核心内容
     Document document = parse(html);
-    Element contentElement = document.getElementById('content')!;
+    Element? contentElement = document.getElementById('content');
+    contentElement ??= document.querySelector('div#contentmain');
+    contentElement ??= document.querySelector('td#content');
+    contentElement ??= document.querySelector('div.content');
+    if (contentElement == null) {
+      throw StateError('Wenku8 chapter content element not found');
+    }
 
     // 提取所有img标签的src属性到List
     List<String> imgSrcList = [];

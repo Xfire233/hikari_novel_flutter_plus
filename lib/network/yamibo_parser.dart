@@ -305,8 +305,7 @@ class YamiboParser {
               : <String, dynamic>{},
         );
     final intro = _htmlToText('${firstAuthorPost['message'] ?? ''}');
-    final cover =
-        _extractImages('${firstAuthorPost['message'] ?? ''}').firstOrNull ?? '';
+    const cover = '';
 
     final detail = NovelDetail(
       subject,
@@ -348,11 +347,7 @@ class YamiboParser {
     final thread = variables['thread'] as Map<String, dynamic>? ?? {};
     final data = getThreadDetail(jsonText);
     final tid = '${thread['tid'] ?? ''}';
-    return NovelCover(
-      data.detail.title,
-      data.detail.imgUrl,
-      SourceId.yamiboAid(tid),
-    );
+    return NovelCover(data.detail.title, '', SourceId.yamiboAid(tid));
   }
 
   static int? getCurrentPage(String jsonText) {

@@ -8,16 +8,38 @@ import '../../network/api.dart';
 import '../../network/parser.dart';
 
 class RankingController extends BaseSelectListPageController<NovelCover> {
-  RxString ranking =
-      (LocalStorageService.instance.getWenku8LastRanking() ?? "last_update".tr)
-          .obs;
+  static const rankingKeys = [
+    'last_update',
+    'post_date',
+    'all_visit',
+    'all_vote',
+    'good_num',
+    'day_visit',
+    'day_vote',
+    'month_visit',
+    'month_vote',
+    'week_visit',
+    'week_vote',
+    'size',
+    'animated',
+    'unanimated',
+  ];
+
+  RxString ranking = _normalizeRanking(
+    LocalStorageService.instance.getWenku8LastRanking(),
+  ).obs;
 
   @override
   void onInit() {
     super.onInit();
-    //监听参数变化
+    LocalStorageService.instance.setWenku8LastRanking(ranking.value);
     ever(ranking, (value) {
-      LocalStorageService.instance.setWenku8LastRanking(value);
+      final normalized = _normalizeRanking(value);
+      if (normalized != value) {
+        ranking.value = normalized;
+        return;
+      }
+      LocalStorageService.instance.setWenku8LastRanking(normalized);
       getPage(false);
     });
     getPage(false);
@@ -32,4 +54,14 @@ class RankingController extends BaseSelectListPageController<NovelCover> {
 
   @override
   List<NovelCover> getParser(String html) => Parser.parseToList(html);
+
+  static String _normalizeRanking(String? value) {
+    final raw = value?.trim();
+    if (raw == null || raw.isEmpty) return 'last_update';
+    for (final key in rankingKeys) {
+      if (raw == key || raw == key.tr) return key;
+    }
+    if (raw == 'not_animated') return 'unanimated';
+    return 'last_update';
+  }
 }

@@ -152,6 +152,15 @@ class SettingPage extends StatelessWidget {
           ),
           Obx(
             () => SwitchTile(
+              title: "home_appbar_auto_collapse".tr,
+              subtitle: "home_appbar_auto_collapse_desc".tr,
+              leading: const Icon(Icons.vertical_align_top_outlined),
+              onChanged: (v) => controller.changeHomeAppBarAutoCollapse(v),
+              value: controller.homeAppBarAutoCollapse.value,
+            ),
+          ),
+          Obx(
+            () => SwitchTile(
               title: "yamibo_owner_catalogue".tr,
               subtitle: "yamibo_owner_catalogue_desc".tr,
               leading: const Icon(Icons.format_list_numbered_outlined),
@@ -174,6 +183,49 @@ class SettingPage extends StatelessWidget {
                   controller.changeBookshelfRecentCount(value.round()),
             ),
           ),
+          Obx(
+            () => SwitchTile(
+              title: "smart_subscription_add_to_source_shelf".tr,
+              subtitle: "smart_subscription_add_to_source_shelf_desc".tr,
+              leading: const Icon(Icons.playlist_add_check_outlined),
+              onChanged: (v) =>
+                  controller.changeSmartSubscriptionAddsToSourceShelf(v),
+              value: controller.smartSubscriptionAddsToSourceShelf.value,
+            ),
+          ),
+          Obx(() {
+            final value =
+                controller.smartSubscriptionMinSyncIntervalSeconds.value;
+            return NormalTile(
+              title: "smart_subscription_min_sync_interval".tr,
+              subtitle: "smart_subscription_min_sync_interval_desc".trParams({
+                "interval": _subscriptionIntervalLabel(value),
+              }),
+              leading: const Icon(Icons.timer_outlined),
+              onTap: () =>
+                  Get.dialog(
+                    RadioListDialog<int>(
+                      value: value,
+                      values: [
+                        (0, "smart_subscription_interval_none".tr),
+                        (600, "smart_subscription_interval_10m".tr),
+                        (1800, "smart_subscription_interval_30m".tr),
+                        (3600, "smart_subscription_interval_1h".tr),
+                        (10800, "smart_subscription_interval_3h".tr),
+                        (21600, "smart_subscription_interval_6h".tr),
+                        (86400, "smart_subscription_interval_24h".tr),
+                      ],
+                      title: "smart_subscription_min_sync_interval".tr,
+                    ),
+                  ).then((selected) {
+                    if (selected != null) {
+                      controller.changeSmartSubscriptionMinSyncIntervalSeconds(
+                        selected,
+                      );
+                    }
+                  }),
+            );
+          }),
           Obx(() {
             final sub = switch (controller.bookshelfSortType.value) {
               BookshelfSortType.update => "bookshelf_sort_update".tr,
@@ -390,6 +442,19 @@ class SettingPage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _subscriptionIntervalLabel(int seconds) {
+    return switch (seconds) {
+      <= 0 => "smart_subscription_interval_none".tr,
+      600 => "smart_subscription_interval_10m".tr,
+      1800 => "smart_subscription_interval_30m".tr,
+      3600 => "smart_subscription_interval_1h".tr,
+      10800 => "smart_subscription_interval_3h".tr,
+      21600 => "smart_subscription_interval_6h".tr,
+      86400 => "smart_subscription_interval_24h".tr,
+      _ => "${seconds}s",
+    };
   }
 
   Widget _buildSourceSettings(BuildContext context) {

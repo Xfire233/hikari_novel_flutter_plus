@@ -44,3 +44,16 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /android/build/reports/problems/problems-report.html
+
+# Local agent/tool configuration. These are per-machine helper files.
+/.agents/
+/.claude/
+/.mcp.json
+
+# Local diagnostics used by agent/emulator workflows.
+/tool/diagnose_avd_network.ps1
+
+# Local device/debug evidence. These may contain cookies, app state, or logs.
+/docs/*.hive
+/docs/*.sqlite
+/docs/*logcat*.txt

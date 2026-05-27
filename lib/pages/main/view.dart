@@ -3,8 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/common/extension.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
+import 'package:hikari_novel_flutter/network/wenku8_webview_transport.dart';
 import 'package:hikari_novel_flutter/pages/main/controller.dart';
 import 'package:hikari_novel_flutter/pages/novel_detail/controller.dart';
+import 'package:hikari_novel_flutter/service/local_storage_service.dart';
+import 'package:hikari_novel_flutter/widgets/wenku8_webview_transport_host.dart';
 
 import '../../common/common_widgets.dart';
 import '../../router/app_pages.dart';
@@ -19,6 +22,9 @@ class MainPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (LocalStorageService.instance.getWenku8CompatibilityMode()) {
+      Wenku8WebViewTransport.ensureHost();
+    }
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
@@ -26,9 +32,16 @@ class MainPage extends StatelessWidget {
           await _handleSystemBack(controller);
         }
       },
-      child: context.isLargeScreen()
-          ? _buildLargeScreenScaffold()
-          : _buildSmallScreenScaffold(),
+      child: Stack(
+        children: [
+          const Wenku8WebViewTransportHost(),
+          Positioned.fill(
+            child: context.isLargeScreen()
+                ? _buildLargeScreenScaffold()
+                : _buildSmallScreenScaffold(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -135,7 +148,7 @@ class MainPage extends StatelessWidget {
   }
 }
 
-class _AnimatedIndexedStack extends StatelessWidget {
+class _AnimatedIndexedStack extends StatefulWidget {
   const _AnimatedIndexedStack({
     required this.index,
     required this.previousIndex,
@@ -147,26 +160,146 @@ class _AnimatedIndexedStack extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) {
-    final forward = index >= previousIndex;
-    return AnimatedSwitcher(
+  State<_AnimatedIndexedStack> createState() => _AnimatedIndexedStackState();
+}
+
+class _AnimatedIndexedStackState extends State<_AnimatedIndexedStack>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+  late int _currentIndex;
+  int? _previousIndex;
+  bool _forward = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.index;
+    _controller = AnimationController(
+      vsync: this,
       duration: const Duration(milliseconds: 220),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      transitionBuilder: (child, animation) {
-        final offset = Tween<Offset>(
-          begin: Offset(forward ? 0.045 : -0.045, 0),
-          end: Offset.zero,
-        ).animate(animation);
-        return FadeTransition(
-          opacity: animation,
-          child: SlideTransition(position: offset, child: child),
+    );
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    _controller.value = 1;
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        setState(() => _previousIndex = null);
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnimatedIndexedStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.index == _currentIndex) return;
+    final oldIndex = _currentIndex;
+    _forward = widget.index >= oldIndex;
+    _previousIndex = oldIndex;
+    _currentIndex = widget.index;
+    _controller.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final previousIndex = _previousIndex;
+    final hasPrevious =
+        previousIndex != null &&
+        previousIndex >= 0 &&
+        previousIndex < widget.children.length &&
+        previousIndex != _currentIndex;
+    final hiddenIndexes = <int>[
+      for (var i = 0; i < widget.children.length; i++)
+        if (i != _currentIndex && (!hasPrevious || i != previousIndex)) i,
+    ];
+    return Stack(
+      children: [
+        for (final i in hiddenIndexes)
+          Positioned.fill(
+            child: Offstage(
+              offstage: true,
+              child: TickerMode(enabled: false, child: widget.children[i]),
+            ),
+          ),
+        if (hasPrevious)
+          Positioned.fill(
+            child: _NavigationTransitionChild(
+              animation: _animation,
+              role: _NavigationTransitionRole.outgoing,
+              forward: _forward,
+              child: widget.children[previousIndex],
+            ),
+          ),
+        Positioned.fill(
+          child: _NavigationTransitionChild(
+            animation: _animation,
+            role: _NavigationTransitionRole.incoming,
+            forward: _forward,
+            child: widget.children[_currentIndex],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+enum _NavigationTransitionRole { incoming, outgoing }
+
+class _NavigationTransitionChild extends StatelessWidget {
+  const _NavigationTransitionChild({
+    required this.animation,
+    required this.role,
+    required this.forward,
+    required this.child,
+  });
+
+  final Animation<double> animation;
+  final _NavigationTransitionRole role;
+  final bool forward;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, child) {
+        final t = animation.value;
+        final direction = forward ? 1.0 : -1.0;
+        final offset = switch (role) {
+          _NavigationTransitionRole.incoming => Offset(
+            0.08 * direction * (1 - t),
+            0,
+          ),
+          _NavigationTransitionRole.outgoing => Offset(
+            -0.025 * direction * t,
+            0,
+          ),
+        };
+        final opacity = switch (role) {
+          _NavigationTransitionRole.incoming => 0.86 + 0.14 * t,
+          _NavigationTransitionRole.outgoing => 1.0 - 0.16 * t,
+        };
+        return TickerMode(
+          enabled: role == _NavigationTransitionRole.incoming,
+          child: IgnorePointer(
+            ignoring: role != _NavigationTransitionRole.incoming,
+            child: Opacity(
+              opacity: opacity,
+              child: FractionalTranslation(translation: offset, child: child),
+            ),
+          ),
         );
       },
-      child: KeyedSubtree(
-        key: ValueKey<int>(index),
-        child: IndexedStack(index: index, children: children),
-      ),
     );
   }
 }
@@ -298,9 +431,31 @@ Future<void> _confirmExitApp() async {
 // Content navigator observer.
 class SubNavigatorObserver extends NavigatorObserver {
   void _updateContentRoute(Route<dynamic>? route) {
-    final routeName = route?.settings.name ?? RoutePath.logo;
-    AppSubRouter.currentContentRouteName = routeName;
+    final routeName = route?.settings.name;
+    if (!_isContentRouteName(routeName)) return;
+    AppSubRouter.currentContentRouteName = routeName!;
     Get.find<MainController>().showContent.value = routeName != RoutePath.logo;
+  }
+
+  bool _isContentRouteName(String? routeName) {
+    return switch (routeName) {
+      RoutePath.logo ||
+      RoutePath.novelDetail ||
+      RoutePath.comment ||
+      RoutePath.reply ||
+      RoutePath.browsingHistory ||
+      RoutePath.userInfo ||
+      RoutePath.about ||
+      RoutePath.setting ||
+      RoutePath.search ||
+      RoutePath.cacheQueue ||
+      RoutePath.userBookshelf ||
+      RoutePath.devTools ||
+      RoutePath.yamiboForum ||
+      RoutePath.yamiboAuthorThreads ||
+      RoutePath.esjzone => true,
+      _ => false,
+    };
   }
 
   @override

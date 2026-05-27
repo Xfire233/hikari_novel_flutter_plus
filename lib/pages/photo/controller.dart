@@ -11,4 +11,10 @@ class PhotoController extends GetxController {
       pageController.jumpToPage(Get.arguments["index"]);
     }
   }
+
+  @override
+  void onClose() {
+    pageController.dispose();
+    super.onClose();
+  }
 }

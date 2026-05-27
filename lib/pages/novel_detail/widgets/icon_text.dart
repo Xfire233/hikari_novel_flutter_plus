@@ -20,11 +20,15 @@ class IconText extends StatelessWidget {
       children: [
         Icon(icon, size: 18),
         SizedBox(width: 6),
-        Text(
-          text,
-          style: TextStyle(
-            color: color,
-            fontWeight: bold == true ? FontWeight.bold : null,
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontWeight: bold == true ? FontWeight.bold : null,
+            ),
           ),
         ),
       ],

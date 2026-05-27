@@ -39,10 +39,30 @@ class MyPage extends StatelessWidget {
             ListTile(
               title: Text("logout".tr),
               leading: const Icon(Icons.logout),
-              onTap: controller.logout,
+              onTap: () => _confirmLogout(context),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _confirmLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text("logout".tr),
+        content: Text("logout_confirm".tr),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text("cancel".tr)),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              controller.logout();
+            },
+            child: Text("confirm".tr),
+          ),
+        ],
       ),
     );
   }
@@ -72,20 +92,32 @@ class MyPage extends StatelessWidget {
                   leading: _sourceAvatar(source),
                   title: Text(source.titleKey.tr),
                   subtitle: Text(controller.sourceStatusText(source)),
-                  trailing: TextButton(
-                    onPressed: () =>
-                        controller.openSourceLogin(context, source),
-                    child: Text(
-                      controller.isSourceLoggedIn(source)
-                          ? 'source_relogin'.tr
-                          : 'source_go_login'.tr,
-                    ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        onPressed: () =>
+                            controller.openSourceLogin(context, source),
+                        icon: const Icon(Icons.verified_user_outlined),
+                        tooltip: 'source_check_login_status'.tr,
+                      ),
+                      IconButton(
+                        onPressed: () =>
+                            controller.syncSourceBookshelf(context, source),
+                        icon: const Icon(Icons.cloud_download_outlined),
+                        tooltip: 'source_sync_online_favorites'.tr,
+                      ),
+                    ],
                   ),
-                  onTap:
-                      source == NovelSource.wenku8 &&
-                          controller.isSourceLoggedIn(source)
-                      ? AppSubRouter.toUserInfo
-                      : () => controller.openSourceLogin(context, source),
+                  onTap: () => controller.openSourceAccountWeb(context, source),
+                  contentPadding: const EdgeInsetsDirectional.only(
+                    start: 16,
+                    end: 8,
+                    top: 2,
+                    bottom: 2,
+                  ),
+                  minVerticalPadding: 8,
+                  minLeadingWidth: 40,
                 ),
           ],
         ),

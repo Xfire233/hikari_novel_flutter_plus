@@ -16,10 +16,12 @@ import '../../models/page_state.dart';
 import '../../models/smart_shelf.dart';
 import '../../models/source_config.dart';
 import '../../network/request.dart';
+import '../../network/wenku8_webview_transport.dart';
 import '../../network/yamibo_api.dart';
-import '../../router/route_path.dart';
+import '../../service/local_storage_service.dart';
 import '../../service/source_config_service.dart';
 import '../../widgets/custom_tile.dart';
+import '../../widgets/local_rating_bar.dart';
 import '../../widgets/source_backdrop.dart';
 import '../../widgets/state_page.dart';
 
@@ -542,7 +544,11 @@ class BookshelfPage extends StatelessWidget {
     _showBookshelfSnackBar(string);
     final assistUrl = controller.syncAssistUrls[folder.id];
     if (assistUrl?.isNotEmpty == true) {
-      await _showBrowserAssistedSyncDialog(folder, assistUrl!);
+      LocalStorageService.instance.setWenku8CompatibilityMode(true);
+      Wenku8WebViewTransport.setHostEnabled(true);
+      _showBookshelfSnackBar("wenku8_compatibility_enabled".tr);
+      final retryMessage = await controller.refreshFolder(folder);
+      _showBookshelfSnackBar(retryMessage);
     }
   }
 
@@ -550,46 +556,6 @@ class BookshelfPage extends StatelessWidget {
     final context = Get.context;
     if (context == null) return;
     showSnackBar(message: message, context: context);
-  }
-
-  Future<void> _showBrowserAssistedSyncDialog(
-    BookshelfFolder folder,
-    String url,
-  ) async {
-    final context = Get.context;
-    if (context == null) return;
-    final open = await Get.dialog<bool>(
-      AlertDialog(
-        title: Text("browser_assisted_sync".tr),
-        content: Text("browser_assisted_sync_tip".tr),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: Text("cancel".tr),
-          ),
-          FilledButton.icon(
-            onPressed: () => Get.back(result: true),
-            icon: const Icon(Icons.open_in_browser_outlined),
-            label: Text("browser_assisted_sync_open".tr),
-          ),
-        ],
-      ),
-    );
-    if (open != true) return;
-    final captured = await Get.toNamed(
-      RoutePath.login,
-      arguments: {
-        'captureHtmlOnly': true,
-        'verificationOnly': true,
-        'initialUrl': url.replaceFirst('wenku8.cc', 'wenku8.net'),
-        'captureAliases': [url, url.replaceFirst('wenku8.cc', 'wenku8.net')],
-      },
-    );
-    if (captured == true) {
-      _showBookshelfSnackBar("browser_assisted_retrying".tr);
-      final retryMessage = await controller.refreshFolder(folder);
-      _showBookshelfSnackBar(retryMessage);
-    }
   }
 
   void _handleFolderAction(_FolderAction action, BookshelfFolder folder) {
@@ -910,6 +876,16 @@ class BookshelfPage extends StatelessWidget {
               ?.value ??
           '',
     );
+    var ratingMin =
+        double.tryParse(
+          group.conditions
+                  .firstWhereOrNull(
+                    (item) => item.type == SmartShelfConditionType.ratingMin,
+                  )
+                  ?.value ??
+              '',
+        )?.clamp(0.0, 5.0).toDouble() ??
+        0.0;
     var matchAll = group.mode != SmartShelfMatchMode.any;
     var subscription = config.isSubscription;
     var subscriptionSyncMode = config.subscriptionSyncMode;
@@ -955,6 +931,51 @@ class BookshelfPage extends StatelessWidget {
                 TextField(
                   controller: authorController,
                   decoration: InputDecoration(labelText: "author".tr),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(
+                    "smart_rating_min".tr,
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Slider(
+                        min: 0,
+                        max: 5,
+                        divisions: 10,
+                        value: ratingMin,
+                        label: ratingMin <= 0
+                            ? "smart_rating_any".tr
+                            : ratingMin.toStringAsFixed(
+                                ratingMin % 1 == 0 ? 0 : 1,
+                              ),
+                        onChanged: (value) {
+                          setState(() {
+                            ratingMin = ((value * 2).round() / 2).toDouble();
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 100,
+                      child: ratingMin <= 0
+                          ? Text(
+                              "smart_rating_any".tr,
+                              textAlign: TextAlign.end,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            )
+                          : LocalRatingBar(
+                              rating: ratingMin,
+                              enabled: false,
+                              size: 16,
+                              compact: true,
+                            ),
+                    ),
+                  ],
                 ),
                 SwitchListTile(
                   value: matchAll,
@@ -1077,6 +1098,13 @@ class BookshelfPage extends StatelessWidget {
                     SmartShelfCondition(
                       type: SmartShelfConditionType.author,
                       value: authorController.text.trim(),
+                    ),
+                  if (ratingMin > 0)
+                    SmartShelfCondition(
+                      type: SmartShelfConditionType.ratingMin,
+                      value: ratingMin.toStringAsFixed(
+                        ratingMin % 1 == 0 ? 0 : 1,
+                      ),
                     ),
                   for (final entry in selectedSections.entries)
                     if (sources.contains(entry.key) && entry.value.isNotEmpty)

@@ -2,49 +2,92 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/pages/category/controller.dart';
-import 'package:hikari_novel_flutter/widgets/capsule_dropdown.dart';
+import 'package:hikari_novel_flutter/widgets/filter_capsule_controls.dart';
+import 'package:hikari_novel_flutter/widgets/home_collapsible_filter_bar.dart';
 import 'package:hikari_novel_flutter/widgets/wenku8_browser_assist.dart';
 
 import '../../widgets/keep_alive_wrapper.dart';
 import '../../widgets/browsing_novel_grid.dart';
 import '../../widgets/state_page.dart';
 
-class CategoryView extends StatelessWidget {
-  CategoryView({super.key});
+class CategoryView extends StatefulWidget {
+  const CategoryView({super.key});
 
+  @override
+  State<CategoryView> createState() => _CategoryViewState();
+}
+
+enum _CategoryFilterPanel { category, sort }
+
+class _CategoryViewState extends State<CategoryView> {
   final controller = Get.put(CategoryController());
+  _CategoryFilterPanel? _expandedPanel;
 
   @override
   Widget build(BuildContext context) {
     return KeepAliveWrapper(
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Obx(
-                    () => CapsuleDropdown<Object?>(
-                      label: controller.category.value,
-                      items: _getTagList(),
-                      onSelected: (_) {},
+          HomeCollapsibleFilterBar(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+              child: Obx(() {
+                final categoryOptions = _categoryOptions();
+                final sortOptions = _sortOptions();
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilterCapsuleOptionRow<String>(
+                            options: categoryOptions,
+                            selectedValue: controller.category.value,
+                            expanded:
+                                _expandedPanel == _CategoryFilterPanel.category,
+                            tooltip: controller.category.value,
+                            onToggleExpanded: () =>
+                                _togglePanel(_CategoryFilterPanel.category),
+                            onSelected: (value) {
+                              controller.category.value = value;
+                              _collapsePanel();
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        FilterCapsuleButton(
+                          width: 142,
+                          label: controller.sortText.value,
+                          emphasized: true,
+                          expanded: _expandedPanel == _CategoryFilterPanel.sort,
+                          onTap: () => _togglePanel(_CategoryFilterPanel.sort),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: 142,
-                  child: Obx(
-                    () => CapsuleDropdown<Object?>(
-                      label: controller.sortText.value,
-                      items: _getSortList(),
-                      onSelected: (_) {},
-                      emphasized: true,
+                    FilterCapsulePanel<String>(
+                      expanded: _expandedPanel != null,
+                      options: _expandedPanel == _CategoryFilterPanel.sort
+                          ? sortOptions
+                          : categoryOptions,
+                      selectedValue: _expandedPanel == _CategoryFilterPanel.sort
+                          ? controller.sortValue
+                          : controller.category.value,
+                      onSelected: (value) {
+                        if (_expandedPanel == _CategoryFilterPanel.sort) {
+                          final selected = sortOptions.firstWhere(
+                            (item) => item.value == value,
+                          );
+                          controller.sortValue = selected.value;
+                          controller.sortText.value = selected.label;
+                        } else {
+                          controller.category.value = value;
+                        }
+                        _collapsePanel();
+                      },
                     ),
-                  ),
-                ),
-              ],
+                  ],
+                );
+              }),
             ),
           ),
           Expanded(
@@ -65,6 +108,7 @@ class CategoryView extends StatelessWidget {
                         page: controller.pageIndex,
                         canPreviousPage: controller.canPreviousPage,
                         canNextPage: controller.canNextPage,
+                        guardHomeRefresh: true,
                       ),
                     ),
                   ),
@@ -79,23 +123,13 @@ class CategoryView extends StatelessWidget {
                 Obx(
                   () => Offstage(
                     offstage: controller.pageState.value != PageState.loading,
-                    child: LoadingPage(),
+                    child: buildWenku8CompatibilityLoadingPage(),
                   ),
                 ),
                 Obx(
                   () => Offstage(
                     offstage: controller.pageState.value != PageState.error,
-                    child: ErrorMessage(
-                      msg: controller.errorMsg,
-                      action: () => controller.getPage(false),
-                      extraAction: isSpecificMessage(controller.errorMsg)
-                          ? () => openWenku8BrowserAssist(
-                              url: controller.currentRequestUrl(),
-                              onCaptured: () => controller.getPage(false),
-                            )
-                          : null,
-                      extraButtonText: 'wenku8_browser_verify',
-                    ),
+                    child: _buildErrorMessage(),
                   ),
                 ),
               ],
@@ -106,335 +140,90 @@ class CategoryView extends StatelessWidget {
     );
   }
 
-  List<PopupMenuEntry<Object?>> _getTagList() {
+  List<FilterCapsuleOption<String>> _categoryOptions() {
     return [
-      PopupMenuItem<Object?>(
-        child: Text("school".tr),
-        onTap: () {
-          controller.category.value = "school".tr;
-        },
-      ),
-      PopupMenuItem<Object?>(
-        child: Text("youth".tr),
-        onTap: () {
-          controller.category.value = "youth".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("love".tr),
-        onTap: () {
-          controller.category.value = "love".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("healing".tr),
-        onTap: () {
-          controller.category.value = "healing".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("group_portrait".tr),
-        onTap: () {
-          controller.category.value = "group_portrait".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("sports".tr),
-        onTap: () {
-          controller.category.value = "sports".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("music".tr),
-        onTap: () {
-          controller.category.value = "music".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("food".tr),
-        onTap: () {
-          controller.category.value = "food".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("travel".tr),
-        onTap: () {
-          controller.category.value = "travel".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("joy".tr),
-        onTap: () {
-          controller.category.value = "joy".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("manage".tr),
-        onTap: () {
-          controller.category.value = "manage".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("workplace".tr),
-        onTap: () {
-          controller.category.value = "workplace".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("battle_of_wits".tr),
-        onTap: () {
-          controller.category.value = "battle_of_wits".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("brain_cavity".tr),
-        onTap: () {
-          controller.category.value = "brain_cavity".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("otaku_culture".tr),
-        onTap: () {
-          controller.category.value = "otaku_culture".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("pass_through".tr),
-        onTap: () {
-          controller.category.value = "pass_through".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("fantasy".tr),
-        onTap: () {
-          controller.category.value = "fantasy".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("magic".tr),
-        onTap: () {
-          controller.category.value = "magic".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("supernatural_ability".tr),
-        onTap: () {
-          controller.category.value = "supernatural_ability".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("fighting".tr),
-        onTap: () {
-          controller.category.value = "fighting".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("science_fiction".tr),
-        onTap: () {
-          controller.category.value = "science_fiction".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("machine_warfare".tr),
-        onTap: () {
-          controller.category.value = "machine_warfare".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("warfare".tr),
-        onTap: () {
-          controller.category.value = "warfare".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("adventure".tr),
-        onTap: () {
-          controller.category.value = "adventure".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("dragon_proud_sky".tr),
-        onTap: () {
-          controller.category.value = "dragon_proud_sky".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("suspense".tr),
-        onTap: () {
-          controller.category.value = "suspense".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("crime".tr),
-        onTap: () {
-          controller.category.value = "crime".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("revenge".tr),
-        onTap: () {
-          controller.category.value = "revenge".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("darkness".tr),
-        onTap: () {
-          controller.category.value = "darkness".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("hunting_for_novelty".tr),
-        onTap: () {
-          controller.category.value = "hunting_for_novelty".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("thrilling".tr),
-        onTap: () {
-          controller.category.value = "thrilling".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("spy".tr),
-        onTap: () {
-          controller.category.value = "spy".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("apocalypse".tr),
-        onTap: () {
-          controller.category.value = "apocalypse".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("game".tr),
-        onTap: () {
-          controller.category.value = "game".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("battle_royale_game".tr),
-        onTap: () {
-          controller.category.value = "battle_royale_game".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("childhood_sweetheart".tr),
-        onTap: () {
-          controller.category.value = "childhood_sweetheart".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("younger_sisiter".tr),
-        onTap: () {
-          controller.category.value = "younger_sisiter".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("daughter".tr),
-        onTap: () {
-          controller.category.value = "daughter".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: const Text("JK"),
-        onTap: () {
-          controller.category.value = "JK".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: const Text("JC"),
-        onTap: () {
-          controller.category.value = "JC";
-        },
-      ),
-      PopupMenuItem(
-        child: Text("princess".tr),
-        onTap: () {
-          controller.category.value = "princess".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("sexual_conversion".tr),
-        onTap: () {
-          controller.category.value = "sexual_conversion".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("cross_dressing".tr),
-        onTap: () {
-          controller.category.value = "cross_dressing".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("extra_human".tr),
-        onTap: () {
-          controller.category.value = "extra_human".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("harem".tr),
-        onTap: () {
-          controller.category.value = "harem".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("lily".tr),
-        onTap: () {
-          controller.category.value = "lily".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("danmei".tr),
-        onTap: () {
-          controller.category.value = "danmei".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("ntr".tr),
-        onTap: () {
-          controller.category.value = "ntr".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("female_perspective".tr),
-        onTap: () {
-          controller.category.value = "female_perspective".tr;
-        },
-      ),
+      for (final key in _categoryKeys)
+        FilterCapsuleOption(value: key.tr, label: key.tr),
     ];
   }
 
-  List<PopupMenuEntry<Object?>> _getSortList() {
+  List<FilterCapsuleOption<String>> _sortOptions() {
     return [
-      PopupMenuItem(
-        child: Text("sort_by_update".tr),
-        onTap: () {
-          controller.sortValue = "0";
-          controller.sortText.value = "sort_by_update".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("sort_by_heat".tr),
-        onTap: () {
-          controller.sortValue = "1";
-          controller.sortText.value = "sort_by_heat".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("sort_by_completion".tr),
-        onTap: () {
-          controller.sortValue = "2";
-          controller.sortText.value = "sort_by_completion".tr;
-        },
-      ),
-      PopupMenuItem(
-        child: Text("sort_by_animated".tr),
-        onTap: () {
-          controller.sortValue = "3";
-          controller.sortText.value = "sort_by_animated".tr;
-        },
-      ),
+      FilterCapsuleOption(value: '0', label: 'sort_by_update'.tr),
+      FilterCapsuleOption(value: '1', label: 'sort_by_heat'.tr),
+      FilterCapsuleOption(value: '2', label: 'sort_by_completion'.tr),
+      FilterCapsuleOption(value: '3', label: 'sort_by_animated'.tr),
     ];
   }
+
+  void _togglePanel(_CategoryFilterPanel panel) {
+    setState(() {
+      _expandedPanel = _expandedPanel == panel ? null : panel;
+    });
+  }
+
+  void _collapsePanel() {
+    if (_expandedPanel == null) return;
+    setState(() => _expandedPanel = null);
+  }
+
+  Widget _buildErrorMessage() {
+    return buildWenku8BrowserAssistErrorMessage(
+      message: controller.errorMsg,
+      url: controller.currentRequestUrl(),
+      onRetry: () => controller.getPage(false),
+    );
+  }
 }
+
+const _categoryKeys = [
+  'school',
+  'youth',
+  'love',
+  'healing',
+  'group_portrait',
+  'sports',
+  'music',
+  'food',
+  'travel',
+  'joy',
+  'manage',
+  'workplace',
+  'battle_of_wits',
+  'brain_cavity',
+  'otaku_culture',
+  'pass_through',
+  'fantasy',
+  'magic',
+  'supernatural_ability',
+  'fighting',
+  'science_fiction',
+  'machine_warfare',
+  'warfare',
+  'adventure',
+  'dragon_proud_sky',
+  'suspense',
+  'crime',
+  'revenge',
+  'darkness',
+  'hunting_for_novelty',
+  'thrilling',
+  'spy',
+  'apocalypse',
+  'game',
+  'battle_royale_game',
+  'childhood_sweetheart',
+  'younger_sisiter',
+  'daughter',
+  'JK',
+  'JC',
+  'princess',
+  'sexual_conversion',
+  'cross_dressing',
+  'extra_human',
+  'harem',
+  'lily',
+  'danmei',
+  'ntr',
+  'female_perspective',
+];

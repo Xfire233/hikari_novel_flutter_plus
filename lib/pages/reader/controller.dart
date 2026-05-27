@@ -40,7 +40,7 @@ import 'widgets/paper_curl_pager.dart';
 
 typedef VerticalPageTurner = bool Function(bool forward);
 
-class ReaderController extends GetxController {
+class ReaderController extends GetxController with WidgetsBindingObserver {
   final _novelDetailController = Get.find<NovelDetailController>();
 
   late List<CatVolume> catalogue;
@@ -70,6 +70,7 @@ class ReaderController extends GetxController {
   DateTime? _lastVolumeKeyAt;
   DateTime? _lastDesktopPageTurnAt;
   VerticalPageTurner? verticalPageTurner;
+  bool _readHistoryReady = false;
 
   final _battery = Battery();
   RxInt batteryLevel = 0.obs;
@@ -144,6 +145,7 @@ class ReaderController extends GetxController {
   @override
   void onInit() async {
     super.onInit();
+    WidgetsBinding.instance.addObserver(this);
 
     aid = _novelDetailController.aid;
     catalogue = _novelDetailController.novelDetail.value!.catalogue;
@@ -204,21 +206,32 @@ class ReaderController extends GetxController {
 
     currentVolumeIndex = indexPosition[0];
     currentChapterIndex = indexPosition[1];
+    _readHistoryReady = true;
 
     chapterTitle.value =
         catalogue[currentVolumeIndex].chapters[currentChapterIndex].title;
 
     await getContent();
+    unawaited(setReadHistory());
   }
 
   @override
   void onClose() {
+    unawaited(setReadHistory());
+    WidgetsBinding.instance.removeObserver(this);
     TtsService.instance.stop();
     verticalPageTurner = null;
     _stopVolumeKeyListener();
     if (readerSettingsState.value.wakeLock) WakelockPlus.toggle(enable: false);
     _applyReaderSystemUi(false);
+    pageController.dispose();
     super.onClose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) return;
+    unawaited(setReadHistory());
   }
 
   //获取初始页面位置
@@ -276,7 +289,13 @@ class ReaderController extends GetxController {
     if (chapter == null) {
       await _getContentByNetwork();
     } else {
-      await _getContentByLocal(chapter);
+      try {
+        await _getContentByLocal(chapter);
+      } catch (e, stackTrace) {
+        Log.e('Read cached chapter failed, fallback to network: $e');
+        Log.e(stackTrace);
+        await _getContentByNetwork();
+      }
     }
   }
 
@@ -286,6 +305,7 @@ class ReaderController extends GetxController {
       "${dir.path}/cached_chapter/${SourceId.safeFilePart(aid)}_${SourceId.safeFilePart(cid)}.txt",
     );
     if (!await file.exists()) return null;
+    if (await file.length() == 0) return null;
     return await file.readAsString();
   }
 
@@ -473,7 +493,7 @@ class ReaderController extends GetxController {
   void prevPage() {
     var value = currentIndex.value;
     if (value == 0) {
-      prevChapter();
+      prevChapter(openAtEnd: true);
     } else {
       jumpToPage(value - 1);
     }
@@ -516,11 +536,13 @@ class ReaderController extends GetxController {
       }
 
       clearInitLocation();
+      _resetChapterReadPosition();
+      unawaited(setReadHistory());
       getContent();
     }
   }
 
-  void prevChapter() {
+  void prevChapter({bool openAtEnd = false}) {
     if (currentVolumeIndex - 1 == -1 && currentChapterIndex - 1 == -1) {
       Get.dialog(
         AlertDialog(
@@ -539,11 +561,27 @@ class ReaderController extends GetxController {
       }
 
       clearInitLocation();
+      _resetChapterReadPosition(openAtEnd: openAtEnd);
+      unawaited(setReadHistory());
       getContent();
     }
   }
 
-  void setReadHistory() async {
+  void _resetChapterReadPosition({bool openAtEnd = false}) {
+    currentIndex.value = 0;
+    currentLocation.value = 0;
+    horizontalProgress.value = openAtEnd ? 100 : 0;
+    verticalProgress.value = 0;
+    maxPage.value = 0;
+    if (openAtEnd &&
+        readerSettingsState.value.direction != ReaderDirection.upToDown) {
+      modeSwitchInitialProgress = 100;
+      initialHorizontalIndex = 0;
+    }
+  }
+
+  Future<void> setReadHistory() async {
+    if (!_readHistoryReady) return;
     Log.d("setReadHistory");
     await DBService.instance.upsertReadHistory(
       ReadHistoryEntityData(
@@ -564,6 +602,16 @@ class ReaderController extends GetxController {
             ? verticalProgress.value
             : horizontalProgress.value,
         isLatest: true,
+      ),
+    );
+    final detail = _novelDetailController.novelDetail.value;
+    if (detail == null) return;
+    await DBService.instance.upsertBrowsingHistory(
+      BrowsingHistoryEntityData(
+        aid: aid,
+        title: detail.title,
+        img: detail.imgUrl,
+        time: DateTime.now(),
       ),
     );
   }
