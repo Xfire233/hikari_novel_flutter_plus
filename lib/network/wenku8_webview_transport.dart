@@ -10,6 +10,7 @@ class Wenku8WebViewTransport {
   const Wenku8WebViewTransport._();
 
   static final hostRequired = ValueNotifier<bool>(false);
+  static final hostActive = ValueNotifier<bool>(false);
   static InAppWebViewController? _controller;
   static Completer<InAppWebViewController>? _readyCompleter;
   static Future<void> _queue = Future<void>.value();
@@ -37,6 +38,7 @@ class Wenku8WebViewTransport {
   static void releaseHost() {
     _idleTimer?.cancel();
     _idleTimer = null;
+    _setHostActive(false);
     final task = _activeTask;
     if (task != null && !task.isCompleted) {
       task.isCompleted = true;
@@ -118,7 +120,7 @@ class Wenku8WebViewTransport {
 
   static Future<String?> get(
     String url, {
-    Duration timeout = const Duration(seconds: 18),
+    Duration timeout = const Duration(seconds: 9),
   }) {
     _idleTimer?.cancel();
     ensureHost();
@@ -146,6 +148,8 @@ class Wenku8WebViewTransport {
       _log('not ready url=$url hostRequired=${hostRequired.value}');
       return null;
     }
+    _setHostActive(true);
+    await Future<void>.delayed(const Duration(milliseconds: 120));
     await Wenku8WebViewCookieSyncService.syncStoredCookiesToWebView();
 
     final task = _WebViewTransportTask(
@@ -351,7 +355,7 @@ class Wenku8WebViewTransport {
   ) async {
     while (!task.isCompleted && identical(_activeTask, task)) {
       _readActiveHtml(controller);
-      await Future<void>.delayed(const Duration(milliseconds: 650));
+      await Future<void>.delayed(const Duration(milliseconds: 900));
     }
   }
 
@@ -452,6 +456,7 @@ class Wenku8WebViewTransport {
     task.isCompleted = true;
     task.timer.cancel();
     _activeTask = null;
+    _setHostActive(false);
     if (html == null) {
       _setStatus(
         'complete null url=$url reason=$reason '
@@ -483,9 +488,18 @@ class Wenku8WebViewTransport {
     _lastStatus = message;
   }
 
+  static void _setHostActive(bool active) {
+    if (hostActive.value != active) {
+      hostActive.value = active;
+    }
+  }
+
   static void _scheduleIdleRelease() {
     _idleTimer?.cancel();
     if (_activeTask != null) return;
+    _idleTimer = Timer(const Duration(seconds: 20), () {
+      if (_activeTask == null) releaseHost();
+    });
   }
 }
 

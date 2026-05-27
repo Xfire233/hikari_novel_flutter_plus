@@ -15,7 +15,7 @@ import '../service/local_storage_service.dart';
 
 /// 网络请求
 class Request {
-  static const _wenku8NativeCompatibilityTimeout = Duration(seconds: 4);
+  static const _wenku8NativeCompatibilityTimeout = Duration(seconds: 2);
 
   static const defaultUserAgent =
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0";
@@ -140,10 +140,10 @@ class Request {
       }
       if (_shouldUseWenku8WebViewTransport(url)) {
         _logWenku8('compat UTF-8 request start url=$url');
-        if (_isWenku8ReaderChapterUrl(url)) {
+        if (_isWenku8CachePreferredUrl(url)) {
           final cachedHtml = BrowserAssistedFetchService.getCachedHtml(url);
           if (cachedHtml != null) {
-            _logWenku8('compat UTF-8 chapter cache hit url=$url');
+            _logWenku8('compat UTF-8 cache hit url=$url');
             return Success(cachedHtml);
           }
         }
@@ -208,7 +208,33 @@ class Request {
 
   static Future<String?> _fetchWenku8WithWebView(String url) async {
     _logWenku8('start WebView transport url=$url');
-    return Wenku8CfStrategy.resolveHtml(url, allowCache: false);
+    var html = await Wenku8CfStrategy.resolveHtml(
+      url,
+      allowCache: false,
+      timeout: const Duration(seconds: 9),
+    );
+    if (html != null) return html;
+    final altUrl = _wenku8AlternateHostUrl(url);
+    if (altUrl != null) {
+      _logWenku8('retry alternate host url=$altUrl');
+      html = await Wenku8CfStrategy.resolveHtml(
+        altUrl,
+        allowCache: false,
+        timeout: const Duration(seconds: 6),
+      );
+    }
+    return html;
+  }
+
+  static String? _wenku8AlternateHostUrl(String url) {
+    if (!_isWenku8Url(url)) return null;
+    if (url.contains('wenku8.cc')) {
+      return url.replaceFirst('wenku8.cc', 'wenku8.net');
+    }
+    if (url.contains('wenku8.net')) {
+      return url.replaceFirst('wenku8.net', 'wenku8.cc');
+    }
+    return null;
   }
 
   static void _logWenku8(String message) {
@@ -276,12 +302,17 @@ class Request {
       _isWenku8Url(url) &&
       LocalStorageService.instance.getWenku8CompatibilityMode();
 
-  static bool _isWenku8ReaderChapterUrl(String url) {
+  static bool _isWenku8CachePreferredUrl(String url) {
     final uri = Uri.tryParse(url);
-    if (uri == null) return false;
-    return _isWenku8Url(url) &&
-        uri.path.toLowerCase().endsWith('/modules/article/reader.php') &&
-        (uri.queryParameters['cid']?.trim().isNotEmpty ?? false);
+    if (uri == null || !_isWenku8Url(url)) return false;
+    final path = uri.path.toLowerCase();
+    if (path.endsWith('/modules/article/articleinfo.php') ||
+        RegExp(r'/book/\d+\.htm$').hasMatch(path)) {
+      return true;
+    }
+    if (!path.endsWith('/modules/article/reader.php')) return false;
+    final aid = uri.queryParameters['aid']?.trim();
+    return aid != null && aid.isNotEmpty;
   }
 
   static List<String> _wenku8WebViewFallbackUrls(String url) {
@@ -328,10 +359,10 @@ class Request {
         _logWenku8(
           'compat request start url=$url charset=${charsetsType.name}',
         );
-        if (_isWenku8ReaderChapterUrl(url)) {
+        if (_isWenku8CachePreferredUrl(url)) {
           final cachedHtml = BrowserAssistedFetchService.getCachedHtml(url);
           if (cachedHtml != null) {
-            _logWenku8('compat chapter cache hit url=$url');
+            _logWenku8('compat cache hit url=$url');
             return Success(cachedHtml);
           }
         }

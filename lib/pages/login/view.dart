@@ -25,6 +25,11 @@ class LoginPage extends StatelessWidget {
               ? controller.accountMode
                     ? [
                         IconButton(
+                          onPressed: controller.relogin,
+                          icon: const Icon(Icons.login),
+                          tooltip: "source_relogin".tr,
+                        ),
+                        IconButton(
                           onPressed: controller.confirmLoginAndReturn,
                           icon: const Icon(Icons.verified_user),
                           tooltip: "source_check_login_status".tr,
@@ -85,11 +90,11 @@ class LoginPage extends StatelessWidget {
                           key: controller.webViewKey,
                           webViewEnvironment: webViewEnvironment,
                           initialUrlRequest: URLRequest(
-                            url: WebUri(controller.url),
+                            url: WebUri('about:blank'),
                           ),
                           initialSettings: controller.settings,
                           onWebViewCreated: (webController) {
-                            controller.inAppWebViewController = webController;
+                            controller.attachWebView(webController);
                           },
                           onLoadStart: (webController, webUri) {
                             controller.currentUrl.value = webUri.toString();
@@ -99,7 +104,7 @@ class LoginPage extends StatelessWidget {
                               controller.handlePageLoaded(webUri);
                             }
 
-                            if (webUri.toString() == controller.url) {
+                            if (controller.shouldPatchLoginPage(webUri)) {
                               await webController.evaluateJavascript(
                                 // 去掉<浏览器进程>选项，防止获取到临时 cookie。
                                 source: """

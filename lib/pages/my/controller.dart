@@ -12,8 +12,8 @@ import 'package:hikari_novel_flutter/network/yamibo_api.dart';
 import 'package:hikari_novel_flutter/network/yamibo_parser.dart';
 import 'package:hikari_novel_flutter/pages/esjzone_web/view.dart';
 import 'package:hikari_novel_flutter/pages/home/controller.dart';
+import 'package:hikari_novel_flutter/pages/login/view.dart';
 import 'package:hikari_novel_flutter/pages/yamibo_forum/view.dart';
-import 'package:hikari_novel_flutter/router/route_path.dart';
 import 'package:hikari_novel_flutter/service/source_auth_guard.dart';
 import 'package:hikari_novel_flutter/service/source_config_service.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
@@ -86,19 +86,48 @@ class MyController extends GetxController {
   Future<void> openSourceLogin(BuildContext context, NovelSource source) async {
     final navigator = Navigator.of(context, rootNavigator: true);
     final result = switch (source) {
-      NovelSource.wenku8 =>
-        await Get.toNamed(RoutePath.login) as SourceLoginResult?,
-      NovelSource.esj => await navigator.push<SourceLoginResult>(
-        MaterialPageRoute(builder: (_) => const EsjzoneWebPage()),
-      ),
-      NovelSource.yamibo => await navigator.push<YamiboWebLoginResult>(
-        MaterialPageRoute(builder: (_) => const YamiboWebLoginPage()),
-      ),
+      NovelSource.wenku8 => await _openWenku8LoginOrAccount(),
+      NovelSource.esj =>
+        EsjApi.hasCookie
+            ? await navigator.push<SourceLoginResult>(
+                MaterialPageRoute(
+                  builder: (_) => const EsjzoneWebPage(
+                    initialUrl: '${EsjApi.baseUrl}/my/view',
+                    accountMode: true,
+                  ),
+                ),
+              )
+            : await navigator.push<SourceLoginResult>(
+                MaterialPageRoute(builder: (_) => const EsjzoneWebPage()),
+              ),
+      NovelSource.yamibo =>
+        YamiboApi.hasCookie
+            ? await navigator.push<YamiboWebLoginResult>(
+                MaterialPageRoute(
+                  builder: (_) => const YamiboWebLoginPage(accountMode: true),
+                ),
+              )
+            : await navigator.push<YamiboWebLoginResult>(
+                MaterialPageRoute(builder: (_) => const YamiboWebLoginPage()),
+              ),
     };
     if (!context.mounted) return;
     await _handleLoginResult(context, source, result);
     await refreshAccountNames();
     accountRevision.value++;
+  }
+
+  Future<SourceLoginResult?> _openWenku8LoginOrAccount() async {
+    final hasCookie =
+        LocalStorageService.instance.getCookie()?.trim().isNotEmpty == true;
+    if (!hasCookie) return await Get.to<SourceLoginResult>(() => LoginPage());
+    return await Get.to<SourceLoginResult>(
+      () => LoginPage(),
+      arguments: {
+        'accountMode': true,
+        'initialUrl': '${Api.wenku8Node.node}/userdetail.php',
+      },
+    );
   }
 
   Future<void> openSourceAccountWeb(
@@ -107,15 +136,13 @@ class MyController extends GetxController {
   ) async {
     final navigator = Navigator.of(context, rootNavigator: true);
     final result = switch (source) {
-      NovelSource.wenku8 =>
-        await Get.toNamed(
-              RoutePath.login,
-              arguments: {
-                'accountMode': true,
-                'initialUrl': '${Api.wenku8Node.node}/userdetail.php',
-              },
-            )
-            as SourceLoginResult?,
+      NovelSource.wenku8 => await Get.to<SourceLoginResult>(
+        () => LoginPage(),
+        arguments: {
+          'accountMode': true,
+          'initialUrl': '${Api.wenku8Node.node}/userdetail.php',
+        },
+      ),
       NovelSource.esj => await navigator.push<SourceLoginResult>(
         MaterialPageRoute(
           builder: (_) => const EsjzoneWebPage(accountMode: true),

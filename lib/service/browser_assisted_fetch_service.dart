@@ -4,10 +4,10 @@ import 'package:html/parser.dart';
 class BrowserAssistedFetchService {
   const BrowserAssistedFetchService._();
 
-  static List<String> cacheAliasesFor(String url) => _cacheKeys(url);
+  static List<String> cacheAliasesFor(String url) => _lookupCacheKeys(url);
 
   static String? getCachedHtml(String url) {
-    for (final key in _cacheKeys(url)) {
+    for (final key in _lookupCacheKeys(url)) {
       final html = LocalStorageService.instance.getAssistedHtml(key);
       if (html != null && isUsableHtmlForUrl(url, html)) return html;
     }
@@ -25,18 +25,55 @@ class BrowserAssistedFetchService {
 
     void saveFor(String url) {
       if (url.isEmpty || !isUsableHtmlForUrl(url, html)) return;
-      for (final key in _cacheKeys(url)) {
-        if (savedKeys.add(key)) {
-          LocalStorageService.instance.setAssistedHtml(key, html);
-        }
+      final key = _primaryCacheKey(url);
+      if (key.isEmpty || !savedKeys.add(key)) {
+        return;
       }
+      LocalStorageService.instance.setAssistedHtml(key, html);
     }
 
     saveFor(current);
     saveFor(requested);
   }
 
-  static List<String> _cacheKeys(String url) {
+  static List<String> _lookupCacheKeys(String url) {
+    final clean = url.trim();
+    if (clean.isEmpty) return const [];
+    return <String>{
+      _primaryCacheKey(clean),
+      ..._legacyCacheKeys(clean),
+    }.where((key) => key.isNotEmpty).toList(growable: false);
+  }
+
+  static String _primaryCacheKey(String url) {
+    final clean = url.trim();
+    if (clean.isEmpty) return '';
+    final uri = Uri.tryParse(clean);
+    if (uri == null || !uri.host.toLowerCase().contains('wenku8.')) {
+      return clean;
+    }
+    var host = uri.host.toLowerCase();
+    if (host.endsWith('wenku8.net')) {
+      host = host.replaceFirst('wenku8.net', 'wenku8.cc');
+    }
+    var path = uri.path.isEmpty ? '/' : uri.path;
+    if (path == '/index.php') path = '/';
+    final query = _queryWithoutCharset(uri);
+    return uri
+        .replace(host: host, path: path, query: query, fragment: '')
+        .toString();
+  }
+
+  static String? _queryWithoutCharset(Uri uri) {
+    final parts = uri.query.split('&').where((part) {
+      if (part.trim().isEmpty) return false;
+      final key = part.split('=').first.trim().toLowerCase();
+      return key != 'charset';
+    }).toList();
+    return parts.isEmpty ? null : parts.join('&');
+  }
+
+  static List<String> _legacyCacheKeys(String url) {
     final clean = url.trim();
     if (clean.isEmpty) return const [];
     final keys = <String>{clean};
@@ -97,7 +134,15 @@ class BrowserAssistedFetchService {
   static bool isUsableHtml(String html) {
     final normalized = html.toLowerCase();
     if (normalized.length < 200) return false;
-    if (normalized.contains('cf-browser-verification') ||
+    if (isWenku8ChallengeOrWaitHtml(html)) {
+      return false;
+    }
+    return true;
+  }
+
+  static bool isWenku8ChallengeOrWaitHtml(String html) {
+    final normalized = html.toLowerCase();
+    return normalized.contains('cf-browser-verification') ||
         normalized.contains('cf_chl') ||
         normalized.contains('_cf_chl_opt') ||
         normalized.contains('__cf_chl_tk') ||
@@ -107,10 +152,9 @@ class BrowserAssistedFetchService {
         normalized.contains('challenge-running') ||
         normalized.contains('just a moment') ||
         normalized.contains('attention required') ||
-        normalized.contains('access denied')) {
-      return false;
-    }
-    return true;
+        normalized.contains('access denied') ||
+        normalized.contains('<title>\u8bf7\u7a0d\u5019') ||
+        normalized.contains('\u8bf7\u7a0d\u5019...</title>');
   }
 
   static bool isUsableHtmlForUrl(String url, String html) {
@@ -181,11 +225,26 @@ class BrowserAssistedFetchService {
     return null;
   }
 
-  static bool _hasContentElement(String html) =>
-      RegExp(r'''<[^>]+\bid\s*=\s*["']?content["']?''').hasMatch(html);
+  static bool _hasElementId(String html, String id, {String? tag}) {
+    final tagPattern = tag == null ? r'[a-z0-9:-]+' : RegExp.escape(tag);
+    final escapedId = RegExp.escape(id);
+    return RegExp(
+      '<$tagPattern\\b[^>]*\\bid\\s*=\\s*'
+      '(?:"$escapedId"|\'$escapedId\'|$escapedId(?=\\s|/?>))',
+    ).hasMatch(html);
+  }
 
-  static bool _hasCentersElement(String html) =>
-      RegExp(r'''<[^>]+\bid\s*=\s*["']?centers["']?''').hasMatch(html);
+  static bool _hasContentElement(String html) => _hasElementId(html, 'content');
+
+  static bool _hasChapterContentElement(String html) =>
+      _hasContentElement(html) ||
+      _hasElementId(html, 'contentmain') ||
+      _hasElementId(html, 'content', tag: 'td') ||
+      RegExp(
+        r'''<div[^>]+\bclass\s*=\s*["'][^"']*\bcontent\b[^"']*["']''',
+      ).hasMatch(html);
+
+  static bool _hasCentersElement(String html) => _hasElementId(html, 'centers');
 
   static bool _hasBlockClass(String html) =>
       html.contains('class="block"') ||
@@ -200,6 +259,10 @@ class BrowserAssistedFetchService {
       (html.contains('/book/') && html.contains('width:95px'));
 
   static bool _looksLikeWenku8List(String html) {
+    if (_hasElementId(html, 'contentmain') ||
+        _hasElementId(html, 'content', tag: 'td')) {
+      return false;
+    }
     if (_hasCentersElement(html)) return false;
     if (!_hasWenku8ListBookLink(html)) return false;
     final hasListShell = _hasContentElement(html) || _hasListPageMarker(html);
@@ -252,7 +315,7 @@ class BrowserAssistedFetchService {
     if (cid == null || cid.isEmpty) {
       return _looksLikeWenku8Catalogue(html, aid: aid);
     }
-    if (!_hasContentElement(html)) return false;
+    if (!_hasChapterContentElement(html)) return false;
     return _looksLikeWenku8ChapterContent(html);
   }
 

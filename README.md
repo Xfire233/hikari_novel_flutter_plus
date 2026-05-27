@@ -1,6 +1,6 @@
 # Hikari Novel Plus 叉烧魔改版
 
-> 基于 [15dd/hikari_novel_flutter](https://github.com/15dd/hikari_novel_flutter) 的独立 fork。当前版本：`1.2.1`。
+> 基于 [15dd/hikari_novel_flutter](https://github.com/15dd/hikari_novel_flutter) 的独立 fork。当前版本：`1.2.2`。
 
 这是一个围绕 Hikari Novel 大幅改造的多来源阅读器。原项目主要服务 Wenku8，本 fork 追加 ESJZone 和 Yamibo，并重做了来源启用、登录、书架、搜索、收藏同步、阅读器和电子墨水屏浏览逻辑。当前项目不以向原项目提交 PR 为目标，只作为独立 fork 使用。
 
@@ -63,6 +63,13 @@
 7. 同包名覆盖安装不会清理本地数据库、Hive 设置、书架、阅读记录和缓存；卸载应用或清除应用数据会丢失本地数据。
 
 ## 版本记录
+
+### 1.2.2
+
+- 修复 Wenku8 兼容模式在分类、排行榜、详情和正文连续抓取时的缓存、校验和超时问题，减少空目录和兼容模式加载失败误报。
+- 改进 Wenku8 兼容模式的加载反馈、错误信息和已抓取内容复用，失败时保留可截图反馈的信息。
+- 修复 ESJZone / Yamibo 有本地 Cookie 时仍要求重新登录的问题；账号检查页会先使用现有 Cookie，右上角保留“重新登录”作为显式入口。
+- “同步/检查登录状态”和“手动获取在线收藏”拆开处理，检查登录状态不再误触发收藏同步。
 
 ### 1.2.1
 

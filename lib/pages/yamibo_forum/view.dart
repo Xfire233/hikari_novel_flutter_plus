@@ -691,8 +691,13 @@ class _YamiboHomeTabButton extends StatelessWidget {
 }
 
 class YamiboWebLoginPage extends StatefulWidget {
-  const YamiboWebLoginPage({super.key, this.accountMode = false});
+  const YamiboWebLoginPage({
+    super.key,
+    this.initialUrl,
+    this.accountMode = false,
+  });
 
+  final String? initialUrl;
   final bool accountMode;
 
   @override
@@ -704,6 +709,8 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
   InAppWebViewController? _webViewController;
   double _progress = 0;
   String _title = 'Yamibo';
+  String get _initialUrl =>
+      widget.initialUrl ?? '${YamiboApi.baseUrl}/forum.php?mobile=2';
 
   @override
   Widget build(BuildContext context) {
@@ -722,6 +729,11 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
           title: Text(_title),
           actions: widget.accountMode
               ? [
+                  IconButton(
+                    onPressed: _relogin,
+                    icon: const Icon(Icons.login),
+                    tooltip: 'source_relogin'.tr,
+                  ),
                   IconButton(
                     onPressed: _syncAndCloseIfLoggedIn,
                     icon: const Icon(Icons.verified_user_outlined),
@@ -751,9 +763,7 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
             Expanded(
               child: InAppWebView(
                 webViewEnvironment: webViewEnvironment,
-                initialUrlRequest: URLRequest(
-                  url: WebUri('${YamiboApi.baseUrl}/forum.php?mobile=2'),
-                ),
+                initialUrlRequest: URLRequest(url: WebUri('about:blank')),
                 initialSettings: InAppWebViewSettings(
                   javaScriptEnabled: true,
                   mediaPlaybackRequiresUserGesture: false,
@@ -764,8 +774,15 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
                   thirdPartyCookiesEnabled: true,
                   userAgent: Request.userAgent.values.first,
                 ),
-                onWebViewCreated: (controller) =>
-                    _webViewController = controller,
+                onWebViewCreated: (controller) async {
+                  _webViewController = controller;
+                  if (widget.accountMode) {
+                    await _syncStoredCookiesToWebView();
+                  }
+                  await controller.loadUrl(
+                    urlRequest: URLRequest(url: WebUri(_initialUrl)),
+                  );
+                },
                 onTitleChanged: (_, title) {
                   if (!mounted) return;
                   setState(() {
@@ -774,7 +791,10 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
                         : 'Yamibo';
                   });
                 },
-                onLoadStop: (_, _) => _syncCookie(silent: true),
+                onLoadStop: (_, url) async {
+                  if (url?.scheme == 'about') return;
+                  await _syncCookie(silent: true);
+                },
                 onProgressChanged: (_, progress) {
                   if (!mounted) return;
                   setState(() => _progress = progress / 100);
@@ -790,9 +810,23 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
   Future<void> _syncAndCloseIfLoggedIn() async {
     final loggedIn = await _syncCookie();
     if (!mounted || !loggedIn) return;
-    Navigator.of(
-      context,
-    ).pop(const YamiboWebLoginResult(loggedIn: true, syncFavorites: true));
+    Navigator.of(context).pop(
+      YamiboWebLoginResult(loggedIn: true, syncFavorites: !widget.accountMode),
+    );
+  }
+
+  Future<void> _relogin() async {
+    await _cookieManager.deleteCookies(url: WebUri(YamiboApi.baseUrl));
+    LocalStorageService.instance.setYamiboCookie(null);
+    final loginUrl = '${YamiboApi.baseUrl}/forum.php?mobile=2';
+    if (mounted) {
+      setState(() {
+        _progress = 0;
+      });
+    }
+    await _webViewController?.loadUrl(
+      urlRequest: URLRequest(url: WebUri(loginUrl)),
+    );
   }
 
   Future<void> _syncFavorites() async {
@@ -849,6 +883,32 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
       );
     }
     return loggedIn;
+  }
+
+  Future<void> _syncStoredCookiesToWebView() async {
+    final stored = LocalStorageService.instance.getYamiboCookie();
+    if (stored == null || stored.trim().isEmpty) return;
+    for (final entry in _parseCookieHeader(stored).entries) {
+      await _cookieManager.setCookie(
+        url: WebUri(YamiboApi.baseUrl),
+        name: entry.key,
+        value: entry.value,
+        path: '/',
+        isSecure: true,
+      );
+    }
+  }
+
+  Map<String, String> _parseCookieHeader(String value) {
+    final result = <String, String>{};
+    for (final part in value.split(';')) {
+      final index = part.indexOf('=');
+      if (index <= 0) continue;
+      final key = part.substring(0, index).trim();
+      final cookieValue = part.substring(index + 1).trim();
+      if (key.isNotEmpty && cookieValue.isNotEmpty) result[key] = cookieValue;
+    }
+    return result;
   }
 }
 

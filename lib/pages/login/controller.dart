@@ -8,8 +8,8 @@ import 'package:hikari_novel_flutter/models/page_state.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
 import 'package:hikari_novel_flutter/models/source_login_result.dart';
 import 'package:hikari_novel_flutter/network/request.dart';
-import 'package:hikari_novel_flutter/pages/bookshelf/controller.dart';
 import 'package:hikari_novel_flutter/service/source_config_service.dart';
+import 'package:hikari_novel_flutter/service/wenku8_webview_cookie_sync_service.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
 
 import '../../common/log.dart';
@@ -38,6 +38,7 @@ class LoginController extends GetxController {
   Rx<PageState> pageState = PageState.success.obs;
   String errorMsg = "";
   bool _handlingLogin = false;
+  bool _initialLoadStarted = false;
   late final bool accountMode;
   late final String initialUrl;
 
@@ -52,9 +53,31 @@ class LoginController extends GetxController {
     initialUrl = argUrl.isNotEmpty
         ? argUrl
         : "${Api.wenku8Node.node}/login.php";
-    if (!accountMode) {
-      cookieManager.deleteAllCookies();
+  }
+
+  Future<void> attachWebView(InAppWebViewController webController) async {
+    inAppWebViewController = webController;
+    if (_initialLoadStarted) return;
+    _initialLoadStarted = true;
+    if (accountMode) {
+      await Wenku8WebViewCookieSyncService.syncStoredCookiesToWebView();
+    } else {
+      await cookieManager.deleteAllCookies();
     }
+    await webController.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+  }
+
+  Future<void> relogin() async {
+    await cookieManager.deleteAllCookies();
+    LocalStorageService.instance.setCookie(null);
+    Request.deleteCookie();
+    final loginUrl = '${Api.wenku8Node.node}/login.php';
+    currentUrl.value = loginUrl;
+    showLoading.value = true;
+    loadingProgress.value = 0;
+    await inAppWebViewController?.loadUrl(
+      urlRequest: URLRequest(url: WebUri(loginUrl)),
+    );
   }
 
   Future<void> handlePageLoaded(WebUri uri) async {
@@ -64,6 +87,9 @@ class LoginController extends GetxController {
       return;
     }
   }
+
+  bool shouldPatchLoginPage(WebUri? uri) =>
+      uri?.path.toLowerCase().endsWith('/login.php') == true;
 
   Future<void> confirmLoginAndReturn() async {
     final current = await inAppWebViewController?.getUrl();
@@ -86,7 +112,7 @@ class LoginController extends GetxController {
     await _runPostLoginStep("refresh Wenku8 user info", _getUserInfo);
 
     Get.back(
-      result: const SourceLoginResult(loggedIn: true, syncFavorites: true),
+      result: SourceLoginResult(loggedIn: true, syncFavorites: !accountMode),
     );
   }
 
@@ -106,11 +132,9 @@ class LoginController extends GetxController {
     SourceConfigService.instance.setSourceEnabled(NovelSource.wenku8, true);
     Request.initCookie();
     await _runPostLoginStep("refresh Wenku8 user info", _getUserInfo);
-    final controller = Get.isRegistered<BookshelfController>()
-        ? Get.find<BookshelfController>()
-        : Get.put(BookshelfController());
-    final message = await controller.refreshSource(NovelSource.wenku8);
-    _showMessageSnackBar(message);
+    Get.back(
+      result: const SourceLoginResult(loggedIn: true, syncFavorites: true),
+    );
   }
 
   void _showVerificationSnackBar(String key) {

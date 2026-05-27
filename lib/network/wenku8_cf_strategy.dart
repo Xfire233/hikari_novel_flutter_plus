@@ -10,6 +10,7 @@ class Wenku8CfStrategy {
   static Future<String?> resolveHtml(
     String url, {
     bool allowCache = true,
+    Duration timeout = const Duration(seconds: 12),
   }) async {
     _log('resolve start url=$url allowCache=$allowCache');
     if (allowCache) {
@@ -21,13 +22,12 @@ class Wenku8CfStrategy {
     }
 
     final persistentHtml =
-        await Wenku8WebViewTransport.get(
-          url,
-          timeout: const Duration(seconds: 12),
-        ).timeout(
-          const Duration(seconds: 27),
+        await Wenku8WebViewTransport.get(url, timeout: timeout).timeout(
+          timeout + const Duration(seconds: 4),
           onTimeout: () {
-            Log.e('Wenku8 persistent WebView transport timed out for $url');
+            final msg =
+                'Wenku8 persistent WebView transport timed out for $url';
+            Log.e(msg);
             return null;
           },
         );

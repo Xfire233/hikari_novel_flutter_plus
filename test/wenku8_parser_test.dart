@@ -404,11 +404,54 @@ void main() {
       ),
       isTrue,
     );
+    const chapterHtmlWithContentMain =
+        '<html xmlns="http://www.w3.org/1999/xhtml"><head>'
+        '<meta http-equiv="Content-Type" content="text/html; charset=gbk">'
+        '<title>Chapter Title</title></head><body>'
+        '<div id="contentmain">'
+        '<ul id="contentdp"></ul>'
+        '<p>chapter body chapter body chapter body chapter body chapter body '
+        'chapter body chapter body chapter body chapter body chapter body '
+        'chapter body chapter body chapter body chapter body chapter body.</p>'
+        '</div></body></html>';
+    expect(
+      BrowserAssistedFetchService.isUsableHtmlForUrl(
+        'https://www.wenku8.cc/modules/article/reader.php?aid=123&cid=456',
+        chapterHtmlWithContentMain,
+      ),
+      isTrue,
+    );
+    const chapterHtmlWithContentMainAndSiteNav =
+        '<html xmlns="http://www.w3.org/1999/xhtml"><head>'
+        '<title>Chapter Title</title></head><body>'
+        '<a href="/modules/article/tags.php?t=test">tag nav</a>'
+        '<a href="/book/123.htm">book detail</a>'
+        '<a href="/book/456.htm">related book</a>'
+        '<div id="contentmain">'
+        '<p>chapter body chapter body chapter body chapter body chapter body '
+        'chapter body chapter body chapter body chapter body chapter body '
+        'chapter body chapter body chapter body chapter body chapter body.</p>'
+        '</div></body></html>';
+    expect(
+      BrowserAssistedFetchService.isUsableHtmlForUrl(
+        'https://www.wenku8.cc/modules/article/reader.php?aid=123&cid=456',
+        chapterHtmlWithContentMainAndSiteNav,
+      ),
+      isTrue,
+    );
   });
 
   test('Wenku8 assisted validation rejects challenge and wrong home aliases', () {
     const challengeHtml =
         '<html><body>Just a moment<script>window._cf_chl_opt={}</script></body></html>';
+    const waitHtml =
+        '<html lang="en-US" dir="ltr"><head><title>\u8bf7\u7a0d\u5019...'
+        '</title><meta http-equiv="Content-Type" content="text/html; '
+        'charset=UTF-8"></head><body>'
+        '<script>setTimeout(function(){ location.reload(); }, 1000);</script>'
+        '<p>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p>'
+        '</body></html>';
     const listHtml =
         '<html><body><div id="content">'
         '<div style="width:373px;height:136px;float:left;margin:5px 0px 5px 5px;">'
@@ -422,6 +465,17 @@ void main() {
         challengeHtml,
       ),
       isFalse,
+    );
+    expect(
+      BrowserAssistedFetchService.isUsableHtmlForUrl(
+        'https://www.wenku8.cc/modules/article/toplist.php?sort=lastupdate&page=1',
+        waitHtml,
+      ),
+      isFalse,
+    );
+    expect(
+      BrowserAssistedFetchService.isWenku8ChallengeOrWaitHtml(waitHtml),
+      isTrue,
     );
     expect(
       BrowserAssistedFetchService.isUsableHtmlForUrl(

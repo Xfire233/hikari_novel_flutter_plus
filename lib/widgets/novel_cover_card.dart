@@ -19,55 +19,57 @@ class NovelCoverCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imageUrl = novelCover.imageUrl?.trim();
-    return InkWell(
-      borderRadius: BorderRadius.circular(kCardBorderRadius),
-      onTap: () =>
-          AppSubRouter.toNovelDetail(aid: novelCover.aid, cover: novelCover),
-      child: Card(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(kCardBorderRadius),
-        ),
-        elevation: 0,
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: [
-            AspectRatio(
-              aspectRatio: 9 / 13.5,
-              child: _CoverImage(
-                imageUrl: imageUrl,
-                title: novelCover.title,
-                source: SourceFavoriteAdapter.sourceOfAid(novelCover.aid),
+    return RepaintBoundary(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(kCardBorderRadius),
+        onTap: () =>
+            AppSubRouter.toNovelDetail(aid: novelCover.aid, cover: novelCover),
+        child: Card(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(kCardBorderRadius),
+          ),
+          elevation: 0,
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              AspectRatio(
+                aspectRatio: 9 / 13.5,
+                child: _CoverImage(
+                  imageUrl: imageUrl,
+                  title: novelCover.title,
+                  source: SourceFavoriteAdapter.sourceOfAid(novelCover.aid),
+                ),
               ),
-            ),
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.center,
-                    end: Alignment.bottomCenter, // 渐变到图片一半
-                    colors: [
-                      Colors.black.withValues(alpha: 0),
-                      Colors.black.withValues(alpha: 1),
-                    ],
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.center,
+                      end: Alignment.bottomCenter, // 渐变到图片一半
+                      colors: [
+                        Colors.black.withValues(alpha: 0),
+                        Colors.black.withValues(alpha: 1),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            Container(
-              alignment: Alignment.bottomLeft,
-              width: double.infinity, //充满父组件宽度
-              child: Padding(
-                padding: EdgeInsets.all(6),
-                child: Text(
-                  novelCover.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.start,
-                  style: const TextStyle(fontSize: 12, color: Colors.white),
+              Container(
+                alignment: Alignment.bottomLeft,
+                width: double.infinity, //充满父组件宽度
+                child: Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Text(
+                    novelCover.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.start,
+                    style: const TextStyle(fontSize: 12, color: Colors.white),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -92,128 +94,134 @@ class BookshelfCoverCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return GestureDetector(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Stack(
-        children: [
-          Card(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(kCardBorderRadius),
-            ),
-            elevation: 0,
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              children: [
-                AspectRatio(
-                  aspectRatio: 9 / 13.5,
-                  child: _CoverImage(
-                    imageUrl: bookshelfNovelInfo.img,
-                    title: bookshelfNovelInfo.title,
-                    source: SourceFavoriteAdapter.sourceOfAid(
-                      bookshelfNovelInfo.aid,
-                    ),
-                  ),
-                ),
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.center,
-                        end: Alignment.bottomCenter, // 渐变到图片一半
-                        colors: [
-                          Colors.black.withValues(alpha: 0),
-                          Colors.black.withValues(alpha: 1),
-                        ],
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Stack(
+          children: [
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(kCardBorderRadius),
+              ),
+              elevation: 0,
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                children: [
+                  AspectRatio(
+                    aspectRatio: 9 / 13.5,
+                    child: _CoverImage(
+                      imageUrl: bookshelfNovelInfo.img,
+                      title: bookshelfNovelInfo.title,
+                      source: SourceFavoriteAdapter.sourceOfAid(
+                        bookshelfNovelInfo.aid,
                       ),
                     ),
                   ),
-                ),
-                Positioned(
-                  left: 6,
-                  right: 6,
-                  bottom: 30,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: DecoratedBox(
+                  Positioned.fill(
+                    child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.50),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 2,
-                        ),
-                        child: LocalRatingBar(
-                          rating: bookshelfNovelInfo.rating,
-                          onChanged: onRatingChanged,
-                          size: 14,
-                          showValue: false,
-                          compact: true,
+                        gradient: LinearGradient(
+                          begin: Alignment.center,
+                          end: Alignment.bottomCenter, // 渐变到图片一半
+                          colors: [
+                            Colors.black.withValues(alpha: 0),
+                            Colors.black.withValues(alpha: 1),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                ),
-                Container(
-                  alignment: Alignment.bottomLeft,
-                  width: double.infinity, //充满父组件宽度
-                  child: Padding(
-                    padding: EdgeInsets.all(6),
-                    child: Text(
-                      bookshelfNovelInfo.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.start,
-                      style: TextStyle(fontSize: 12, color: Colors.white),
+                  Positioned(
+                    left: 6,
+                    right: 6,
+                    bottom: 30,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.50),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          child: LocalRatingBar(
+                            rating: bookshelfNovelInfo.rating,
+                            onChanged: onRatingChanged,
+                            size: 14,
+                            showValue: false,
+                            compact: true,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  Container(
+                    alignment: Alignment.bottomLeft,
+                    width: double.infinity, //充满父组件宽度
+                    child: Padding(
+                      padding: EdgeInsets.all(6),
+                      child: Text(
+                        bookshelfNovelInfo.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.start,
+                        style: TextStyle(fontSize: 12, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          if (bookshelfNovelInfo.hasUpdate || bookshelfNovelInfo.isReadComplete)
-            Positioned(
-              top: 6,
-              right: 6,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                decoration: BoxDecoration(
-                  color: bookshelfNovelInfo.hasUpdate
-                      ? colorScheme.primary
-                      : colorScheme.secondaryContainer,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  bookshelfNovelInfo.hasUpdate
-                      ? "updated".tr
-                      : "read_complete".tr,
-                  style: TextStyle(
+            if (bookshelfNovelInfo.hasUpdate ||
+                bookshelfNovelInfo.isReadComplete)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
                     color: bookshelfNovelInfo.hasUpdate
-                        ? colorScheme.onPrimary
-                        : colorScheme.onSecondaryContainer,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
+                        ? colorScheme.primary
+                        : colorScheme.secondaryContainer,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    bookshelfNovelInfo.hasUpdate
+                        ? "updated".tr
+                        : "read_complete".tr,
+                    style: TextStyle(
+                      color: bookshelfNovelInfo.hasUpdate
+                          ? colorScheme.onPrimary
+                          : colorScheme.onSecondaryContainer,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            Obx(
+              () => Offstage(
+                offstage: !bookshelfNovelInfo.isSelected.value,
+                child: Container(
+                  decoration: ShapeDecoration(
+                    shape: RoundedSuperellipseBorder(
+                      borderRadius: BorderRadius.circular(kCardBorderRadius),
+                      side: BorderSide(color: colorScheme.primary, width: 5),
+                    ),
+                    color: Colors.grey.withAlpha(128),
                   ),
                 ),
               ),
             ),
-          Obx(
-            () => Offstage(
-              offstage: !bookshelfNovelInfo.isSelected.value,
-              child: Container(
-                decoration: ShapeDecoration(
-                  shape: RoundedSuperellipseBorder(
-                    borderRadius: BorderRadius.circular(kCardBorderRadius),
-                    side: BorderSide(color: colorScheme.primary, width: 5),
-                  ),
-                  color: Colors.grey.withAlpha(128),
-                ),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -239,15 +247,31 @@ class _CoverImage extends StatelessWidget {
     if (!_isUsableNetworkUrl(url) || _isPlaceholderOnlyUrl(url)) {
       return _CoverPlaceholder(title: title, source: source);
     }
-    return CachedNetworkImage(
-      imageUrl: url,
-      httpHeaders: Request.userAgent,
-      fit: BoxFit.cover,
-      progressIndicatorBuilder: (context, url, downloadProgress) => Center(
-        child: CircularProgressIndicator(value: downloadProgress.progress),
-      ),
-      errorWidget: (context, url, error) =>
-          _CoverPlaceholder(title: title, source: source),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final dpr = MediaQuery.devicePixelRatioOf(context);
+        final width = constraints.maxWidth.isFinite
+            ? (constraints.maxWidth * dpr).round().clamp(1, 1600)
+            : null;
+        final height = constraints.maxHeight.isFinite
+            ? (constraints.maxHeight * dpr).round().clamp(1, 2400)
+            : null;
+        return CachedNetworkImage(
+          imageUrl: url,
+          httpHeaders: Request.userAgent,
+          fit: BoxFit.cover,
+          memCacheWidth: width,
+          memCacheHeight: height,
+          fadeInDuration: Duration.zero,
+          fadeOutDuration: Duration.zero,
+          placeholderFadeInDuration: Duration.zero,
+          progressIndicatorBuilder: (context, url, downloadProgress) => Center(
+            child: CircularProgressIndicator(value: downloadProgress.progress),
+          ),
+          errorWidget: (context, url, error) =>
+              _CoverPlaceholder(title: title, source: source),
+        );
+      },
     );
   }
 

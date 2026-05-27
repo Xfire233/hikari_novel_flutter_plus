@@ -35,65 +35,74 @@ class _Wenku8WebViewTransportHostState
         if (!required) {
           return const SizedBox.shrink();
         }
-        return Positioned(
-          left: -4,
-          top: -4,
-          width: 2,
-          height: 2,
-          child: IgnorePointer(
-            child: ExcludeSemantics(
-              child: InAppWebView(
-                gestureRecognizers:
-                    const <Factory<OneSequenceGestureRecognizer>>{},
-                initialUrlRequest: URLRequest(url: WebUri('about:blank')),
-                initialSettings: InAppWebViewSettings(
-                  isInspectable: kDebugMode,
-                  userAgent: Request.webViewUserAgentOverride,
-                  javaScriptEnabled: true,
-                  useHybridComposition: false,
-                  loadsImagesAutomatically: true,
-                  mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
-                  cacheEnabled: true,
-                  clearCache: false,
-                  transparentBackground: false,
-                  supportMultipleWindows: false,
-                  useShouldOverrideUrlLoading: false,
-                ),
-                webViewEnvironment: webViewEnvironment,
-                onWebViewCreated: (controller) {
-                  _controller = controller;
-                  Wenku8WebViewTransport.attach(controller);
-                },
-                onLoadStart: (controller, uri) {
-                  Wenku8WebViewTransport.notifyLoadStart(controller, uri);
-                },
-                onLoadStop: (controller, uri) {
-                  Wenku8WebViewTransport.notifyLoadStop(controller, uri);
-                },
-                onProgressChanged: (controller, progress) {
-                  Wenku8WebViewTransport.notifyLoadProgress(
-                    controller,
-                    progress,
-                  );
-                },
-                onReceivedError: (controller, request, error) {
-                  if (request.isForMainFrame == true) {
-                    Wenku8WebViewTransport.notifyLoadError(
-                      controller,
-                      error.description,
-                    );
-                  }
-                },
-                onReceivedHttpError: (controller, request, errorResponse) {
-                  if (request.isForMainFrame == true) {
-                    Wenku8WebViewTransport.notifyLoadError(
-                      controller,
-                      'HTTP ${errorResponse.statusCode}',
-                    );
-                  }
-                },
+        return ValueListenableBuilder<bool>(
+          valueListenable: Wenku8WebViewTransport.hostActive,
+          builder: (context, active, child) {
+            final webView = IgnorePointer(
+              child: ExcludeSemantics(
+                child: Opacity(opacity: 0.01, child: child),
               ),
+            );
+            if (!active) {
+              return Positioned(
+                left: -2,
+                top: -2,
+                width: 1,
+                height: 1,
+                child: webView,
+              );
+            }
+            return Positioned.fill(child: webView);
+          },
+          child: InAppWebView(
+            gestureRecognizers: const <Factory<OneSequenceGestureRecognizer>>{},
+            initialUrlRequest: URLRequest(url: WebUri('about:blank')),
+            initialSettings: InAppWebViewSettings(
+              isInspectable: kDebugMode,
+              userAgent: Request.webViewUserAgentOverride,
+              javaScriptEnabled: true,
+              domStorageEnabled: true,
+              databaseEnabled: true,
+              thirdPartyCookiesEnabled: true,
+              useHybridComposition: true,
+              loadsImagesAutomatically: false,
+              mixedContentMode: MixedContentMode.MIXED_CONTENT_ALWAYS_ALLOW,
+              cacheEnabled: true,
+              clearCache: false,
+              transparentBackground: false,
+              supportMultipleWindows: false,
+              useShouldOverrideUrlLoading: false,
             ),
+            webViewEnvironment: webViewEnvironment,
+            onWebViewCreated: (controller) {
+              _controller = controller;
+              Wenku8WebViewTransport.attach(controller);
+            },
+            onLoadStart: (controller, uri) {
+              Wenku8WebViewTransport.notifyLoadStart(controller, uri);
+            },
+            onLoadStop: (controller, uri) {
+              Wenku8WebViewTransport.notifyLoadStop(controller, uri);
+            },
+            onProgressChanged: (controller, progress) {
+              Wenku8WebViewTransport.notifyLoadProgress(controller, progress);
+            },
+            onReceivedError: (controller, request, error) {
+              if (request.isForMainFrame == true) {
+                Wenku8WebViewTransport.notifyLoadError(
+                  controller,
+                  error.description,
+                );
+              }
+            },
+            onReceivedHttpError: (controller, request, errorResponse) {
+              if (request.isForMainFrame == true) {
+                Wenku8WebViewTransport.notifyLoadError(
+                  controller,
+                  'HTTP ${errorResponse.statusCode}',
+                );
+              }
+            },
           ),
         );
       },

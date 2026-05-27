@@ -5,16 +5,18 @@ import 'package:hikari_novel_flutter/models/common/wenku8_node.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
 import 'package:hikari_novel_flutter/models/source_login_result.dart';
 import 'package:hikari_novel_flutter/network/api.dart';
+import 'package:hikari_novel_flutter/network/esj_api.dart';
+import 'package:hikari_novel_flutter/network/yamibo_api.dart';
 import 'package:hikari_novel_flutter/pages/category/view.dart';
 import 'package:hikari_novel_flutter/pages/completion/view.dart';
 import 'package:hikari_novel_flutter/pages/esj/view.dart';
 import 'package:hikari_novel_flutter/pages/esjzone_web/view.dart';
 import 'package:hikari_novel_flutter/pages/home/controller.dart';
+import 'package:hikari_novel_flutter/pages/login/view.dart';
 import 'package:hikari_novel_flutter/pages/ranking/view.dart';
 import 'package:hikari_novel_flutter/pages/recommend/view.dart';
 import 'package:hikari_novel_flutter/pages/yamibo_forum/view.dart';
 import 'package:hikari_novel_flutter/router/app_sub_router.dart';
-import 'package:hikari_novel_flutter/router/route_path.dart';
 import 'package:hikari_novel_flutter/service/local_storage_service.dart';
 import 'package:hikari_novel_flutter/widgets/source_backdrop.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
@@ -860,19 +862,22 @@ class _HomeSourceMenu extends StatelessWidget {
       icon: const Icon(Icons.more_vert),
       tooltip: 'source_more_actions'.tr,
       constraints: const BoxConstraints(minWidth: 216, maxWidth: 256),
-      onSelected: (action) async {
+      onSelected: (action) {
         controller.collapseSourcePicker();
-        switch (action) {
-          case _HomeMenuAction.login:
-            await _openSourceLogin(context, source);
-          case _HomeMenuAction.syncBookshelf:
-            final message = await controller.syncSourceBookshelf(source);
-            if (context.mounted) {
-              showSnackBar(message: message, context: context);
-            }
-          case _HomeMenuAction.openWeb:
-            await _openSourceWeb(context, source);
-        }
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!context.mounted) return;
+          switch (action) {
+            case _HomeMenuAction.login:
+              await _openSourceLogin(context, source);
+            case _HomeMenuAction.syncBookshelf:
+              final message = await controller.syncSourceBookshelf(source);
+              if (context.mounted) {
+                showSnackBar(message: message, context: context);
+              }
+            case _HomeMenuAction.openWeb:
+              await _openSourceWeb(context, source);
+          }
+        });
       },
       itemBuilder: (menuContext) => [
         PopupMenuItem(
@@ -951,7 +956,11 @@ class _HomeSourceMenu extends StatelessWidget {
             child: SwitchListTile(
               dense: true,
               contentPadding: const EdgeInsetsDirectional.fromSTEB(
-                16, 0, 10, 0),
+                16,
+                0,
+                10,
+                0,
+              ),
               secondary: const Icon(Icons.lan_outlined, size: 22),
               title: Text(
                 'node'.tr,
@@ -960,12 +969,15 @@ class _HomeSourceMenu extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               subtitle: Text(
-                Uri.parse(LocalStorageService.instance.getWenku8Node().node).host,
+                Uri.parse(
+                  LocalStorageService.instance.getWenku8Node().node,
+                ).host,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
-              value: LocalStorageService.instance.getWenku8Node() ==
+              value:
+                  LocalStorageService.instance.getWenku8Node() ==
                   Wenku8Node.wwwWenku8Cc,
               onChanged: (value) async {
                 Navigator.of(menuContext).pop();
@@ -1068,14 +1080,30 @@ enum _HomeMenuAction { login, syncBookshelf, openWeb }
 Future<void> _openSourceLogin(BuildContext context, NovelSource source) async {
   final navigator = Navigator.of(context, rootNavigator: true);
   final result = switch (source) {
-    NovelSource.wenku8 =>
-      await Get.toNamed(RoutePath.login) as SourceLoginResult?,
-    NovelSource.esj => await navigator.push<SourceLoginResult>(
-      MaterialPageRoute(builder: (_) => const EsjzoneWebPage()),
-    ),
-    NovelSource.yamibo => await navigator.push<YamiboWebLoginResult>(
-      MaterialPageRoute(builder: (_) => const YamiboWebLoginPage()),
-    ),
+    NovelSource.wenku8 => await _openWenku8LoginOrAccount(),
+    NovelSource.esj =>
+      EsjApi.hasCookie
+          ? await navigator.push<SourceLoginResult>(
+              MaterialPageRoute(
+                builder: (_) => const EsjzoneWebPage(
+                  initialUrl: '${EsjApi.baseUrl}/my/view',
+                  accountMode: true,
+                ),
+              ),
+            )
+          : await navigator.push<SourceLoginResult>(
+              MaterialPageRoute(builder: (_) => const EsjzoneWebPage()),
+            ),
+    NovelSource.yamibo =>
+      YamiboApi.hasCookie
+          ? await navigator.push<YamiboWebLoginResult>(
+              MaterialPageRoute(
+                builder: (_) => const YamiboWebLoginPage(accountMode: true),
+              ),
+            )
+          : await navigator.push<YamiboWebLoginResult>(
+              MaterialPageRoute(builder: (_) => const YamiboWebLoginPage()),
+            ),
   };
   if (!context.mounted || result?.loggedIn != true) return;
   final message = await Get.find<HomeController>().handleConfirmedLogin(
@@ -1087,18 +1115,29 @@ Future<void> _openSourceLogin(BuildContext context, NovelSource source) async {
   }
 }
 
+Future<SourceLoginResult?> _openWenku8LoginOrAccount() async {
+  final hasCookie =
+      LocalStorageService.instance.getCookie()?.trim().isNotEmpty == true;
+  if (!hasCookie) return await Get.to<SourceLoginResult>(() => LoginPage());
+  return await Get.to<SourceLoginResult>(
+    () => LoginPage(),
+    arguments: {
+      'accountMode': true,
+      'initialUrl': '${Api.wenku8Node.node}/userdetail.php',
+    },
+  );
+}
+
 Future<void> _openSourceWeb(BuildContext context, NovelSource source) async {
   final navigator = Navigator.of(context, rootNavigator: true);
   final result = switch (source) {
-    NovelSource.wenku8 =>
-      await Get.toNamed(
-            RoutePath.login,
-            arguments: {
-              'accountMode': true,
-              'initialUrl': '${Api.wenku8Node.node}/userdetail.php',
-            },
-          )
-          as SourceLoginResult?,
+    NovelSource.wenku8 => await Get.to<SourceLoginResult>(
+      () => LoginPage(),
+      arguments: {
+        'accountMode': true,
+        'initialUrl': '${Api.wenku8Node.node}/userdetail.php',
+      },
+    ),
     NovelSource.esj => await navigator.push<SourceLoginResult>(
       MaterialPageRoute(
         builder: (_) => const EsjzoneWebPage(accountMode: true),

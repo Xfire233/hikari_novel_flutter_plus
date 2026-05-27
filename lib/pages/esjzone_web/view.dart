@@ -65,6 +65,11 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
           actions: widget.accountMode
               ? [
                   IconButton(
+                    onPressed: _relogin,
+                    icon: const Icon(Icons.login),
+                    tooltip: 'source_relogin'.tr,
+                  ),
+                  IconButton(
                     onPressed: _confirmLoginAndClose,
                     icon: const Icon(Icons.verified_user_outlined),
                     tooltip: 'source_check_login_status'.tr,
@@ -122,7 +127,7 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
                     top: false,
                     child: InAppWebView(
                       webViewEnvironment: webViewEnvironment,
-                      initialUrlRequest: URLRequest(url: WebUri(_currentUrl)),
+                      initialUrlRequest: URLRequest(url: WebUri('about:blank')),
                       initialSettings: InAppWebViewSettings(
                         javaScriptEnabled: true,
                         mediaPlaybackRequiresUserGesture: false,
@@ -133,8 +138,17 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
                         thirdPartyCookiesEnabled: true,
                         userAgent: Request.userAgent.values.first,
                       ),
-                      onWebViewCreated: (controller) =>
-                          _webViewController = controller,
+                      onWebViewCreated: (controller) async {
+                        _webViewController = controller;
+                        if (widget.accountMode) {
+                          await _syncStoredCookiesToWebView();
+                        }
+                        await controller.loadUrl(
+                          urlRequest: URLRequest(
+                            url: WebUri(widget.initialUrl ?? EsjApi.baseUrl),
+                          ),
+                        );
+                      },
                       onTitleChanged: (_, title) {
                         if (!mounted) return;
                         setState(
@@ -144,6 +158,7 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
                         );
                       },
                       onLoadStart: (_, url) {
+                        if (url?.scheme == 'about') return;
                         if (!mounted) return;
                         setState(() {
                           _errorMessage = null;
@@ -151,6 +166,7 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
                         });
                       },
                       onLoadStop: (_, url) async {
+                        if (url?.scheme == 'about') return;
                         if (!mounted) return;
                         setState(
                           () => _currentUrl = url?.toString() ?? _currentUrl,
@@ -216,9 +232,25 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
   Future<void> _confirmLoginAndClose() async {
     final loggedIn = await _syncCookie();
     if (!mounted || !loggedIn) return;
-    Navigator.of(
-      context,
-    ).pop(const SourceLoginResult(loggedIn: true, syncFavorites: true));
+    Navigator.of(context).pop(
+      SourceLoginResult(loggedIn: true, syncFavorites: !widget.accountMode),
+    );
+  }
+
+  Future<void> _relogin() async {
+    await _cookieManager.deleteCookies(url: WebUri(EsjApi.baseUrl));
+    LocalStorageService.instance.setEsjCookie(null);
+    const loginUrl = EsjApi.baseUrl;
+    if (mounted) {
+      setState(() {
+        _currentUrl = loginUrl;
+        _errorMessage = null;
+        _progress = 0;
+      });
+    }
+    await _webViewController?.loadUrl(
+      urlRequest: URLRequest(url: WebUri(loginUrl)),
+    );
   }
 
   Future<void> _openUrlDialog() async {
@@ -301,6 +333,32 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
       );
     }
     return loggedIn;
+  }
+
+  Future<void> _syncStoredCookiesToWebView() async {
+    final stored = LocalStorageService.instance.getEsjCookie();
+    if (stored == null || stored.trim().isEmpty) return;
+    for (final entry in _parseCookieHeader(stored).entries) {
+      await _cookieManager.setCookie(
+        url: WebUri(EsjApi.baseUrl),
+        name: entry.key,
+        value: entry.value,
+        path: '/',
+        isSecure: true,
+      );
+    }
+  }
+
+  Map<String, String> _parseCookieHeader(String value) {
+    final result = <String, String>{};
+    for (final part in value.split(';')) {
+      final index = part.indexOf('=');
+      if (index <= 0) continue;
+      final key = part.substring(0, index).trim();
+      final cookieValue = part.substring(index + 1).trim();
+      if (key.isNotEmpty && cookieValue.isNotEmpty) result[key] = cookieValue;
+    }
+    return result;
   }
 
   Future<void> _openCurrentBookInReader() async {

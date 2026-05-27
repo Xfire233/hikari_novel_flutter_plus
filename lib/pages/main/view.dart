@@ -3,10 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/common/extension.dart';
 import 'package:hikari_novel_flutter/models/page_state.dart';
-import 'package:hikari_novel_flutter/network/wenku8_webview_transport.dart';
 import 'package:hikari_novel_flutter/pages/main/controller.dart';
 import 'package:hikari_novel_flutter/pages/novel_detail/controller.dart';
-import 'package:hikari_novel_flutter/service/local_storage_service.dart';
 import 'package:hikari_novel_flutter/widgets/wenku8_webview_transport_host.dart';
 
 import '../../common/common_widgets.dart';
@@ -22,9 +20,6 @@ class MainPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (LocalStorageService.instance.getWenku8CompatibilityMode()) {
-      Wenku8WebViewTransport.ensureHost();
-    }
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
