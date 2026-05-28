@@ -356,9 +356,9 @@ class HomeController extends GetxController {
   }) async {
     SourceConfigService.instance.enableSourceAfterLogin(value);
     if (activeSource != value) changeSource(value);
-    if (!syncFavorites) return null;
     await refreshSourceHome(value);
-    if (SourceConfigService.instance.shouldPullOnlineToLocal(value)) {
+    if (syncFavorites &&
+        SourceConfigService.instance.shouldPullOnlineToLocal(value)) {
       return syncSourceBookshelf(value);
     }
     return 'source_refresh_success'.trParams({'source': value.titleKey.tr});

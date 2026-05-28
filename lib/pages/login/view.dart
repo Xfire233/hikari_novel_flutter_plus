@@ -22,48 +22,18 @@ class LoginPage extends StatelessWidget {
           leading: CloseButton(onPressed: Get.back),
           title: Obx(() => Text(controller.currentUrl.value)),
           actions: controller.pageState.value == PageState.success
-              ? controller.accountMode
-                    ? [
-                        IconButton(
-                          onPressed: controller.relogin,
-                          icon: const Icon(Icons.login),
-                          tooltip: "source_relogin".tr,
-                        ),
-                        IconButton(
-                          onPressed: controller.confirmLoginAndReturn,
-                          icon: const Icon(Icons.verified_user),
-                          tooltip: "source_check_login_status".tr,
-                        ),
-                        IconButton(
-                          onPressed: controller.syncOnlineFavorites,
-                          icon: const Icon(Icons.cloud_download_outlined),
-                          tooltip: "source_sync_online_favorites".tr,
-                        ),
-                      ]
-                    : [
-                        IconButton(
-                          onPressed: () async {
-                            if (await controller.inAppWebViewController
-                                    ?.canGoBack() ==
-                                true) {
-                              controller.inAppWebViewController?.goBack();
-                            }
-                          },
-                          icon: Icon(Icons.arrow_upward),
-                          tooltip: "back_to_previous_web_page".tr,
-                        ),
-                        IconButton(
-                          onPressed: () =>
-                              controller.inAppWebViewController?.reload(),
-                          icon: Icon(Icons.refresh),
-                          tooltip: "refresh_web_page".tr,
-                        ),
-                        IconButton(
-                          onPressed: controller.confirmLoginAndReturn,
-                          icon: const Icon(Icons.check_circle_outline),
-                          tooltip: "confirm".tr,
-                        ),
-                      ]
+              ? [
+                  IconButton(
+                    onPressed: controller.confirmLoginAndReturn,
+                    icon: const Icon(Icons.verified_user_outlined),
+                    tooltip: "source_check_login_status".tr,
+                  ),
+                  IconButton(
+                    onPressed: controller.syncOnlineFavorites,
+                    icon: const Icon(Icons.cloud_download_outlined),
+                    tooltip: "source_sync_online_favorites".tr,
+                  ),
+                ]
               : [],
         ),
         body: Stack(

@@ -40,6 +40,7 @@ class LoginController extends GetxController {
   bool _handlingLogin = false;
   bool _initialLoadStarted = false;
   late final bool accountMode;
+  late final bool autoCloseOnLogin;
   late final String initialUrl;
 
   String get url => initialUrl;
@@ -49,6 +50,7 @@ class LoginController extends GetxController {
     super.onInit();
     final args = Get.arguments;
     accountMode = args is Map && args['accountMode'] == true;
+    autoCloseOnLogin = args is Map && args['autoCloseOnLogin'] == true;
     final argUrl = args is Map ? '${args['initialUrl'] ?? ''}' : '';
     initialUrl = argUrl.isNotEmpty
         ? argUrl
@@ -86,6 +88,9 @@ class LoginController extends GetxController {
     if (!uri.toString().contains("wenku8") || _handlingLogin) {
       return;
     }
+    if (autoCloseOnLogin) {
+      await _autoReturnIfLoggedIn(uri);
+    }
   }
 
   bool shouldPatchLoginPage(WebUri? uri) =>
@@ -112,7 +117,26 @@ class LoginController extends GetxController {
     await _runPostLoginStep("refresh Wenku8 user info", _getUserInfo);
 
     Get.back(
-      result: SourceLoginResult(loggedIn: true, syncFavorites: !accountMode),
+      result: const SourceLoginResult(loggedIn: true, syncFavorites: true),
+    );
+  }
+
+  Future<void> _autoReturnIfLoggedIn(WebUri uri) async {
+    await _syncBrowserUserAgent();
+    final cookie = await _buildWenku8BrowserCookie(
+      uri,
+      allowExistingLogin: true,
+    );
+    if (cookie == null || !_hasWenku8LoginCookie(cookie)) return;
+
+    _handlingLogin = true;
+    LocalStorageService.instance.setCookie(cookie);
+    SourceConfigService.instance.setSourceEnabled(NovelSource.wenku8, true);
+    Request.initCookie();
+
+    await _runPostLoginStep("refresh Wenku8 user info", _getUserInfo);
+    Get.back(
+      result: const SourceLoginResult(loggedIn: true, syncFavorites: true),
     );
   }
 

@@ -1,29 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
-import 'package:hikari_novel_flutter/common/database/database.dart';
 import 'package:hikari_novel_flutter/main.dart';
-import 'package:hikari_novel_flutter/models/book_tags.dart';
-import 'package:hikari_novel_flutter/models/resource.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
 import 'package:hikari_novel_flutter/models/source_id.dart';
 import 'package:hikari_novel_flutter/models/source_login_result.dart';
 import 'package:hikari_novel_flutter/network/esj_api.dart';
-import 'package:hikari_novel_flutter/network/esj_parser.dart';
 import 'package:hikari_novel_flutter/network/request.dart';
 import 'package:hikari_novel_flutter/pages/bookshelf/controller.dart';
 import 'package:hikari_novel_flutter/router/app_sub_router.dart';
-import 'package:hikari_novel_flutter/service/db_service.dart';
 import 'package:hikari_novel_flutter/service/local_storage_service.dart';
 import 'package:hikari_novel_flutter/service/source_config_service.dart';
-import 'package:hikari_novel_flutter/service/source_favorite_adapter.dart';
 import 'package:hikari_novel_flutter/widgets/state_page.dart';
 
 class EsjzoneWebPage extends StatefulWidget {
-  const EsjzoneWebPage({super.key, this.initialUrl, this.accountMode = false});
+  const EsjzoneWebPage({
+    super.key,
+    this.initialUrl,
+    this.accountMode = false,
+    this.autoCloseOnLogin = false,
+  });
 
   final String? initialUrl;
   final bool accountMode;
+  final bool autoCloseOnLogin;
 
   @override
   State<EsjzoneWebPage> createState() => _EsjzoneWebPageState();
@@ -36,6 +36,7 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
   String _title = 'ESJZone';
   double _progress = 0;
   bool _busy = false;
+  bool _returningLoginResult = false;
   String? _errorMessage;
 
   String? get _currentBookId => EsjApi.extractBookId(_currentUrl);
@@ -62,59 +63,18 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
         appBar: AppBar(
           title: Text(_title),
           titleSpacing: 16,
-          actions: widget.accountMode
-              ? [
-                  IconButton(
-                    onPressed: _relogin,
-                    icon: const Icon(Icons.login),
-                    tooltip: 'source_relogin'.tr,
-                  ),
-                  IconButton(
-                    onPressed: _confirmLoginAndClose,
-                    icon: const Icon(Icons.verified_user_outlined),
-                    tooltip: 'source_check_login_status'.tr,
-                  ),
-                  IconButton(
-                    onPressed: _syncFavorites,
-                    icon: const Icon(Icons.cloud_download_outlined),
-                    tooltip: 'source_sync_online_favorites'.tr,
-                  ),
-                ]
-              : [
-                  IconButton(
-                    onPressed: _webViewController?.reload,
-                    icon: const Icon(Icons.refresh),
-                  ),
-                  IconButton(
-                    onPressed: _confirmLoginAndClose,
-                    icon: const Icon(Icons.login),
-                    tooltip: 'esjzone_sync_login'.tr,
-                  ),
-                  IconButton(
-                    onPressed: _openUrlDialog,
-                    icon: const Icon(Icons.link),
-                    tooltip: 'ESJZone URL',
-                  ),
-                  PopupMenuButton<_EsjAction>(
-                    onSelected: _handleAction,
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: _EsjAction.reader,
-                        enabled: _currentBookId != null,
-                        child: Text('open_in_reader'.tr),
-                      ),
-                      PopupMenuItem(
-                        value: _EsjAction.favorite,
-                        enabled: _currentBookId != null,
-                        child: Text('favorite'.tr),
-                      ),
-                      PopupMenuItem(
-                        value: _EsjAction.syncFavorite,
-                        child: Text('sync_esj_favorites'.tr),
-                      ),
-                    ],
-                  ),
-                ],
+          actions: [
+            IconButton(
+              onPressed: _confirmLoginAndClose,
+              icon: const Icon(Icons.verified_user_outlined),
+              tooltip: 'source_check_login_status'.tr,
+            ),
+            IconButton(
+              onPressed: _syncFavorites,
+              icon: const Icon(Icons.cloud_download_outlined),
+              tooltip: 'source_sync_online_favorites'.tr,
+            ),
+          ],
         ),
         body: Stack(
           children: [
@@ -171,7 +131,10 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
                         setState(
                           () => _currentUrl = url?.toString() ?? _currentUrl,
                         );
-                        await _syncCookie(silent: true);
+                        final loggedIn = await _syncCookie(silent: true);
+                        if (loggedIn && widget.autoCloseOnLogin) {
+                          _returnLoginResult(syncFavorites: true);
+                        }
                       },
                       onProgressChanged: (_, progress) {
                         if (!mounted) return;
@@ -218,67 +181,18 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
     );
   }
 
-  Future<void> _handleAction(_EsjAction action) async {
-    switch (action) {
-      case _EsjAction.reader:
-        await _openCurrentBookInReader();
-      case _EsjAction.favorite:
-        await _favoriteCurrentBook();
-      case _EsjAction.syncFavorite:
-        await _syncFavorites();
-    }
-  }
-
   Future<void> _confirmLoginAndClose() async {
     final loggedIn = await _syncCookie();
     if (!mounted || !loggedIn) return;
-    Navigator.of(context).pop(
-      SourceLoginResult(loggedIn: true, syncFavorites: !widget.accountMode),
-    );
+    _returnLoginResult(syncFavorites: true);
   }
 
-  Future<void> _relogin() async {
-    await _cookieManager.deleteCookies(url: WebUri(EsjApi.baseUrl));
-    LocalStorageService.instance.setEsjCookie(null);
-    const loginUrl = EsjApi.baseUrl;
-    if (mounted) {
-      setState(() {
-        _currentUrl = loginUrl;
-        _errorMessage = null;
-        _progress = 0;
-      });
-    }
-    await _webViewController?.loadUrl(
-      urlRequest: URLRequest(url: WebUri(loginUrl)),
-    );
-  }
-
-  Future<void> _openUrlDialog() async {
-    final controller = TextEditingController(text: _currentUrl);
-    final url = await Get.dialog<String>(
-      AlertDialog(
-        title: const Text('ESJZone URL'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.url,
-        ),
-        actions: [
-          TextButton(onPressed: Get.back, child: Text('cancel'.tr)),
-          TextButton(
-            onPressed: () => Get.back(result: controller.text.trim()),
-            child: Text('confirm'.tr),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (url == null || url.isEmpty) return;
-    final bookId = EsjApi.extractBookId(url);
-    final target = bookId == null ? url : EsjApi.detailUrl(bookId);
-    await _webViewController?.loadUrl(
-      urlRequest: URLRequest(url: WebUri(target)),
-    );
+  void _returnLoginResult({required bool syncFavorites}) {
+    if (_returningLoginResult || !mounted) return;
+    _returningLoginResult = true;
+    Navigator.of(
+      context,
+    ).pop(SourceLoginResult(loggedIn: true, syncFavorites: syncFavorites));
   }
 
   Future<bool> _syncCookie({
@@ -368,59 +282,6 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
     AppSubRouter.toNovelDetail(aid: SourceId.esjAid(bookId));
   }
 
-  Future<void> _favoriteCurrentBook() async {
-    final bookId = _currentBookId;
-    if (bookId == null) return;
-    await _syncCookie(silent: true);
-    setState(() => _busy = true);
-    final result = await EsjApi.getNovelDetail(id: bookId);
-    if (!mounted) return;
-    setState(() => _busy = false);
-    switch (result) {
-      case Success():
-        final aid = SourceId.esjAid(bookId);
-        final detail = EsjParser.getNovelDetail(result.data, aid);
-        if (SourceFavoriteAdapter.shouldPushRemote(NovelSource.esj)) {
-          final pushed = await SourceFavoriteAdapter.addRemoteFavorite(
-            source: NovelSource.esj,
-            aid: aid,
-          );
-          if (!pushed) {
-            if (mounted) {
-              showErrorDialog('update_failed'.tr, [
-                TextButton(onPressed: Get.back, child: Text('confirm'.tr)),
-              ]);
-            }
-            return;
-          }
-        }
-        await DBService.instance.upsertBookshelf(
-          BookshelfEntityData(
-            aid: aid,
-            bid: aid,
-            url: EsjApi.detailUrl(bookId),
-            title: detail.title,
-            img: detail.imgUrl,
-            classId: BookshelfController.esjClassId,
-            updateKey: EsjParser.latestChapterCid(detail) ?? '',
-            updateTime: null,
-            hasUpdate: false,
-            rating: 0,
-            remoteTagsJson: BookTags.encode(detail.tags),
-            localTagsJson: BookTags.emptyJson,
-          ),
-        );
-        SourceConfigService.instance.restoreLocalFavorite(NovelSource.esj, aid);
-        if (mounted) showSnackBar(message: 'favorited'.tr, context: context);
-      case Error():
-        if (mounted) {
-          showErrorDialog(result.error.toString(), [
-            TextButton(onPressed: Get.back, child: Text('confirm'.tr)),
-          ]);
-        }
-    }
-  }
-
   Future<void> _syncFavorites() async {
     final loggedIn = await _syncCookie(silent: true);
     if (!loggedIn) {
@@ -442,5 +303,3 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
     }
   }
 }
-
-enum _EsjAction { reader, favorite, syncFavorite }

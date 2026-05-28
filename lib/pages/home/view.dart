@@ -1088,21 +1088,30 @@ Future<void> _openSourceLogin(BuildContext context, NovelSource source) async {
                 builder: (_) => const EsjzoneWebPage(
                   initialUrl: '${EsjApi.baseUrl}/my/view',
                   accountMode: true,
+                  autoCloseOnLogin: true,
                 ),
               ),
             )
           : await navigator.push<SourceLoginResult>(
-              MaterialPageRoute(builder: (_) => const EsjzoneWebPage()),
+              MaterialPageRoute(
+                builder: (_) => const EsjzoneWebPage(autoCloseOnLogin: true),
+              ),
             ),
     NovelSource.yamibo =>
       YamiboApi.hasCookie
           ? await navigator.push<YamiboWebLoginResult>(
               MaterialPageRoute(
-                builder: (_) => const YamiboWebLoginPage(accountMode: true),
+                builder: (_) => const YamiboWebLoginPage(
+                  accountMode: true,
+                  autoCloseOnLogin: true,
+                ),
               ),
             )
           : await navigator.push<YamiboWebLoginResult>(
-              MaterialPageRoute(builder: (_) => const YamiboWebLoginPage()),
+              MaterialPageRoute(
+                builder: (_) =>
+                    const YamiboWebLoginPage(autoCloseOnLogin: true),
+              ),
             ),
   };
   if (!context.mounted || result?.loggedIn != true) return;
@@ -1118,11 +1127,17 @@ Future<void> _openSourceLogin(BuildContext context, NovelSource source) async {
 Future<SourceLoginResult?> _openWenku8LoginOrAccount() async {
   final hasCookie =
       LocalStorageService.instance.getCookie()?.trim().isNotEmpty == true;
-  if (!hasCookie) return await Get.to<SourceLoginResult>(() => LoginPage());
+  if (!hasCookie) {
+    return await Get.to<SourceLoginResult>(
+      () => LoginPage(),
+      arguments: {'autoCloseOnLogin': true},
+    );
+  }
   return await Get.to<SourceLoginResult>(
     () => LoginPage(),
     arguments: {
       'accountMode': true,
+      'autoCloseOnLogin': true,
       'initialUrl': '${Api.wenku8Node.node}/userdetail.php',
     },
   );
@@ -1135,6 +1150,7 @@ Future<void> _openSourceWeb(BuildContext context, NovelSource source) async {
       () => LoginPage(),
       arguments: {
         'accountMode': true,
+        'autoCloseOnLogin': false,
         'initialUrl': '${Api.wenku8Node.node}/userdetail.php',
       },
     ),

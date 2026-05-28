@@ -548,7 +548,9 @@ class _YamiboForumPageState extends State<YamiboForumPage> {
   Future<void> _openWebLogin() async {
     final result = await Navigator.of(context, rootNavigator: true)
         .push<YamiboWebLoginResult>(
-          MaterialPageRoute(builder: (_) => const YamiboWebLoginPage()),
+          MaterialPageRoute(
+            builder: (_) => const YamiboWebLoginPage(autoCloseOnLogin: true),
+          ),
         );
     if (result?.loggedIn == true) {
       SourceConfigService.instance.enableSourceAfterLogin(NovelSource.yamibo);
@@ -695,10 +697,12 @@ class YamiboWebLoginPage extends StatefulWidget {
     super.key,
     this.initialUrl,
     this.accountMode = false,
+    this.autoCloseOnLogin = false,
   });
 
   final String? initialUrl;
   final bool accountMode;
+  final bool autoCloseOnLogin;
 
   @override
   State<YamiboWebLoginPage> createState() => _YamiboWebLoginPageState();
@@ -706,9 +710,9 @@ class YamiboWebLoginPage extends StatefulWidget {
 
 class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
   final _cookieManager = CookieManager.instance();
-  InAppWebViewController? _webViewController;
   double _progress = 0;
   String _title = 'Yamibo';
+  bool _returningLoginResult = false;
   String get _initialUrl =>
       widget.initialUrl ?? '${YamiboApi.baseUrl}/forum.php?mobile=2';
 
@@ -727,34 +731,18 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(_title),
-          actions: widget.accountMode
-              ? [
-                  IconButton(
-                    onPressed: _relogin,
-                    icon: const Icon(Icons.login),
-                    tooltip: 'source_relogin'.tr,
-                  ),
-                  IconButton(
-                    onPressed: _syncAndCloseIfLoggedIn,
-                    icon: const Icon(Icons.verified_user_outlined),
-                    tooltip: 'source_check_login_status'.tr,
-                  ),
-                  IconButton(
-                    onPressed: _syncFavorites,
-                    icon: const Icon(Icons.cloud_download_outlined),
-                    tooltip: 'source_sync_online_favorites'.tr,
-                  ),
-                ]
-              : [
-                  IconButton(
-                    onPressed: _webViewController?.reload,
-                    icon: const Icon(Icons.refresh),
-                  ),
-                  TextButton(
-                    onPressed: _syncAndCloseIfLoggedIn,
-                    child: Text('confirm'.tr),
-                  ),
-                ],
+          actions: [
+            IconButton(
+              onPressed: _syncAndCloseIfLoggedIn,
+              icon: const Icon(Icons.verified_user_outlined),
+              tooltip: 'source_check_login_status'.tr,
+            ),
+            IconButton(
+              onPressed: _syncFavorites,
+              icon: const Icon(Icons.cloud_download_outlined),
+              tooltip: 'source_sync_online_favorites'.tr,
+            ),
+          ],
         ),
         body: Column(
           children: [
@@ -775,7 +763,6 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
                   userAgent: Request.userAgent.values.first,
                 ),
                 onWebViewCreated: (controller) async {
-                  _webViewController = controller;
                   if (widget.accountMode) {
                     await _syncStoredCookiesToWebView();
                   }
@@ -793,7 +780,10 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
                 },
                 onLoadStop: (_, url) async {
                   if (url?.scheme == 'about') return;
-                  await _syncCookie(silent: true);
+                  final loggedIn = await _syncCookie(silent: true);
+                  if (loggedIn && widget.autoCloseOnLogin) {
+                    _returnLoginResult(syncFavorites: true);
+                  }
                 },
                 onProgressChanged: (_, progress) {
                   if (!mounted) return;
@@ -810,23 +800,15 @@ class _YamiboWebLoginPageState extends State<YamiboWebLoginPage> {
   Future<void> _syncAndCloseIfLoggedIn() async {
     final loggedIn = await _syncCookie();
     if (!mounted || !loggedIn) return;
-    Navigator.of(context).pop(
-      YamiboWebLoginResult(loggedIn: true, syncFavorites: !widget.accountMode),
-    );
+    _returnLoginResult(syncFavorites: true);
   }
 
-  Future<void> _relogin() async {
-    await _cookieManager.deleteCookies(url: WebUri(YamiboApi.baseUrl));
-    LocalStorageService.instance.setYamiboCookie(null);
-    final loginUrl = '${YamiboApi.baseUrl}/forum.php?mobile=2';
-    if (mounted) {
-      setState(() {
-        _progress = 0;
-      });
-    }
-    await _webViewController?.loadUrl(
-      urlRequest: URLRequest(url: WebUri(loginUrl)),
-    );
+  void _returnLoginResult({required bool syncFavorites}) {
+    if (_returningLoginResult || !mounted) return;
+    _returningLoginResult = true;
+    Navigator.of(
+      context,
+    ).pop(YamiboWebLoginResult(loggedIn: true, syncFavorites: syncFavorites));
   }
 
   Future<void> _syncFavorites() async {
