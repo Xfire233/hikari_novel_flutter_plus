@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hikari_novel_flutter/network/esj_api.dart';
 import 'package:hikari_novel_flutter/network/esj_parser.dart';
 
 void main() {
@@ -59,4 +60,30 @@ void main() {
 
     expect(EsjParser.accountName(html), 'X_fire233');
   });
+
+  test('does not treat ESJ anonymous page cookies as login', () {
+    const cookie =
+        'ews_key=anonymous-key; ews_token=anonymous-token; msg_alert=10; '
+        '_ga=GA1.1.1884332359.1779966844; hidden=value';
+
+    expect(EsjApi.isAuthenticatedCookie(cookie), isFalse);
+  });
+
+  test(
+    'treats protected ESJ account pages as authenticated session evidence',
+    () {
+      expect(
+        EsjApi.isAuthenticatedAccountUrl('https://www.esjzone.one/my/profile'),
+        isTrue,
+      );
+      expect(
+        EsjApi.isAuthenticatedAccountUrl('https://www.esjzone.one/my/view'),
+        isTrue,
+      );
+      expect(
+        EsjApi.isAuthenticatedAccountUrl('https://www.esjzone.one/my/login'),
+        isFalse,
+      );
+    },
+  );
 }

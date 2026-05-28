@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 import 'package:hikari_novel_flutter/models/source_config.dart';
+import 'package:hikari_novel_flutter/network/esj_api.dart';
 import 'package:hikari_novel_flutter/service/local_storage_service.dart';
 
 class SourceConfigService extends GetxService {
@@ -120,7 +121,7 @@ class SourceConfigService extends GetxService {
     final storage = LocalStorageService.instance;
     return switch (source) {
       NovelSource.wenku8 => storage.getCookie() != null,
-      NovelSource.esj => storage.getEsjCookie() != null,
+      NovelSource.esj => EsjApi.hasCookie,
       NovelSource.yamibo => storage.getYamiboCookie() != null,
     };
   }

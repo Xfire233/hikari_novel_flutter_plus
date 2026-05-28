@@ -6,6 +6,7 @@ import 'package:hikari_novel_flutter/models/source_config.dart';
 import 'package:hikari_novel_flutter/models/source_id.dart';
 import 'package:hikari_novel_flutter/models/source_login_result.dart';
 import 'package:hikari_novel_flutter/network/esj_api.dart';
+import 'package:hikari_novel_flutter/network/esj_parser.dart';
 import 'package:hikari_novel_flutter/network/request.dart';
 import 'package:hikari_novel_flutter/pages/bookshelf/controller.dart';
 import 'package:hikari_novel_flutter/router/app_sub_router.dart';
@@ -215,9 +216,10 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
       }
       return false;
     }
-    final loggedIn = EsjApi.isAuthenticatedCookie(cookie);
+    final loggedIn = await _hasAuthenticatedSession(cookie);
     if (loggedIn) {
       LocalStorageService.instance.setEsjCookie(cookie);
+      LocalStorageService.instance.setEsjLoginVerified(true);
       SourceConfigService.instance.setSourceEnabled(NovelSource.esj, true);
     } else {
       if (!silent || LocalStorageService.instance.getEsjCookie() != null) {
@@ -247,6 +249,14 @@ class _EsjzoneWebPageState extends State<EsjzoneWebPage> {
       );
     }
     return loggedIn;
+  }
+
+  Future<bool> _hasAuthenticatedSession(String cookie) async {
+    if (EsjApi.isAuthenticatedCookie(cookie)) return true;
+    if (EsjApi.isAuthenticatedAccountUrl(_currentUrl)) return true;
+    final html = await _webViewController?.getHtml();
+    if (html == null || html.trim().isEmpty) return false;
+    return EsjParser.accountName(html).isNotEmpty;
   }
 
   Future<void> _syncStoredCookiesToWebView() async {

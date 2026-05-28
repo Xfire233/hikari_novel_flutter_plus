@@ -120,13 +120,48 @@ class EsjApi {
   }
 
   static bool get hasCookie {
-    return isAuthenticatedCookie(LocalStorageService.instance.getEsjCookie());
+    final storage = LocalStorageService.instance;
+    return storage.getEsjLoginVerified() &&
+        (storage.getEsjCookie()?.trim().isNotEmpty == true);
   }
 
   static bool isAuthenticatedCookie(String? cookie) {
-    return cookie != null &&
-        cookie.contains('ews_key=') &&
-        cookie.contains('ews_token=');
+    if (cookie == null || cookie.trim().isEmpty) return false;
+    final names = cookie
+        .split(';')
+        .map((part) => part.split('=').first.trim().toLowerCase())
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    names.removeAll({
+      'ews_key',
+      'ews_token',
+      'msg_alert',
+      'hidden',
+      '_ga',
+      '_gid',
+      '_gat',
+      '_ga_6n355xr0y6',
+    });
+    return names.any(
+      (name) =>
+          name.contains('auth') ||
+          name.contains('member') ||
+          name.contains('remember') ||
+          name.contains('user') ||
+          name.contains('login') ||
+          name.contains('session'),
+    );
+  }
+
+  static bool isAuthenticatedAccountUrl(String? url) {
+    final uri = Uri.tryParse(url?.trim() ?? '');
+    if (uri == null) return false;
+    final host = uri.host.toLowerCase();
+    if (host != 'www.esjzone.one' && host != 'esjzone.one') return false;
+    final path = uri.path.toLowerCase();
+    return path == '/my/profile' ||
+        path == '/my/view' ||
+        path.startsWith('/my/favorite/');
   }
 
   static Map<String, String> _headers() {

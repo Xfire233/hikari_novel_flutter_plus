@@ -26,6 +26,7 @@ class LocalStorageService extends GetxService {
   kWenku8UserAgent = "wenku8UserAgent",
   kYamiboCookie = "yamiboCookie",
   kEsjCookie = "esjCookie",
+  kEsjLoginVerified = "esjLoginVerified",
   kUserInfo = "user_info",
   kLanguage = "language",
   kWenku8Node = "wenku8Node",
@@ -130,11 +131,29 @@ class LocalStorageService extends GetxService {
   String? getYamiboCookie() => _loginInfo.get(kYamiboCookie);
 
   void setEsjCookie(String? value) {
-    _loginInfo.put(kEsjCookie, value);
+    final normalized = value?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      _loginInfo.delete(kEsjCookie);
+      _loginInfo.delete(kEsjLoginVerified);
+      loginRevision.value++;
+      return;
+    }
+    _loginInfo.put(kEsjCookie, normalized);
     loginRevision.value++;
   }
 
   String? getEsjCookie() => _loginInfo.get(kEsjCookie);
+
+  void setEsjLoginVerified(bool value) {
+    if (value) {
+      _loginInfo.put(kEsjLoginVerified, true);
+    } else {
+      _loginInfo.delete(kEsjLoginVerified);
+    }
+    loginRevision.value++;
+  }
+
+  bool getEsjLoginVerified() => _loginInfo.get(kEsjLoginVerified) == true;
 
   void setUserInfo(UserInfo value) {
     _setting.put(kUserInfo, value);
